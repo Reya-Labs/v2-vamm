@@ -22,13 +22,18 @@ abstract contract IRSVamm is VAMMBase {
       )
   {
 
-      fixedTokenDelta = FixedAndVariableMath.getFixedTokenBalance(
-        step.fixedTokenDeltaUnbalanced,
-        step.variableTokenDelta,
-        state.variableFactorWad,
-        termStartTimestampWad, // TODO: modify
-        termEndTimestampWad
-      );
+      int24 averagePrice = (priceAtTick(state.tick) + priceAtTick(step.nextTick)) / 2;
+      uint256 timeDeltaUntilMaturity = FixedAndVariableMath.accrualFact(termEndTimestampWad - Time.blockTimestampScaled()); 
+
+      fixedTokenDelta = -FullMath.mulDiv(
+            step.fixedTokenDeltaUnbalanced,
+            oracle.latest(),
+            1e18
+        ) * (FullMath.mulDiv(
+                averagePrice,
+                timeDeltaUntilMaturity,
+                1e18
+            ) + 1e18);
 
       stateVariableTokenGrowthGlobalX128 = state.variableTokenGrowthGlobalX128 + FullMath.mulDivSigned(step.variableTokenDelta, FixedPoint128.Q128, state.liquidity);
 
@@ -41,6 +46,10 @@ abstract contract IRSVamm is VAMMBase {
     int128 baseAmount
   ) internal override returns(int128) {
     return base / (tick_upper - tick_lower);
+  }
+
+  function priceAtTick(int24 tick) internal returns(int128) {
+    return tick / 100000;
   }
 
 }

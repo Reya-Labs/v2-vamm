@@ -379,10 +379,8 @@ abstract contract VAMMBase is IVAMMBase {
         })
       );
 
-      // exact input
-      /// prb math is not used in here (following v3 logic)
-      state.amountSpecifiedRemaining += advanceRight ? -(step.amountIn).toInt256 : step.amountOut.toInt256(); // this value is positive
-      state.amountCalculated += advanceRight ? -(step.amountOut).toInt256 : step.amountIn.toInt256(); // this value is negative
+      state.amountSpecifiedRemaining += advanceRight ? -(step.amountIn).toInt256 : step.amountOut.toInt256();
+      state.amountCalculated += advanceRight ? -(step.amountOut).toInt256 : step.amountIn.toInt256();
 
       if(advanceRight) {
         // LP is a Variable Taker
@@ -399,7 +397,7 @@ abstract contract VAMMBase is IVAMMBase {
           state.variableTokenGrowthGlobalX128,
           state.fixedTokenGrowthGlobalX128,
           step.fixedTokenDelta // for LP
-        ) = calculateUpdatedGlobalTrackerValues( // abstract
+        ) = calculateUpdatedGlobalTrackerValues( //
           state,
           step
         );
@@ -470,39 +468,6 @@ abstract contract VAMMBase is IVAMMBase {
     );
 
     _unlocked = true;
-  }
-
-  /// @inheritdoc IVAMMBase
-  function computeGrowthInside(
-    int24 tickLower,
-    int24 tickUpper
-  )
-    external
-    view
-    override
-    returns (int256 fixedTokenGrowthInsideX128, int256 variableTokenGrowthInsideX128)
-  {
-
-    Tick.checkTicks(tickLower, tickUpper);
-
-    fixedTokenGrowthInsideX128 = _ticks.getFixedTokenGrowthInside(
-      Tick.FixedTokenGrowthInsideParams({
-        tickLower: tickLower,
-        tickUpper: tickUpper,
-        tickCurrent: _vammVars.tick,
-        fixedTokenGrowthGlobalX128: _fixedTokenGrowthGlobalX128
-      })
-    );
-
-    variableTokenGrowthInsideX128 = _ticks.getVariableTokenGrowthInside(
-      Tick.VariableTokenGrowthInsideParams({
-        tickLower: tickLower,
-        tickUpper: tickUpper,
-        tickCurrent: _vammVars.tick,
-        variableTokenGrowthGlobalX128: _variableTokenGrowthGlobalX128
-      })
-    );
-
   }
 
   function checksBeforeSwap(
