@@ -39,11 +39,11 @@ library VAMM {
          */
         address owner;
 
-        address gwapOracle;
+        address gtwapOracle;
         uint256 termEndTimestampWad;
         uint128 _maxLiquidityPerTick;
         bool _unlocked; // Mutex
-        uint128 _liquidity;
+        uint128 _accumulator;
         uint256 _protocolFees;
         int256 _fixedTokenGrowthGlobalX128;
         int256 _variableTokenGrowthGlobalX128;

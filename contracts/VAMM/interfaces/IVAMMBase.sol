@@ -66,11 +66,6 @@ interface IVAMMBase is IVAMM, CustomErrors {
         int24 tickUpper;
     }
 
-    struct SwapCache {
-        /// @dev liquidity at the beginning of the swap
-        uint128 liquidityStart;
-    }
-
     /// @dev the top level state of the swap, the results of which are recorded in storage at the end
     struct SwapState {
         /// @dev the amount remaining to be swapped in/out of the input/output asset
@@ -86,7 +81,7 @@ interface IVAMMBase is IVAMM, CustomErrors {
         /// @dev the global variable token growth
         int256 variableTokenGrowthGlobalX128;
         /// @dev the current liquidity in range
-        uint128 liquidity;
+        uint128 accumulator;
         /// @dev fixedTokenDelta that will be applied to the fixed token balance of the position executing the swap (recipient)
         int256 fixedTokenDeltaCumulative;
         /// @dev variableTokenDelta that will be applied to the variable token balance of the position executing the swap (recipient)
@@ -160,7 +155,7 @@ interface IVAMMBase is IVAMM, CustomErrors {
     function variableTokenGrowthGlobalX128() external view returns (int256);
 
     /// @notice The currently in range liquidity available to the vamm
-    function liquidity() external view returns (uint128);
+    function accumulator() external view returns (uint128);
 
     /// @notice Sets the initial price for the vamm
     /// @dev Price is represented as a sqrt(amountVariableToken/amountFixedToken) Q64.96 value
@@ -218,9 +213,9 @@ interface IVAMMBase is IVAMM, CustomErrors {
 
     
     /// @notice refreshes the Rate Oracle attached to the Margin Engine
-    function refreshGTWAPOracle() external;
+    function refreshGTWAPOracle(address _gtwapOracle) external;
 
     /// @notice The rateOracle contract which lets the protocol access historical apys in the yield bearing pools it is built on top of
     /// @return The underlying ERC20 token (e.g. USDC)
-    function getGTWAPOracle() external view returns (address);
+    function GTWAPOracle() external view returns (address);
 }

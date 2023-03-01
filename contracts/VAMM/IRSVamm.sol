@@ -16,7 +16,6 @@ abstract contract IRSVamm is VAMMBase {
       internal
       view
       returns (
-          uint256 stateFeeGrowthGlobalX128,
           int256 stateVariableTokenGrowthGlobalX128,
           int256 stateFixedTokenGrowthGlobalX128,
           int256 fixedTokenDelta// for LP
@@ -34,6 +33,14 @@ abstract contract IRSVamm is VAMMBase {
       stateVariableTokenGrowthGlobalX128 = state.variableTokenGrowthGlobalX128 + FullMath.mulDivSigned(step.variableTokenDelta, FixedPoint128.Q128, state.liquidity);
 
       stateFixedTokenGrowthGlobalX128 = state.fixedTokenGrowthGlobalX128 + FullMath.mulDivSigned(fixedTokenDelta, FixedPoint128.Q128, state.liquidity);
+  }
+
+  function averageBase(
+    int24 tickLower,
+    int24 tickUpper,
+    int128 baseAmount
+  ) internal override returns(int128) {
+    return base / (tick_upper - tick_lower);
   }
 
 }

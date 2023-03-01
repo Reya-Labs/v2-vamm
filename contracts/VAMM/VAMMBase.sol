@@ -9,7 +9,7 @@ import "./core_libraries/TickBitmap.sol";
 import "./utils/SafeCastUni.sol";
 import "./utils/SqrtPriceMath.sol";
 import "./core_libraries/SwapMath.sol";
-//import "./interfaces/rate_oracles/IgwapOracle.sol";
+//import "./interfaces/rate_oracles/IgtwapOracle.sol";
 //import "./interfaces/IERC20Minimal.sol";
 //import "./interfaces/IFactory.sol";
 import "prb-math/contracts/PRBMathUD60x18.sol";
@@ -67,7 +67,7 @@ abstract contract VAMMBase is IVAMMBase {
   constructor () initializer {}
 
   /// @inheritdoc IVAMMBase
-  function initialize(address _gwapOracle, uint256 _termEndTimestampWad, int24 __tickSpacing) external override initializer {
+  function initialize(address _gtwapOracle, uint256 _termEndTimestampWad, int24 __tickSpacing) external override initializer {
 
     require(address(__marginEngine) != address(0), "ME = 0");
     // tick spacing is capped at 16384 to prevent the situation where tickSpacing is so large that
@@ -75,7 +75,7 @@ abstract contract VAMMBase is IVAMMBase {
     // 16384 ticks represents a >5x price change with ticks of 1 bips
     require(__tickSpacing > 0 && __tickSpacing < Tick.MAXIMUM_TICK_SPACING, "TSOOB");
 
-    gwapOracle = _gwapOracle;
+    gtwapOracle = _gtwapOracle;
     _tickSpacing = __tickSpacing;
     _maxLiquidityPerTick = Tick.tickSpacingToMaxLiquidityPerTick(_tickSpacing);
     termEndTimestampWad = _termEndTimestampWad;
@@ -84,73 +84,13 @@ abstract contract VAMMBase is IVAMMBase {
     __UUPSUpgradeable_init();
   }
 
-  // To authorize the owner to upgrade the contract we implement _authorizeUpgrade with the onlyOwner modifier.
-  // ref: https://forum.openzeppelin.com/t/uups-proxies-tutorial-solidity-javascript/7786
-  function _authorizeUpgrade(address) internal override onlyOwner {}
-
   /// @inheritdoc IVAMMBase
-  function writeToGwapOracle(address _gwapOracle)
+  function refreshGTWAPOracle(address _gtwapOracle)
       external
       override
       onlyOwner
   {
-      gwapOracle = _gwapOracle;
-  }
-
-  /// @inheritdoc IVAMMBase
-    function getGwapOracle() external view override returns (IgwapOracle) {
-        return gwapOracle;
-    }
-
-
-  // GETTERS FOR STORAGE SLOTS
-
-  /// @inheritdoc IVAMMBase
-  function tickSpacing() external view override returns (int24) {
-      return _tickSpacing;
-  }
-  /// @inheritdoc IVAMMBase
-  function maxLiquidityPerTick() external view override returns (uint128) {
-      return _maxLiquidityPerTick;
-  }
-  /// @inheritdoc IVAMMBase
-  function fixedTokenGrowthGlobalX128() external view override returns (int256) {
-      return _fixedTokenGrowthGlobalX128;
-  }
-  /// @inheritdoc IVAMMBase
-  function variableTokenGrowthGlobalX128() external view override returns (int256) {
-      return _variableTokenGrowthGlobalX128;
-  }
-  /// @inheritdoc IVAMMBase
-  function liquidity() external view override returns (uint128) {
-      return _liquidity;
-  }
-  /// @inheritdoc IVAMMBase
-  function ticks(int24 tick)
-    external
-    view
-    override
-    returns (Tick.Info memory) {
-    return _ticks[tick];
-  }
-  /// @inheritdoc IVAMMBase
-  function tickBitmap(int16 wordPosition) external view override returns (uint256) {
-    return _tickBitmap[wordPosition];
-  }
-  /// @inheritdoc IVAMMBase
-  function vammVars() external view override returns (VAMMVars memory) {
-      return _vammVars;
-  }
-
-  function updateProtocolFees(uint256 protocolFeesCollected)
-    external
-    override
-    onlyMarginEngine
-  {
-    if (_protocolFees < protocolFeesCollected) {
-      revert CustomErrors.NotEnoughFunds(protocolFeesCollected, _protocolFees);
-    }
-    _protocolFees -= protocolFeesCollected;
+      gtwapOracle = _gtwapOracle;
   }
 
   /// @dev not locked because it initializes unlocked
@@ -171,7 +111,7 @@ abstract contract VAMMBase is IVAMMBase {
 
     _vammVars = VAMMVars({ sqrtPriceX96: sqrtPriceX96, tick: tick});
 
-    gwapOracle.update_oracle(tick); // TODO: implement GWAP Oracle
+    gtwapOracle.update_oracle(tick); // TODO: implement GWAP Oracle
 
     _unlocked = true;
 
@@ -190,7 +130,7 @@ abstract contract VAMMBase is IVAMMBase {
     flippedLower = _ticks.update(
       params.tickLower,
       _vammVars.tick,
-      params.liquidityDelta,
+      params.accumulatorDelta,
       _fixedTokenGrowthGlobalX128,
       _variableTokenGrowthGlobalX128,
       false,
@@ -201,7 +141,7 @@ abstract contract VAMMBase is IVAMMBase {
     flippedUpper = _ticks.update(
       params.tickUpper,
       _vammVars.tick,
-      params.liquidityDelta,
+      params.accumulatorDelta,
       _fixedTokenGrowthGlobalX128,
       _variableTokenGrowthGlobalX128,
       true,
@@ -218,63 +158,61 @@ abstract contract VAMMBase is IVAMMBase {
   }
 
 
-  function updatePosition(ModifyPositionParams memory params) private returns(int256 positionMarginRequirement) {
+//   function updatePosition(ModifyPositionParams memory params) private returns(int256 positionMarginRequirement) {
 
-    /// @dev give a more descriptive name
+//     /// @dev give a more descriptive name
 
-    Tick.checkTicks(params.tickLower, params.tickUpper);
+//     Tick.checkTicks(params.tickLower, params.tickUpper);
 
-    VAMMVars memory lvammVars = _vammVars; // SLOAD for gas optimization
+//     VAMMVars memory lvammVars = _vammVars; // SLOAD for gas optimization
 
-    bool flippedLower;
-    bool flippedUpper;
+//     bool flippedLower;
+//     bool flippedUpper;
 
-    /// @dev update the ticks if necessary
-    if (params.liquidityDelta != 0) {
-      (flippedLower, flippedUpper) = flipTicks(params);
-    }
+//     /// @dev update the ticks if necessary
+//     if (params.liquidityDelta != 0) {
+//       (flippedLower, flippedUpper) = flipTicks(params);
+//     }
 
-    positionMarginRequirement = 0;
-    if (msg.sender != address(_marginEngine)) {
-      // this only happens if the margin engine triggers a liquidation which in turn triggers a burn
-      // the state updated in the margin engine in that case are done directly in the liquidatePosition function
-      positionMarginRequirement = _marginEngine.updatePositionPostVAMMInducedMintBurn(params);
-    }
+//     positionMarginRequirement = 0;
+//     if (msg.sender != address(_marginEngine)) {
+//       // this only happens if the margin engine triggers a liquidation which in turn triggers a burn
+//       // the state updated in the margin engine in that case are done directly in the liquidatePosition function
+//       positionMarginRequirement = _marginEngine.updatePositionPostVAMMInducedMintBurn(params);
+//     }
 
-    // clear any tick data that is no longer needed
-    if (params.liquidityDelta < 0) {
-      if (flippedLower) {
-        _ticks.clear(params.tickLower);
-      }
-      if (flippedUpper) {
-        _ticks.clear(params.tickUpper);
-      }
-    }
+//     // clear any tick data that is no longer needed
+//     if (params.liquidityDelta < 0) {
+//       if (flippedLower) {
+//         _ticks.clear(params.tickLower);
+//       }
+//       if (flippedUpper) {
+//         _ticks.clear(params.tickUpper);
+//       }
+//     }
 
-    gwapOracle.writeOracleEntry();
+//     gtwapOracle.writeOracleEntry();
 
-    if (params.liquidityDelta != 0) {
-      if (
-        (lvammVars.tick >= params.tickLower) && (lvammVars.tick < params.tickUpper)
-      ) {
-        // current tick is inside the passed range
-        uint128 liquidityBefore = _liquidity; // SLOAD for gas optimization
+//     if (params.liquidityDelta != 0) {
+//       if (
+//         (lvammVars.tick >= params.tickLower) && (lvammVars.tick < params.tickUpper)
+//       ) {
+//         // current tick is inside the passed range
+//         uint128 liquidityBefore = _liquidity; // SLOAD for gas optimization
 
-        _liquidity = LiquidityMath.addDelta(
-          liquidityBefore,
-          params.liquidityDelta
-        );
-      }
-    }
-  }
+//         _liquidity = LiquidityMath.addDelta(
+//           liquidityBefore,
+//           params.liquidityDelta
+//         );
+//       }
+//     }
+//   }
 
   function averageBase(
     int24 tickLower,
     int24 tickUpper,
-    uint128 baseAmount
-  ) internal retrun (uint128) {
-    return base / (tick_upper - tick_lower);
-  }
+    int128 baseAmount
+  ) external virtual returns(int128);
 
   /// @inheritdoc IVAMMBase
   function mint(
@@ -293,17 +231,16 @@ abstract contract VAMMBase is IVAMMBase {
     bool flippedLower;
     bool flippedUpper;
 
-    uint128 average_base = averageBase(tickLower, tickUpper, baseAmount);
-    int128 liquidityDelta = int256(uint256(average_base)).toInt128();
+    int128 averageBase = averageBase(tickLower, tickUpper, baseAmount);
 
     /// @dev update the ticks if necessary
-    if (params.liquidityDelta != 0) {
+    if (averageBase != 0) {
       (flippedLower, flippedUpper) = flipTicks(
         FlipTicksParams({
             owner: recipient,
             tickLower: tickLower,
             tickUpper: tickUpper,
-            deltaAccumulator: int256(uint256(average_base)).toInt128()
+            deltaAccumulator: averageBase
         })
       );
     }
@@ -317,7 +254,7 @@ abstract contract VAMMBase is IVAMMBase {
     // }
 
     // clear any tick data that is no longer needed
-    if (params.liquidityDelta < 0) {
+    if (averageBase < 0) {
       if (flippedLower) {
         _ticks.clear(params.tickLower);
       }
@@ -326,16 +263,16 @@ abstract contract VAMMBase is IVAMMBase {
       }
     }
 
-    if (params.liquidityDelta != 0) {
+    if (averageBase != 0) {
       if (
         (lvammVars.tick >= params.tickLower) && (lvammVars.tick < params.tickUpper)
       ) {
         // current tick is inside the passed range
-        uint128 liquidityBefore = _liquidity; // SLOAD for gas optimization
+        uint128 accumulatorBefore = _accumulator; // SLOAD for gas optimization
 
-        _liquidity = LiquidityMath.addDelta(
-          liquidityBefore,
-          params.liquidityDelta
+        _accumulator = LiquidityMath.addDelta(
+          accumulatorBefore,
+          averageBase
         );
       }
     }
@@ -366,16 +303,14 @@ abstract contract VAMMBase is IVAMMBase {
     /// @dev lock the vamm while the swap is taking place
     _unlocked = false;
 
-    SwapCache memory cache = SwapCache({
-      liquidityStart: _liquidity
-    });
+    uint128 accumulatorStart = _accumulator;
 
     SwapState memory state = SwapState({
       amountSpecifiedRemaining: params.amountSpecified, // base ramaining
       amountCalculated: 0, // ?
       sqrtPriceX96: vammVarsStart.sqrtPriceX96, // ? current tick?
       tick: vammVarsStart.tick,
-      liquidity: cache.liquidityStart,
+      accumulator: cache.accumulatorStart,
       fixedTokenGrowthGlobalX128: _fixedTokenGrowthGlobalX128,
       variableTokenGrowthGlobalX128: _variableTokenGrowthGlobalX128,
       fixedTokenDeltaCumulative: 0, // for Trader (user invoking the swap)
@@ -385,7 +320,7 @@ abstract contract VAMMBase is IVAMMBase {
 
     /// @dev write an entry to the rate oracle (given no throttling)
 
-    // gwapOracle.update_oracle(_vammVars.tick);
+    // gtwapOracle.update_oracle(_vammVars.tick);
 
     // continue swapping as long as we haven't used the entire input/output and haven't reached the price (implied fixed rate) limit
     bool advanceRight = params.amountSpecified > 0;
@@ -395,6 +330,8 @@ abstract contract VAMMBase is IVAMMBase {
       state.sqrtPriceX96 != params.sqrtPriceLimitX96
     ) {
       StepComputations memory step;
+
+      ///// GET NEXT TICK /////
 
       step.sqrtPriceStartX96 = state.sqrtPriceX96;
 
@@ -411,10 +348,8 @@ abstract contract VAMMBase is IVAMMBase {
       if (!advanceRight && step.tickNext < TickMath.MIN_TICK) {
         step.tickNext = TickMath.MIN_TICK;
       }
-
       // get the price for the next tick
       step.sqrtPriceNextX96 = TickMath.getSqrtRatioAtTick(step.tickNext);
-
       // FT
       uint160 sqrtRatioTargetX96 = step.sqrtPriceNextX96 > params.sqrtPriceLimitX96
               ? params.sqrtPriceLimitX96
@@ -438,7 +373,7 @@ abstract contract VAMMBase is IVAMMBase {
         SwapMath.SwapStepParams({
             sqrtRatioCurrentX96: state.sqrtPriceX96,
             sqrtRatioTargetX96: sqrtRatioTargetX96,
-            liquidity: state.liquidity,
+            accumulator: state.accumulator,
             amountRemaining: state.amountSpecifiedRemaining,
             timeToMaturityInSecondsWad: termEndTimestampWad - Time.blockTimestampScaled()
         })
@@ -459,7 +394,7 @@ abstract contract VAMMBase is IVAMMBase {
         step.fixedTokenDeltaUnbalanced += step.amountIn.toInt256();
       }
 
-      if (state.liquidity > 0) {
+      if (state.accumulator > 0) {
         (
           state.variableTokenGrowthGlobalX128,
           state.fixedTokenGrowthGlobalX128,
@@ -480,15 +415,15 @@ abstract contract VAMMBase is IVAMMBase {
       if (state.sqrtPriceX96 == step.sqrtPriceNextX96) {
         // if the tick is initialized, run the tick transition
         if (step.initialized) {
-          int128 liquidityNet = _ticks.cross(
+          int128 accumulatorNet = _ticks.cross(
             step.tickNext,
             state.fixedTokenGrowthGlobalX128,
             state.variableTokenGrowthGlobalX128
           );
 
-          state.liquidity = LiquidityMath.addDelta(
-            state.liquidity,
-            advanceRight ? liquidityNet : -liquidityNet
+          state.accumulator = LiquidityMath.addDelta(
+            state.accumulator,
+            advanceRight ? accumulatorNet : -accumulatorNet
           );
 
         }
@@ -507,7 +442,7 @@ abstract contract VAMMBase is IVAMMBase {
     }
 
     // update liquidity if it changed
-    if (cache.liquidityStart != state.liquidity) _liquidity = state.liquidity;
+    if (cache.accumulatorStart != state.accumulator) _accumulator = state.accumulator;
 
     _variableTokenGrowthGlobalX128 = state.variableTokenGrowthGlobalX128;
     _fixedTokenGrowthGlobalX128 = state.fixedTokenGrowthGlobalX128;
@@ -603,15 +538,13 @@ abstract contract VAMMBase is IVAMMBase {
       SwapState memory state,
       StepComputations memory step
   )
-      internal
+      external
       view
       virtual
       returns (
-          uint256 stateFeeGrowthGlobalX128,
           int256 stateVariableTokenGrowthGlobalX128,
           int256 stateFixedTokenGrowthGlobalX128,
           int256 fixedTokenDelta// for LP
-      )
-  {}
+      );
 
 }
