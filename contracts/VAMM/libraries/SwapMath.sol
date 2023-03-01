@@ -56,7 +56,8 @@ library SwapMath {
             uint256 amountOut,
             uint256 feeAmount
         )
-    {
+    { 
+        // to left
         bool zeroForOne = params.sqrtRatioCurrentX96 >=
             params.sqrtRatioTargetX96;
         bool exactIn = params.amountRemaining >= 0;
@@ -137,8 +138,6 @@ library SwapMath {
                     params.liquidity,
                     false
                 );
-            // variable taker
-            notional = amountOut;
         } else {
             amountIn = max && exactIn
                 ? amountIn
@@ -156,9 +155,6 @@ library SwapMath {
                     params.liquidity,
                     false
                 );
-
-            // fixed taker
-            notional = amountIn;
         }
 
         // cap the output amount to not exceed the remaining output amount
@@ -168,11 +164,5 @@ library SwapMath {
         }
 
         // uint256 notionalWad = PRBMathUD60x18.fromUint(notional);
-
-        feeAmount = computeFeeAmount(
-            PRBMathUD60x18.fromUint(notional),
-            params.timeToMaturityInSecondsWad,
-            params.feePercentageWad
-        );
     }
 }

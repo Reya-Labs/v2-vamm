@@ -1,14 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 pragma solidity =0.8.9;
-import "./IMarginEngine.sol";
-import "./IFactory.sol";
-import "./IPositionStructs.sol";
 import "../core_libraries/Tick.sol";
 import "../utils/CustomErrors.sol";
-import "./rate_oracles/IRateOracle.sol";
 
-interface IVAMM is IPositionStructs, CustomErrors {
+interface IVAMMBase is IVAMM, CustomErrors {
     function setPausability(bool state) external;
 
     // events
@@ -46,18 +42,6 @@ interface IVAMM is IPositionStructs, CustomErrors {
         uint128 amount
     );
 
-    /// @dev emitted after setting feeProtocol
-    event FeeProtocol(uint8 feeProtocol);
-
-    /// @dev emitted after fee is set
-    event Fee(uint256 feeWad);
-
-    /// @dev emitted after the _isAlpha boolean is updated by the owner of the VAMM
-    /// @dev _isAlpha boolean dictates whether the VAMM is in the Alpha State, i.e. mints can only be done via the periphery
-    /// @dev additionally, the periphery has the logic to take care of lp notional caps in the Alpha State phase of VAMM
-    /// @dev __isAlpha is the newly set value for the _isAlpha boolean
-    event IsAlpha(bool __isAlpha);
-
     event VAMMPriceChange(int24 tick);
 
     // structs
@@ -67,9 +51,6 @@ interface IVAMM is IPositionStructs, CustomErrors {
         uint160 sqrtPriceX96;
         /// @dev The current tick of the vamm, i.e. according to the last tick transition that was run.
         int24 tick;
-        // the current protocol fee as a percentage of the swap fee taken on withdrawal
-        // represented as an integer denominator (1/x)
-        uint8 feeProtocol;
     }
 
     struct SwapParams {
@@ -88,9 +69,6 @@ interface IVAMM is IPositionStructs, CustomErrors {
     struct SwapCache {
         /// @dev liquidity at the beginning of the swap
         uint128 liquidityStart;
-        // the current protocol fee as a percentage of the swap fee taken on withdrawal
-        // represented as an integer denominator (1/x)%
-        uint8 feeProtocol;
     }
 
     /// @dev the top level state of the swap, the results of which are recorded in storage at the end
@@ -109,12 +87,6 @@ interface IVAMM is IPositionStructs, CustomErrors {
         int256 variableTokenGrowthGlobalX128;
         /// @dev the current liquidity in range
         uint128 liquidity;
-        /// @dev the global fee growth of the underlying token
-        uint256 feeGrowthGlobalX128;
-        /// @dev amount of underlying token paid as protocol fee
-        uint256 protocolFee;
-        /// @dev cumulative fee incurred while initiating a swap
-        uint256 cumulativeFeeIncurred;
         /// @dev fixedTokenDelta that will be applied to the fixed token balance of the position executing the swap (recipient)
         int256 fixedTokenDeltaCumulative;
         /// @dev variableTokenDelta that will be applied to the variable token balance of the position executing the swap (recipient)
@@ -137,10 +109,6 @@ interface IVAMM is IPositionStructs, CustomErrors {
         uint256 amountIn;
         /// @dev how much is being swapped out
         uint256 amountOut;
-        /// @dev how much fee is being paid in (underlying token)
-        uint256 feeAmount;
-        /// @dev ...
-        uint256 feeProtocolDelta;
         /// @dev ...
         int256 fixedTokenDeltaUnbalanced; // for LP
         /// @dev ...
@@ -149,15 +117,21 @@ interface IVAMM is IPositionStructs, CustomErrors {
         int256 variableTokenDelta; // for LP
     }
 
+    struct FlipTicksParams {
+        // the address that owns the position
+        address owner;
+        // the lower and upper tick of the position
+        int24 tickLower;
+        int24 tickUpper;
+        // any change in liquidity
+        int128 deltaAccumulator;
+    }
+
     /// @dev "constructor" for proxy instances
-    function initialize(IMarginEngine __marginEngine, int24 __tickSpacing)
+    function initialize(int24 __tickSpacing)
         external;
 
     // immutables
-
-    /// @notice The vamm's fee (proportion) in wad
-    /// @return The fee in wad
-    function feeWad() external view returns (uint256);
 
     /// @notice The vamm tick spacing
     /// @dev Ticks can only be used at multiples of this value, minimum of 1 and always positive
@@ -177,9 +151,6 @@ interface IVAMM is IPositionStructs, CustomErrors {
     /// @return The current VAMM Vars (see struct definition for semantics)
     function vammVars() external view returns (VAMMVars memory);
 
-    /// @return If true, the VAMM Proxy is currently in alpha state, hence minting can only be done via the periphery. If false, minting can be done directly via VAMM.
-    function isAlpha() external view returns (bool);
-
     /// @notice The fixed token growth accumulated per unit of liquidity for the entire life of the vamm
     /// @dev This value can overflow the uint256
     function fixedTokenGrowthGlobalX128() external view returns (int256);
@@ -188,55 +159,13 @@ interface IVAMM is IPositionStructs, CustomErrors {
     /// @dev This value can overflow the uint256
     function variableTokenGrowthGlobalX128() external view returns (int256);
 
-    /// @notice The fee growth collected per unit of liquidity for the entire life of the vamm
-    /// @dev This value can overflow the uint256
-    function feeGrowthGlobalX128() external view returns (uint256);
-
     /// @notice The currently in range liquidity available to the vamm
     function liquidity() external view returns (uint128);
-
-    /// @notice The amount underlying token that are owed to the protocol
-    /// @dev Protocol fees will never exceed uint256
-    function protocolFees() external view returns (uint256);
-
-    function marginEngine() external view returns (IMarginEngine);
-
-    function factory() external view returns (IFactory);
-
-    /// @notice Function that sets the feeProtocol of the vamm
-    /// @dev the current protocol fee as a percentage of the swap fee taken on withdrawal
-    // represented as an integer denominator (1/x)
-    function setFeeProtocol(uint8 feeProtocol) external;
-
-    /// @notice Function that sets the _isAlpha state variable, if it is set to true the protocol is in the Alpha State
-    /// @dev if the VAMM is at the alpha state, mints can only be done via the periphery which in turn takes care of notional caps for the LPs
-    /// @dev this function can only be called by the owner of the VAMM
-    function setIsAlpha(bool __isAlpha) external;
-
-    /// @notice Function that sets fee of the vamm
-    /// @dev The vamm's fee (proportion) in wad
-    function setFee(uint256 _fee) external;
-
-    /// @notice Updates internal accounting to reflect a collection of protocol fees. The actual transfer of fees must happen separately in the AMM
-    /// @dev can only be done via the collectProtocol function of the parent AMM of the vamm
-    function updateProtocolFees(uint256 protocolFeesCollected) external;
 
     /// @notice Sets the initial price for the vamm
     /// @dev Price is represented as a sqrt(amountVariableToken/amountFixedToken) Q64.96 value
     /// @param sqrtPriceX96 the initial sqrt price of the vamm as a Q64.96
     function initializeVAMM(uint160 sqrtPriceX96) external;
-
-    /// @notice removes liquidity given recipient/tickLower/tickUpper of the position
-    /// @param recipient The address for which the liquidity will be removed
-    /// @param tickLower The lower tick of the position in which to remove liquidity
-    /// @param tickUpper The upper tick of the position in which to remove liqudiity
-    /// @param amount The amount of liquidity to burn
-    function burn(
-        address recipient,
-        int24 tickLower,
-        int24 tickUpper,
-        uint128 amount
-    ) external returns (int256 positionMarginRequirement);
 
     /// @notice Adds liquidity for the given recipient/tickLower/tickUpper position
     /// @param recipient The address for which the liquidity will be created
@@ -261,15 +190,14 @@ interface IVAMM is IPositionStructs, CustomErrors {
             int256 fixedTokenDelta,
             int256 variableTokenDelta,
             uint256 cumulativeFeeIncurred,
-            int256 fixedTokenDeltaUnbalanced,
-            int256 marginRequirement
+            int256 fixedTokenDeltaUnbalanced
         );
 
+    
     /// @notice Look up information about a specific tick in the amm
     /// @param tick The tick to look up
     /// @return liquidityGross: the total amount of position liquidity that uses the vamm either as tick lower or tick upper,
-    /// liquidityNet: how much liquidity changes when the vamm price crosses the tick,
-    /// feeGrowthOutsideX128: the fee growth on the other side of the tick from the current tick in underlying token. i.e. if liquidityGross is greater than 0. In addition, these values are only relative.
+    /// liquidityNet: how much liquidity changes when the vamm price crosses the tick
     function ticks(int24 tick) external view returns (Tick.Info memory);
 
     /// @notice Returns 256 packed tick initialized boolean values. See TickBitmap for more information
@@ -279,21 +207,20 @@ interface IVAMM is IPositionStructs, CustomErrors {
     /// @param tickLower The lower tick of the position
     /// @param tickUpper The upper tick of the position
     /// @return fixedTokenGrowthInsideX128 Fixed Token Growth inside the given tick range
-    /// @return variableTokenGrowthInsideX128 Variable Token Growth inside the given tick range
-    /// @return feeGrowthInsideX128 Fee Growth Inside given tick range
+    /// @return variableTokenGrowthInsideX128 Variable Token Growth inside the given tick rangee
     function computeGrowthInside(int24 tickLower, int24 tickUpper)
         external
         view
         returns (
             int256 fixedTokenGrowthInsideX128,
-            int256 variableTokenGrowthInsideX128,
-            uint256 feeGrowthInsideX128
+            int256 variableTokenGrowthInsideX128
         );
 
+    
     /// @notice refreshes the Rate Oracle attached to the Margin Engine
-    function refreshRateOracle() external;
+    function refreshGTWAPOracle() external;
 
     /// @notice The rateOracle contract which lets the protocol access historical apys in the yield bearing pools it is built on top of
     /// @return The underlying ERC20 token (e.g. USDC)
-    function getRateOracle() external view returns (IRateOracle);
+    function getGTWAPOracle() external view returns (address);
 }
