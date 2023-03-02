@@ -2,16 +2,10 @@
 
 pragma solidity =0.8.9;
 import "./core_libraries/Tick.sol";
-//import "./storage/VAMMStorage.sol";
-//import "./interfaces/IVAMM.sol";
-//import "./interfaces/IPeriphery.sol";
 import "./core_libraries/TickBitmap.sol";
 import "./utils/SafeCastUni.sol";
 import "./utils/SqrtPriceMath.sol";
 import "./core_libraries/SwapMath.sol";
-//import "./interfaces/rate_oracles/IgtwapOracle.sol";
-//import "./interfaces/IERC20Minimal.sol";
-//import "./interfaces/IFactory.sol";
 import "prb-math/contracts/PRBMathUD60x18.sol";
 import "prb-math/contracts/PRBMathSD59x18.sol";
 import "./core_libraries/FixedAndVariableMath.sol";
@@ -96,7 +90,7 @@ abstract contract VAMMBase is IVAMMBase {
     int24 tickLower,
     int24 tickUpper,
     int128 accumulator
-  ) external returns(int128) {
+  ) internal returns(int128) {
     return accumulator * (tickUpper - tickUpper);
   }
 
@@ -104,18 +98,18 @@ abstract contract VAMMBase is IVAMMBase {
     int128 averageBase,
     int24 tickLower,
     int24 tickUpper
-  ) external returns(
+  ) internal returns(
     int128 fixedTokenGrowthOutside,
     int128 variableTokenGrowthOutside
   ) {
     if (tickLower == tickUpper) {
-        return (0, 0, 0, 0);
+        return (0, 0);
     }
 
     int128 base = baseBetweenTicks(tickLower, tickUpper, averageBase);
 
-    // TODO: refactor calculateUpdatedGlobalTrackerValues
-    (fixedTokenGrowthOutside, variableTokenGrowthOutside, ) = calculateUpdatedGlobalTrackerValues();
+    fixedTokenGrowthOutside = trackFixedTokens(averageBase, tickLower, tickUpper);
+    variableTokenGrowthOutside = averageBase;
 
   }
 
@@ -123,7 +117,7 @@ abstract contract VAMMBase is IVAMMBase {
     int24 tickLower,
     int24 tickUpper,
     int128 base
-  ) external returns(
+  ) internal returns(
     int128 fixedTokenGrowthOutsideLeft,
     int128 variableTokenGrowthOutsideLeft,
     int128 fixedTokenGrowthOutsideRight,
@@ -135,13 +129,13 @@ abstract contract VAMMBase is IVAMMBase {
 
     int128 averageBase = averageBase(tickLower, tickUpper, baseAmount);
 
-    (int128 _fixedTokenGrowthOutsideLeft, int128 _variableTokenGrowthOutsideLeft) = trackValuesBetweenTicksOutside(
+    (int128 fixedTokenGrowthOutsideLeft_, int128 variableTokenGrowthOutsideLeft_) = trackValuesBetweenTicksOutside(
         averageBase,
         tickLower < _tick ? tickLower : vammVars.tick,
         tickUpper > _tick ? tickUpper : vammVars.tick,
     );
-    fixedTokenGrowthOutsideLeft = -_fixedTokenGrowthOutsideLeft;
-    variableTokenGrowthOutsideLeft = -_variableTokenGrowthOutsideLeft;
+    fixedTokenGrowthOutsideLeft = -fixedTokenGrowthOutsideLeft_;
+    variableTokenGrowthOutsideLeft = -variableTokenGrowthOutsideLeft_;
 
     (fixedTokenGrowthOutsideRight, variableTokenGrowthOutsideRight) = trackValuesBetweenTicksOutside(
         averageBase,
@@ -564,13 +558,32 @@ abstract contract VAMMBase is IVAMMBase {
       SwapState memory state,
       StepComputations memory step
   )
-      external
+      internal
       view
-      virtual
       returns (
           int256 stateVariableTokenGrowthGlobalX128,
           int256 stateFixedTokenGrowthGlobalX128,
           int256 fixedTokenDelta// for LP
+      )
+  {
+      fixedTokenDelta = trackFixedTokens(
+        step.fixedTokenDeltaUnbalanced,
+        state.tick,
+        step.nextTick
       );
+
+      stateVariableTokenGrowthGlobalX128 = state.variableTokenGrowthGlobalX128 + FullMath.mulDivSigned(step.variableTokenDelta, FixedPoint128.Q128, state.accumulator);
+
+      stateFixedTokenGrowthGlobalX128 = state.fixedTokenGrowthGlobalX128 + FullMath.mulDivSigned(fixedTokenDelta, FixedPoint128.Q128, state.accumulator);
+  }
+
+  function trackFixedTokens(
+      int256 baseAmount,
+      int24 tickLower,
+      int24 tickUpper
+  )
+      external
+      virtual
+      returns (int256 trackedValue);
 
 }
