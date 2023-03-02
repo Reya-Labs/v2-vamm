@@ -84,6 +84,73 @@ abstract contract VAMMBase is IVAMMBase {
     __UUPSUpgradeable_init();
   }
 
+  /// GETTERS & TRACKETS
+
+  function averageBase(
+    int24 tickLower,
+    int24 tickUpper,
+    int128 baseAmount
+  ) external virtual returns(int128);
+
+  function baseBetweenTicks(
+    int24 tickLower,
+    int24 tickUpper,
+    int128 accumulator
+  ) external returns(int128) {
+    return accumulator * (tickUpper - tickUpper);
+  }
+
+  function trackValuesBetweenTicksOutside(
+    int128 averageBase,
+    int24 tickLower,
+    int24 tickUpper
+  ) external returns(
+    int128 fixedTokenGrowthOutside,
+    int128 variableTokenGrowthOutside
+  ) {
+    if (tickLower == tickUpper) {
+        return (0, 0, 0, 0);
+    }
+
+    int128 base = baseBetweenTicks(tickLower, tickUpper, averageBase);
+
+    // TODO: refactor calculateUpdatedGlobalTrackerValues
+    (fixedTokenGrowthOutside, variableTokenGrowthOutside, ) = calculateUpdatedGlobalTrackerValues();
+
+  }
+
+  function trackValuesBetweenTicks(
+    int24 tickLower,
+    int24 tickUpper,
+    int128 base
+  ) external returns(
+    int128 fixedTokenGrowthOutsideLeft,
+    int128 variableTokenGrowthOutsideLeft,
+    int128 fixedTokenGrowthOutsideRight,
+    int128 variableTokenGrowthOutsideRight
+  ) {
+    if (tickLower == tickUpper) {
+        return (0, 0, 0, 0);
+    }
+
+    int128 averageBase = averageBase(tickLower, tickUpper, baseAmount);
+
+    (int128 _fixedTokenGrowthOutsideLeft, int128 _variableTokenGrowthOutsideLeft) = trackValuesBetweenTicksOutside(
+        averageBase,
+        tickLower < _tick ? tickLower : vammVars.tick,
+        tickUpper > _tick ? tickUpper : vammVars.tick,
+    );
+    fixedTokenGrowthOutsideLeft = -_fixedTokenGrowthOutsideLeft;
+    variableTokenGrowthOutsideLeft = -_variableTokenGrowthOutsideLeft;
+
+    (fixedTokenGrowthOutsideRight, variableTokenGrowthOutsideRight) = trackValuesBetweenTicksOutside(
+        averageBase,
+        tickLower < _tick ? tickLower : vammVars.tick,
+        tickUpper > _tick ? tickUpper : vammVars.tick,
+    );
+
+  }
+
   /// @inheritdoc IVAMMBase
   function refreshGTWAPOracle(address _gtwapOracle)
       external
@@ -207,12 +274,6 @@ abstract contract VAMMBase is IVAMMBase {
 //       }
 //     }
 //   }
-
-  function averageBase(
-    int24 tickLower,
-    int24 tickUpper,
-    int128 baseAmount
-  ) external virtual returns(int128);
 
   /// @inheritdoc IVAMMBase
   function mint(
