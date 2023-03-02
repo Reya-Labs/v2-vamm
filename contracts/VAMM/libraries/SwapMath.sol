@@ -16,7 +16,6 @@ library SwapMath {
         uint160 sqrtRatioTargetX96;
         uint128 liquidity;
         int256 amountRemaining;
-        uint256 feePercentageWad;
         uint256 timeToMaturityInSecondsWad;
     }
 
@@ -46,15 +45,13 @@ library SwapMath {
     /// @return sqrtRatioNextX96 The price after swapping the amount in/out, not to exceed the price target
     /// @return amountIn The amount to be swapped in, of either token0 or token1, based on the direction of the swap
     /// @return amountOut The amount to be received, of either token0 or token1, based on the direction of the swa
-    /// @return feeAmount Amount of fees in underlying tokens incurred by the position during the swap step, i.e. single iteration of the while loop in the VAMM
     function computeSwapStep(SwapStepParams memory params)
         internal
         pure
         returns (
             uint160 sqrtRatioNextX96,
             uint256 amountIn,
-            uint256 amountOut,
-            uint256 feeAmount
+            uint256 amountOut
         )
     { 
         // to left

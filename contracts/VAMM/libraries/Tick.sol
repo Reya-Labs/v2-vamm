@@ -181,7 +181,6 @@ library Tick {
         int128 liquidityDelta,
         int256 fixedTokenGrowthGlobalX128,
         int256 variableTokenGrowthGlobalX128,
-        uint256 feeGrowthGlobalX128,
         bool upper,
         uint128 maxLiquidity
     ) internal returns (bool flipped) {
@@ -204,7 +203,6 @@ library Tick {
         if (liquidityGrossBefore == 0) {
             // by convention, we assume that all growth before a tick was initialized happened _below_ the tick
             if (tick <= tickCurrent) {
-                info.feeGrowthOutsideX128 = feeGrowthGlobalX128;
 
                 info.fixedTokenGrowthOutsideX128 = fixedTokenGrowthGlobalX128;
 
