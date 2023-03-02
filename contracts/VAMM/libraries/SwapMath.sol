@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: BUSL-1.1
 
-pragma solidity =0.8.9;
+pragma solidity >=0.8.13;
 
-import "../utils/FullMath.sol";
-import "../utils/SqrtPriceMath.sol";
+import "../../utils/FullMath.sol";
+import "../../utils/SqrtPriceMath.sol";
 import "prb-math/contracts/PRBMathUD60x18.sol";
 import "prb-math/contracts/PRBMathSD59x18.sol";
-import "../core_libraries/FixedAndVariableMath.sol";
+import "./FixedAndVariableMath.sol";
 
 /// @title Computes the result of a swap within ticks
 /// @notice Contains methods for computing the result of a swap within a single tick price range, i.e., a single tick.

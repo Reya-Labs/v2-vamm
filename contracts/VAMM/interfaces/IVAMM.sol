@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import "./IERC165.sol";
+import "../../utils/interfaces/IERC165.sol";
 
 /// @title Interface a Pool needs to adhere.
 interface IVAMM is IERC165 {

@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: BUSL-1.1
 
-pragma solidity =0.8.9;
-import "./core_libraries/Tick.sol";
-import "./core_libraries/TickBitmap.sol";
-import "./utils/SafeCastUni.sol";
-import "./utils/SqrtPriceMath.sol";
-import "./core_libraries/SwapMath.sol";
+pragma solidity >=0.8.13;
+import "./libraries/Tick.sol";
+import "./libraries/TickBitmap.sol";
+import "../utils/SafeCastUni.sol";
+import "../utils/SqrtPriceMath.sol";
+import "./libraries/SwapMath.sol";
 import "prb-math/contracts/PRBMathUD60x18.sol";
 import "prb-math/contracts/PRBMathSD59x18.sol";
-import "./core_libraries/FixedAndVariableMath.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "./utils/FixedPoint128.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "./libraries/FixedAndVariableMath.sol";
+import "../utils/FixedPoint128.sol";
+import "./interfaces/IVAMMBase.sol";
 
 
 abstract contract VAMMBase is IVAMMBase {
@@ -28,7 +26,8 @@ abstract contract VAMMBase is IVAMMBase {
         _;
     }
 
-  function changePauser(address account, bool permission) external onlyOwner {
+  // TODO: olyOwner
+  function changePauser(address account, bool permission) external {
       pauser[account] = permission;
   }
 
@@ -56,14 +55,9 @@ abstract contract VAMMBase is IVAMMBase {
     _;
   }
 
-  // https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable
-  /// @custom:oz-upgrades-unsafe-allow constructor
-  constructor () initializer {}
 
-  /// @inheritdoc IVAMMBase
-  function initialize(address _gtwapOracle, uint256 _termEndTimestampWad, int24 __tickSpacing) external override initializer {
+  constructor(address _gtwapOracle, uint256 _termEndTimestampWad, int24 __tickSpacing) {
 
-    require(address(__marginEngine) != address(0), "ME = 0");
     // tick spacing is capped at 16384 to prevent the situation where tickSpacing is so large that
     // TickBitmap#nextInitializedTickWithinOneWord overflows int24 container from a valid tick
     // 16384 ticks represents a >5x price change with ticks of 1 bips
@@ -99,8 +93,8 @@ abstract contract VAMMBase is IVAMMBase {
     int24 tickLower,
     int24 tickUpper
   ) internal returns(
-    int128 fixedTokenGrowthOutside,
-    int128 variableTokenGrowthOutside
+    int128 tracker0GrowthOutside,
+    int128 tracker1GrowthOutside
   ) {
     if (tickLower == tickUpper) {
         return (0, 0);
@@ -108,8 +102,8 @@ abstract contract VAMMBase is IVAMMBase {
 
     int128 base = baseBetweenTicks(tickLower, tickUpper, averageBase);
 
-    fixedTokenGrowthOutside = trackFixedTokens(averageBase, tickLower, tickUpper);
-    variableTokenGrowthOutside = averageBase;
+    tracker0GrowthOutside = trackFixedTokens(averageBase, tickLower, tickUpper);
+    tracker1GrowthOutside = averageBase;
 
   }
 
@@ -118,10 +112,10 @@ abstract contract VAMMBase is IVAMMBase {
     int24 tickUpper,
     int128 base
   ) internal returns(
-    int128 fixedTokenGrowthOutsideLeft,
-    int128 variableTokenGrowthOutsideLeft,
-    int128 fixedTokenGrowthOutsideRight,
-    int128 variableTokenGrowthOutsideRight
+    int128 tracker0GrowthOutsideLeft,
+    int128 tracker1GrowthOutsideLeft,
+    int128 tracker0GrowthOutsideRight,
+    int128 tracker1GrowthOutsideRight
   ) {
     if (tickLower == tickUpper) {
         return (0, 0, 0, 0);
@@ -129,18 +123,18 @@ abstract contract VAMMBase is IVAMMBase {
 
     int128 averageBase = averageBase(tickLower, tickUpper, baseAmount);
 
-    (int128 fixedTokenGrowthOutsideLeft_, int128 variableTokenGrowthOutsideLeft_) = trackValuesBetweenTicksOutside(
+    (int128 tracker0GrowthOutsideLeft_, int128 tracker1GrowthOutsideLeft_) = trackValuesBetweenTicksOutside(
         averageBase,
         tickLower < _tick ? tickLower : vammVars.tick,
-        tickUpper > _tick ? tickUpper : vammVars.tick,
+        tickUpper > _tick ? tickUpper : vammVars.tick
     );
-    fixedTokenGrowthOutsideLeft = -fixedTokenGrowthOutsideLeft_;
-    variableTokenGrowthOutsideLeft = -variableTokenGrowthOutsideLeft_;
+    tracker0GrowthOutsideLeft = -tracker0GrowthOutsideLeft_;
+    tracker1GrowthOutsideLeft = -tracker1GrowthOutsideLeft_;
 
-    (fixedTokenGrowthOutsideRight, variableTokenGrowthOutsideRight) = trackValuesBetweenTicksOutside(
+    (tracker0GrowthOutsideRight, tracker1GrowthOutsideRight) = trackValuesBetweenTicksOutside(
         averageBase,
         tickLower < _tick ? tickLower : vammVars.tick,
-        tickUpper > _tick ? tickUpper : vammVars.tick,
+        tickUpper > _tick ? tickUpper : vammVars.tick
     );
 
   }
@@ -149,7 +143,6 @@ abstract contract VAMMBase is IVAMMBase {
   function refreshGTWAPOracle(address _gtwapOracle)
       external
       override
-      onlyOwner
   {
       gtwapOracle = _gtwapOracle;
   }
@@ -192,8 +185,8 @@ abstract contract VAMMBase is IVAMMBase {
       params.tickLower,
       _vammVars.tick,
       params.accumulatorDelta,
-      _fixedTokenGrowthGlobalX128,
-      _variableTokenGrowthGlobalX128,
+      _tracker0GrowthGlobalX128,
+      _tracker1GrowthGlobalX128,
       false,
       _maxLiquidityPerTick
     );
@@ -203,8 +196,8 @@ abstract contract VAMMBase is IVAMMBase {
       params.tickUpper,
       _vammVars.tick,
       params.accumulatorDelta,
-      _fixedTokenGrowthGlobalX128,
-      _variableTokenGrowthGlobalX128,
+      _tracker0GrowthGlobalX128,
+      _tracker1GrowthGlobalX128,
       true,
       _maxLiquidityPerTick
     );
@@ -218,64 +211,13 @@ abstract contract VAMMBase is IVAMMBase {
     }
   }
 
-
-//   function updatePosition(ModifyPositionParams memory params) private returns(int256 positionMarginRequirement) {
-
-//     /// @dev give a more descriptive name
-
-//     Tick.checkTicks(params.tickLower, params.tickUpper);
-
-//     VAMMVars memory lvammVars = _vammVars; // SLOAD for gas optimization
-
-//     bool flippedLower;
-//     bool flippedUpper;
-
-//     /// @dev update the ticks if necessary
-//     if (params.liquidityDelta != 0) {
-//       (flippedLower, flippedUpper) = flipTicks(params);
-//     }
-
-//     positionMarginRequirement = 0;
-//     if (msg.sender != address(_marginEngine)) {
-//       // this only happens if the margin engine triggers a liquidation which in turn triggers a burn
-//       // the state updated in the margin engine in that case are done directly in the liquidatePosition function
-//       positionMarginRequirement = _marginEngine.updatePositionPostVAMMInducedMintBurn(params);
-//     }
-
-//     // clear any tick data that is no longer needed
-//     if (params.liquidityDelta < 0) {
-//       if (flippedLower) {
-//         _ticks.clear(params.tickLower);
-//       }
-//       if (flippedUpper) {
-//         _ticks.clear(params.tickUpper);
-//       }
-//     }
-
-//     gtwapOracle.writeOracleEntry();
-
-//     if (params.liquidityDelta != 0) {
-//       if (
-//         (lvammVars.tick >= params.tickLower) && (lvammVars.tick < params.tickUpper)
-//       ) {
-//         // current tick is inside the passed range
-//         uint128 liquidityBefore = _liquidity; // SLOAD for gas optimization
-
-//         _liquidity = LiquidityMath.addDelta(
-//           liquidityBefore,
-//           params.liquidityDelta
-//         );
-//       }
-//     }
-//   }
-
   /// @inheritdoc IVAMMBase
   function mint(
     address recipient,
     int24 tickLower,
     int24 tickUpper,
     uint128 amount
-  ) external override checkIsAlpha whenNotPaused checkCurrentTimestampTermEndTimestampDelta lock returns(int256 positionMarginRequirement) {
+  ) external override whenNotPaused checkCurrentTimestampTermEndTimestampDelta lock returns(int256 positionMarginRequirement) {
     
    /// @dev give a more descriptive name
 
@@ -299,14 +241,6 @@ abstract contract VAMMBase is IVAMMBase {
         })
       );
     }
-
-    // TODO: send info to account manager
-    // positionMarginRequirement = 0;
-    // if (msg.sender != address(_marginEngine)) {
-    //   // this only happens if the margin engine triggers a liquidation which in turn triggers a burn
-    //   // the state updated in the margin engine in that case are done directly in the liquidatePosition function
-    //   positionMarginRequirement = _marginEngine.updatePositionPostVAMMInducedMintBurn(params);
-    // }
 
     // clear any tick data that is no longer needed
     if (averageBase < 0) {
@@ -335,14 +269,13 @@ abstract contract VAMMBase is IVAMMBase {
     emit Mint(msg.sender, recipient, tickLower, tickUpper, amount);
   }
 
-
   /// @inheritdoc IVAMMBase
   function swap(SwapParams memory params)
     external
     override
     whenNotPaused
     checkCurrentTimestampTermEndTimestampDelta
-    returns (int256 fixedTokenDelta, int256 variableTokenDelta, int256 fixedTokenDeltaUnbalanced)
+    returns (int256 tracker0Delta, int256 tracker1Delta)
   {
 
     Tick.checkTicks(params.tickLower, params.tickUpper);
@@ -351,10 +284,6 @@ abstract contract VAMMBase is IVAMMBase {
 
     checksBeforeSwap(params, vammVarsStart, params.amountSpecified > 0);
 
-    // if (!(msg.sender == address(_marginEngine) || msg.sender==address(_marginEngine.fcm()))) {
-    //   require(msg.sender==params.recipient || _factory.isApproved(params.recipient, msg.sender), "only sender or approved integration");
-    // }
-
     /// @dev lock the vamm while the swap is taking place
     _unlocked = false;
 
@@ -362,24 +291,18 @@ abstract contract VAMMBase is IVAMMBase {
 
     SwapState memory state = SwapState({
       amountSpecifiedRemaining: params.amountSpecified, // base ramaining
-      amountCalculated: 0, // ?
-      sqrtPriceX96: vammVarsStart.sqrtPriceX96, // ? current tick?
+      baseInStep: 0,
+      sqrtPriceX96: vammVarsStart.sqrtPriceX96,
       tick: vammVarsStart.tick,
       accumulator: cache.accumulatorStart,
-      fixedTokenGrowthGlobalX128: _fixedTokenGrowthGlobalX128,
-      variableTokenGrowthGlobalX128: _variableTokenGrowthGlobalX128,
-      fixedTokenDeltaCumulative: 0, // for Trader (user invoking the swap)
-      variableTokenDeltaCumulative: 0, // for Trader (user invoking the swap),
-      fixedTokenDeltaUnbalancedCumulative: 0, //  for Trader (user invoking the swap)
+      tracker0GrowthGlobalX128: _tracker0GrowthGlobalX128,
+      tracker1GrowthGlobalX128: _tracker1GrowthGlobalX128,
+      tracker0DeltaCumulative: 0, // for Trader (user invoking the swap)
+      tracker1DeltaCumulative: 0 // for Trader (user invoking the swap)
     });
-
-    /// @dev write an entry to the rate oracle (given no throttling)
-
-    // gtwapOracle.update_oracle(_vammVars.tick);
 
     // continue swapping as long as we haven't used the entire input/output and haven't reached the price (implied fixed rate) limit
     bool advanceRight = params.amountSpecified > 0;
-      // Fixed Taker
     while (
       state.amountSpecifiedRemaining != 0 &&
       state.sqrtPriceX96 != params.sqrtPriceLimitX96
@@ -415,7 +338,9 @@ abstract contract VAMMBase is IVAMMBase {
               ? params.sqrtPriceLimitX96
               : step.sqrtPriceNextX96;
       }
-      
+
+
+      ///// GET SWAP RESULTS /////
 
       // compute values to swap to the target tick, price limit, or point where input/output amount is exhausted
       /// @dev for a Fixed Taker (isFT) if the sqrtPriceNextX96 is larger than the limit, then the target price passed into computeSwapStep is sqrtPriceLimitX96
@@ -434,35 +359,34 @@ abstract contract VAMMBase is IVAMMBase {
         })
       );
 
-      state.amountSpecifiedRemaining += advanceRight ? -(step.amountIn).toInt256 : step.amountOut.toInt256();
-      state.amountCalculated += advanceRight ? -(step.amountOut).toInt256 : step.amountIn.toInt256();
+      ///// UPDATE TRACKERS /////
+
+      state.baseInStep = advanceRight ? -(step.amountIn).toInt256 : step.amountOut.toInt256();
+      state.amountSpecifiedRemaining += baseInStep;
 
       if(advanceRight) {
         // LP is a Variable Taker
-        step.variableTokenDelta = (step.amountIn).toInt256();
-        step.fixedTokenDeltaUnbalanced = -step.amountOut.toInt256();
+        step.tracker1Delta = (step.amountIn).toInt256();
       } else {
         // LP is a Fixed Taker
-        step.variableTokenDelta -= step.amountOut.toInt256();
-        step.fixedTokenDeltaUnbalanced += step.amountIn.toInt256();
+        step.tracker1Delta -= step.amountOut.toInt256();
       }
 
       if (state.accumulator > 0) {
         (
-          state.variableTokenGrowthGlobalX128,
-          state.fixedTokenGrowthGlobalX128,
-          step.fixedTokenDelta // for LP
+          state.tracker1GrowthGlobalX128,
+          state.tracker0GrowthGlobalX128,
+          step.tracker0Delta // for LP
         ) = calculateUpdatedGlobalTrackerValues( //
           state,
           step
         );
 
-        state.fixedTokenDeltaCumulative -= step.fixedTokenDelta; // opposite sign from that of the LP's
-        state.variableTokenDeltaCumulative -= step.variableTokenDelta; // opposite sign from that of the LP's
-
-        // necessary for testing purposes, also handy to quickly compute the fixed rate at which an interest rate swap is created
-        state.fixedTokenDeltaUnbalancedCumulative -= step.fixedTokenDeltaUnbalanced;
+        state.tracker0DeltaCumulative -= step.tracker0Delta; // opposite sign from that of the LP's
+        state.tracker1DeltaCumulative -= step.tracker1Delta; // opposite sign from that of the LP's
       }
+
+      ///// UPDATE TICK AFTER SWAP STEP /////
 
       // shift tick if we reached the next price
       if (state.sqrtPriceX96 == step.sqrtPriceNextX96) {
@@ -470,8 +394,8 @@ abstract contract VAMMBase is IVAMMBase {
         if (step.initialized) {
           int128 accumulatorNet = _ticks.cross(
             step.tickNext,
-            state.fixedTokenGrowthGlobalX128,
-            state.variableTokenGrowthGlobalX128
+            state.tracker0GrowthGlobalX128,
+            state.tracker1GrowthGlobalX128
           );
 
           state.accumulator = LiquidityMath.addDelta(
@@ -487,6 +411,9 @@ abstract contract VAMMBase is IVAMMBase {
         state.tick = TickMath.getTickAtSqrtRatio(state.sqrtPriceX96);
       }
     }
+
+    ///// UPDATE VAMM VARS AFTER SWAP /////
+
     _vammVars.sqrtPriceX96 = state.sqrtPriceX96;
 
     if (state.tick != vammVarsStart.tick) {
@@ -497,15 +424,11 @@ abstract contract VAMMBase is IVAMMBase {
     // update liquidity if it changed
     if (cache.accumulatorStart != state.accumulator) _accumulator = state.accumulator;
 
-    _variableTokenGrowthGlobalX128 = state.variableTokenGrowthGlobalX128;
-    _fixedTokenGrowthGlobalX128 = state.fixedTokenGrowthGlobalX128;
+    _tracker1GrowthGlobalX128 = state.tracker1GrowthGlobalX128;
+    _tracker0GrowthGlobalX128 = state.tracker0GrowthGlobalX128;
 
-    fixedTokenDelta = state.fixedTokenDeltaCumulative;
-    variableTokenDelta = state.variableTokenDeltaCumulative;
-    fixedTokenDeltaUnbalanced = state.fixedTokenDeltaUnbalancedCumulative;
-
-    // TODO: update accout based on swap changes OR return to pool & let pool execute update
-    // marginRequirement = _marginEngine.updatePositionPostVAMMInducedSwap(params.recipient, params.tickLower, params.tickUpper, state.fixedTokenDeltaCumulative, state.variableTokenDeltaCumulative, state.cumulativeFeeIncurred, state.fixedTokenDeltaUnbalancedCumulative);
+    tracker0Delta = state.tracker0DeltaCumulative;
+    tracker1Delta = state.tracker1DeltaCumulative;
 
     emit VAMMPriceChange(_vammVars.tick);
 
@@ -517,9 +440,8 @@ abstract contract VAMMBase is IVAMMBase {
       params.amountSpecified,
       params.sqrtPriceLimitX96,
       cumulativeFeeIncurred,
-      fixedTokenDelta,
-      variableTokenDelta,
-      fixedTokenDeltaUnbalanced
+      tracker0Delta,
+      tracker1Delta
     );
 
     _unlocked = true;
@@ -536,7 +458,8 @@ abstract contract VAMMBase is IVAMMBase {
       }
 
       if (!_unlocked) {
-          revert CustomErrors.CanOnlyTradeIfUnlocked(_unlocked);
+          // TODO: add CustomError
+          revert;
       }
 
       /// @dev if a trader is an FT, they consume fixed in return for variable
@@ -563,18 +486,19 @@ abstract contract VAMMBase is IVAMMBase {
       returns (
           int256 stateVariableTokenGrowthGlobalX128,
           int256 stateFixedTokenGrowthGlobalX128,
-          int256 fixedTokenDelta// for LP
+          int256 tracker0Delta// for LP
       )
   {
-      fixedTokenDelta = trackFixedTokens(
-        step.fixedTokenDeltaUnbalanced,
+      tracker0Delta = trackFixedTokens(
+        step.baseInStep,
         state.tick,
         step.nextTick
       );
 
-      stateVariableTokenGrowthGlobalX128 = state.variableTokenGrowthGlobalX128 + FullMath.mulDivSigned(step.variableTokenDelta, FixedPoint128.Q128, state.accumulator);
+      // update global trackers
+      stateVariableTokenGrowthGlobalX128 = state.tracker1GrowthGlobalX128 + FullMath.mulDivSigned(step.tracker1Delta, FixedPoint128.Q128, state.accumulator);
 
-      stateFixedTokenGrowthGlobalX128 = state.fixedTokenGrowthGlobalX128 + FullMath.mulDivSigned(fixedTokenDelta, FixedPoint128.Q128, state.accumulator);
+      stateFixedTokenGrowthGlobalX128 = state.tracker0GrowthGlobalX128 + FullMath.mulDivSigned(tracker0Delta, FixedPoint128.Q128, state.accumulator);
   }
 
   function trackFixedTokens(
@@ -582,7 +506,7 @@ abstract contract VAMMBase is IVAMMBase {
       int24 tickLower,
       int24 tickUpper
   )
-      external
+      public
       virtual
       returns (int256 trackedValue);
 

@@ -2,7 +2,7 @@
 pragma solidity >=0.8.13;
 
 import "../../utils/AccessError.sol";
-import "../../interfaces/IVAMM.sol";
+import "../interfaces/IVAMM.sol";
 
 /**
  * @title Connects external contracts that implement the `IVAMM` interface to the protocol.

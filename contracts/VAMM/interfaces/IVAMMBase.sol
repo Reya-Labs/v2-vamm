@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
 
-pragma solidity =0.8.9;
-import "../core_libraries/Tick.sol";
-import "../utils/CustomErrors.sol";
+pragma solidity >=0.8.13;
 
-interface IVAMMBase is IVAMM, CustomErrors {
+import "../libraries/Tick.sol";
+import "./IVAMM.sol";
+
+interface IVAMMBase is IVAMM {
     function setPausability(bool state) external;
 
     // events
@@ -16,9 +17,8 @@ interface IVAMMBase is IVAMM, CustomErrors {
         int256 desiredNotional,
         uint160 sqrtPriceLimitX96,
         uint256 cumulativeFeeIncurred,
-        int256 fixedTokenDelta,
-        int256 variableTokenDelta,
-        int256 fixedTokenDeltaUnbalanced
+        int256 tracker0Delta,
+        int256 tracker1Delta
     );
 
     /// @dev emitted after a given vamm is successfully initialized
@@ -33,21 +33,12 @@ interface IVAMMBase is IVAMM, CustomErrors {
         uint128 amount
     );
 
-    /// @dev emitted after a successful burning of a given LP position
-    event Burn(
-        address sender,
-        address indexed owner,
-        int24 indexed tickLower,
-        int24 indexed tickUpper,
-        uint128 amount
-    );
-
     event VAMMPriceChange(int24 tick);
 
     // structs
 
     struct VAMMVars {
-        /// @dev The current price of the pool as a sqrt(variableToken/fixedToken) Q64.96 value
+        /// @dev The current price of the pool as a sqrt(tracker1/tracker0) Q64.96 value
         uint160 sqrtPriceX96;
         /// @dev The current tick of the vamm, i.e. according to the last tick transition that was run.
         int24 tick;
@@ -70,25 +61,22 @@ interface IVAMMBase is IVAMM, CustomErrors {
     struct SwapState {
         /// @dev the amount remaining to be swapped in/out of the input/output asset
         int256 amountSpecifiedRemaining;
-        /// @dev the amount already swapped out/in of the output/input asset
-        int256 amountCalculated;
+        /// @dev the amount swapped out/in of the output/input asset during swap step
+        int256 baseInStep;
         /// @dev current sqrt(price)
         uint160 sqrtPriceX96;
         /// @dev the tick associated with the current price
         int24 tick;
         /// @dev the global fixed token growth
-        int256 fixedTokenGrowthGlobalX128;
+        int256 tracker0GrowthGlobalX128;
         /// @dev the global variable token growth
-        int256 variableTokenGrowthGlobalX128;
+        int256 tracker1GrowthGlobalX128;
         /// @dev the current liquidity in range
         uint128 accumulator;
-        /// @dev fixedTokenDelta that will be applied to the fixed token balance of the position executing the swap (recipient)
-        int256 fixedTokenDeltaCumulative;
-        /// @dev variableTokenDelta that will be applied to the variable token balance of the position executing the swap (recipient)
-        int256 variableTokenDeltaCumulative;
-        /// @dev fixed token delta cumulative but without rebalancings applied
-        int256 fixedTokenDeltaUnbalancedCumulative;
-        uint256 variableFactorWad;
+        /// @dev tracker0Delta that will be applied to the fixed token balance of the position executing the swap (recipient)
+        int256 tracker0DeltaCumulative;
+        /// @dev tracker1Delta that will be applied to the variable token balance of the position executing the swap (recipient)
+        int256 tracker1DeltaCumulative;
     }
 
     struct StepComputations {
@@ -105,11 +93,9 @@ interface IVAMMBase is IVAMM, CustomErrors {
         /// @dev how much is being swapped out
         uint256 amountOut;
         /// @dev ...
-        int256 fixedTokenDeltaUnbalanced; // for LP
+        int256 tracker0Delta; // for LP
         /// @dev ...
-        int256 fixedTokenDelta; // for LP
-        /// @dev ...
-        int256 variableTokenDelta; // for LP
+        int256 tracker1Delta; // for LP
     }
 
     struct FlipTicksParams {
@@ -148,11 +134,11 @@ interface IVAMMBase is IVAMM, CustomErrors {
 
     /// @notice The fixed token growth accumulated per unit of liquidity for the entire life of the vamm
     /// @dev This value can overflow the uint256
-    function fixedTokenGrowthGlobalX128() external view returns (int256);
+    function tracker0GrowthGlobalX128() external view returns (int256);
 
     /// @notice The variable token growth accumulated per unit of liquidity for the entire life of the vamm
     /// @dev This value can overflow the uint256
-    function variableTokenGrowthGlobalX128() external view returns (int256);
+    function tracker1GrowthGlobalX128() external view returns (int256);
 
     /// @notice The currently in range liquidity available to the vamm
     function accumulator() external view returns (uint128);
@@ -176,16 +162,15 @@ interface IVAMMBase is IVAMM, CustomErrors {
 
     /// @notice Initiate an Interest Rate Swap
     /// @param params SwapParams necessary to initiate an Interest Rate Swap
-    /// @return fixedTokenDelta Fixed Token Delta
-    /// @return variableTokenDelta Variable Token Delta
+    /// @return tracker0Delta Fixed Token Delta
+    /// @return tracker1Delta Variable Token Delta
     /// @return cumulativeFeeIncurred Cumulative Fee Incurred
     function swap(SwapParams memory params)
         external
         returns (
-            int256 fixedTokenDelta,
-            int256 variableTokenDelta,
-            uint256 cumulativeFeeIncurred,
-            int256 fixedTokenDeltaUnbalanced
+            int256 tracker0Delta,
+            int256 tracker1Delta,
+            uint256 cumulativeFeeIncurred
         );
 
     
@@ -201,14 +186,14 @@ interface IVAMMBase is IVAMM, CustomErrors {
     /// @notice Computes the current fixed and variable token growth inside a given tick range given the current tick in the vamm
     /// @param tickLower The lower tick of the position
     /// @param tickUpper The upper tick of the position
-    /// @return fixedTokenGrowthInsideX128 Fixed Token Growth inside the given tick range
-    /// @return variableTokenGrowthInsideX128 Variable Token Growth inside the given tick rangee
+    /// @return tracker0GrowthInsideX128 Fixed Token Growth inside the given tick range
+    /// @return tracker1GrowthInsideX128 Variable Token Growth inside the given tick rangee
     function computeGrowthInside(int24 tickLower, int24 tickUpper)
         external
         view
         returns (
-            int256 fixedTokenGrowthInsideX128,
-            int256 variableTokenGrowthInsideX128
+            int256 tracker0GrowthInsideX128,
+            int256 tracker1GrowthInsideX128
         );
 
     
