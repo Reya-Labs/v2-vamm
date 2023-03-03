@@ -21,8 +21,8 @@ library Tick {
         int128 liquidityNet;
         /// @dev fee growth per unit of liquidity on the _other_ side of this tick (relative to the current tick)
         /// @dev only has relative meaning, not absolute — the value depends on when the tick is initialized
-        int256 fixedTokenGrowthOutsideX128;
-        int256 variableTokenGrowthOutsideX128;
+        int256 tracker0GrowthOutsideX128;
+        int256 tracker1GrowthOutsideX128;
         uint256 feeGrowthOutsideX128;
         /// @dev true iff the tick is initialized, i.e. the value is exactly equivalent to the expression liquidityGross != 0
         /// @dev these 8 bits are set to prevent fresh sstores when crossing newly initialized ticks
@@ -134,8 +134,8 @@ library Tick {
             params.tickUpper,
             params.tickCurrent,
             params.variableTokenGrowthGlobalX128,
-            lower.variableTokenGrowthOutsideX128,
-            upper.variableTokenGrowthOutsideX128
+            lower.tracker1GrowthOutsideX128,
+            upper.tracker1GrowthOutsideX128
         );
     }
 
@@ -159,8 +159,8 @@ library Tick {
             params.tickUpper,
             params.tickCurrent,
             params.fixedTokenGrowthGlobalX128,
-            lower.fixedTokenGrowthOutsideX128,
-            upper.fixedTokenGrowthOutsideX128
+            lower.tracker0GrowthOutsideX128,
+            upper.tracker0GrowthOutsideX128
         );
     }
 
@@ -204,10 +204,10 @@ library Tick {
             // by convention, we assume that all growth before a tick was initialized happened _below_ the tick
             if (tick <= tickCurrent) {
 
-                info.fixedTokenGrowthOutsideX128 = fixedTokenGrowthGlobalX128;
+                info.tracker0GrowthOutsideX128 = fixedTokenGrowthGlobalX128;
 
                 info
-                    .variableTokenGrowthOutsideX128 = variableTokenGrowthGlobalX128;
+                    .tracker1GrowthOutsideX128 = variableTokenGrowthGlobalX128;
             }
 
             info.initialized = true;
@@ -253,13 +253,13 @@ library Tick {
             feeGrowthGlobalX128 -
             info.feeGrowthOutsideX128;
 
-        info.fixedTokenGrowthOutsideX128 =
+        info.tracker0GrowthOutsideX128 =
             fixedTokenGrowthGlobalX128 -
-            info.fixedTokenGrowthOutsideX128;
+            info.tracker0GrowthOutsideX128;
 
-        info.variableTokenGrowthOutsideX128 =
+        info.tracker1GrowthOutsideX128 =
             variableTokenGrowthGlobalX128 -
-            info.variableTokenGrowthOutsideX128;
+            info.tracker1GrowthOutsideX128;
 
         liquidityNet = info.liquidityNet;
     }

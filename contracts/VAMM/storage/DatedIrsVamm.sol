@@ -19,7 +19,7 @@ import "../libraries/VAMMBase.sol";
  * @title Connects external contracts that implement the `IVAMM` interface to the protocol.
  *
  */
-library IRSVamm {
+library DatedIrsVamm {
 
     using SafeCastUni for uint256;
     using SafeCastUni for int256;
@@ -38,11 +38,11 @@ library IRSVamm {
          * @dev Numeric identifier for the vamm. Must be unique.
          * @dev There cannot be a vamm with id zero (See VAMMCreator.create()). Id zero is used as a null vamm reference.
          */
-        uint128 id;
+        uint256 id;
         /**
-         * Note: maybe we can find a better way of identifying a market than just a simple name
+         * Note: maybe we can find a better way of identifying a market than just a simple id
          */
-        string marketName;
+        uint128 marketId;
         /**
          * @dev Text identifier for the vamm.
          *
@@ -56,7 +56,7 @@ library IRSVamm {
          */
         address owner;
 
-        address gtwapOracle;
+        address gtwapOracle; // replace with GWAP interface
         uint256 termEndTimestampWad;
         uint128 _maxLiquidityPerTick;
         bool _unlocked; // Mutex
@@ -74,7 +74,7 @@ library IRSVamm {
     /**
      * @dev Returns the vamm stored at the specified vamm id.
      */
-    function load(uint128 id) internal pure returns (Data storage irsVamm) {
+    function load(uint256 id) internal pure returns (Data storage irsVamm) {
         bytes32 s = keccak256(abi.encode("xyz.voltz.IRSVamm", id));
         assembly {
             irsVamm.slot := s
@@ -82,15 +82,24 @@ library IRSVamm {
     }
 
     /**
+     * @dev Finds the vamm id using market id and maturity and
+     * returns the vamm stored at the specified vamm id.
+     */
+    function loadByMaturityAndMarket(uint128 marketId, uint256 maturityTimestamp) internal pure returns (Data storage irsVamm) {
+        uint256 id = uint256(keccak256(abi.encodePacked(marketId, maturityTimestamp)));
+        return load(id);
+    }
+
+    /**
      * @dev Reverts if the caller is not the owner of the specified vamm
      */
-    function onlyVAMMOwner(uint128 vammId, address caller) internal view {
-        if (IRSVamm.load(vammId).owner != caller) {
+    function onlyVAMMOwner(uint256 vammId, address caller) internal view {
+        if (DatedIrsVamm.load(vammId).owner != caller) {
             revert AccessError.Unauthorized(caller);
         }
     }
 
-    function changePauser(Data storage self, uint128 id, address account, bool permission) internal {
+    function changePauser(Data storage self, address account, bool permission) internal {
       // not sure if msg.sender is the caller
       onlyVAMMOwner(self.id, msg.sender);
       self.pauser[account] = permission;
@@ -141,12 +150,12 @@ library IRSVamm {
         )
     {
 
-        int128 averagePrice = (priceAtTick(tickUpper) + priceAtTick(tickLower)) / 2;
+        uint160 averagePrice = (TickMath.getSqrtRatioAtTick(tickUpper) + TickMath.getSqrtRatioAtTick(tickLower)) / 2;
         uint256 timeDeltaUntilMaturity = FixedAndVariableMath.accrualFact(termEndTimestampWad - Time.blockTimestampScaled()); 
 
         // TODO: needs library
         // self.oracle.latest() TODO: implement Oracle
-        trackedValue = ( ( -baseAmount * 100 ) / 1e18 ) * ( ( averagePrice * int256(timeDeltaUntilMaturity) ) / 1e18  + 1e18);
+        trackedValue = ( ( -baseAmount * 100 ) / 1e18 ) * ( ( uint256(averagePrice).toInt256() * int256(timeDeltaUntilMaturity) ) / 1e18  + 1e18);
     }
 
     function refreshGTWAPOracle(Data storage self, address _gtwapOracle)
@@ -156,9 +165,8 @@ library IRSVamm {
     }
 
     // TODO: return data
-    function mint(
+    function vammMint(
         Data storage self,
-        uint256 termEndTimestampWad,
         address recipient,
         int24 tickLower,
         int24 tickUpper,
@@ -180,12 +188,10 @@ library IRSVamm {
         /// @dev update the ticks if necessary
         if (averageBase != 0) {
             VAMMBase.FlipTicksParams memory params;
-            params.owner = recipient;
             params.tickLower = tickLower;
             params.tickLower = tickLower;
             params.accumulatorDelta = averageBase;
-            (flippedLower, flippedUpper) = VAMMBase.flipTicks(
-                params,
+            (flippedLower, flippedUpper) = params.flipTicks(
                 self._ticks,
                 self._tickBitmap,
                 self._vammVars,
@@ -225,7 +231,7 @@ library IRSVamm {
         emit VAMMBase.Mint(msg.sender, recipient, tickLower, tickUpper, baseAmount);
     }
 
-    function swap(
+    function vammSwap(
         Data storage self,
         VAMMBase.SwapParams memory params
     )
@@ -432,7 +438,7 @@ library IRSVamm {
 
     function trackValuesBetweenTicksOutside(
         Data storage self,
-        int128 averageBase,
+        int256 averageBase,
         int24 tickLower,
         int24 tickUpper
     ) internal view returns(
@@ -443,7 +449,7 @@ library IRSVamm {
             return (0, 0);
         }
 
-        int128 base = VAMMBase.baseBetweenTicks(tickLower, tickUpper, averageBase);
+        int256 base = VAMMBase.baseBetweenTicks(tickLower, tickUpper, averageBase);
 
         tracker0GrowthOutside = trackFixedTokens(averageBase, tickLower, tickUpper, self.termEndTimestampWad);
         tracker1GrowthOutside = averageBase;
@@ -485,7 +491,45 @@ library IRSVamm {
 
     }
 
-    function priceAtTick(int24 tick) internal pure returns(int128) {
-        return tick / 100000;
+    function growthBetweenTicks(
+        Data storage self,
+        int24 tickLower,
+        int24 tickUpper
+    ) internal view returns (
+        int256 tracker0GrowthBetween,
+        int256 tracker1GrowthBetween
+    )
+    {
+        Tick.checkTicks(tickLower, tickUpper);
+
+        int256 tracker0BelowLowerTick;
+        int256 tracker1BelowLowerTick;
+
+        if (tickLower <= self._vammVars.tick) {
+            tracker0BelowLowerTick = self._ticks[tickLower].tracker0GrowthOutsideX128;
+            tracker1BelowLowerTick = self._ticks[tickLower].tracker1GrowthOutsideX128;
+        } else {
+            tracker0BelowLowerTick = self._tracker0GrowthGlobalX128 -
+                self._ticks[tickLower].tracker0GrowthOutsideX128;
+            tracker1BelowLowerTick = self._tracker1GrowthGlobalX128 -
+                self._ticks[tickLower].tracker1GrowthOutsideX128;
+        }
+
+        int256 tracker0AboveUpperTick;
+        int256 tracker1AboveUpperTick;
+
+        if (tickUpper > self._vammVars.tick) {
+            tracker0AboveUpperTick = self._ticks[tickUpper].tracker0GrowthOutsideX128;
+            tracker1AboveUpperTick = self._ticks[tickUpper].tracker1GrowthOutsideX128;
+        } else {
+            tracker0AboveUpperTick = self._tracker0GrowthGlobalX128 -
+                self._ticks[tickUpper].tracker0GrowthOutsideX128;
+            tracker1AboveUpperTick = self._tracker1GrowthGlobalX128 -
+                self._ticks[tickUpper].tracker1GrowthOutsideX128;
+        }
+
+        tracker0GrowthBetween = self._tracker0GrowthGlobalX128 - tracker0BelowLowerTick - tracker0AboveUpperTick;
+        tracker1GrowthBetween = self._tracker1GrowthGlobalX128 - tracker1BelowLowerTick - tracker1AboveUpperTick;
+
     }
 }

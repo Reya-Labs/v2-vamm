@@ -46,7 +46,7 @@ library VAMMBase {
         address indexed owner,
         int24 indexed tickLower,
         int24 indexed tickUpper,
-        int128 amount
+        int256 amount
     );
 
     event VAMMPriceChange(int24 tick);
@@ -118,8 +118,6 @@ library VAMMBase {
     }
 
     struct FlipTicksParams {
-        // the address that owns the position
-        address owner;
         // the lower and upper tick of the position
         int24 tickLower;
         int24 tickUpper;
@@ -130,9 +128,9 @@ library VAMMBase {
     function baseBetweenTicks(
         int24 tickLower,
         int24 tickUpper,
-        int128 accumulator
-    ) internal pure returns(int128) {
-        return accumulator * (tickUpper - tickUpper);
+        int256 accumulator
+    ) internal pure returns(int256) {
+        return accumulator * (tickUpper - tickLower);
     }
 
     function flipTicks(
@@ -184,16 +182,16 @@ library VAMMBase {
         }
     }
 
-    function whenNotPaused(bool paused) internal {
+    function whenNotPaused(bool paused) internal pure {
         require(!paused, "Paused");
     }
 
-    function lock(bool _unlocked) internal {
+    function lock(bool _unlocked) internal pure {
         require(_unlocked, "LOK");
         _unlocked = false;
     }
 
-    function unlock(bool _unlocked) internal {
+    function unlock(bool _unlocked) internal pure {
         require(!_unlocked, "NLOK");
         _unlocked = true;
     }
@@ -202,7 +200,7 @@ library VAMMBase {
         SwapParams memory params,
         VAMMVars memory vammVarsStart,
         bool isFT
-    ) internal view {
+    ) internal pure {
 
         if (params.amountSpecified == 0) {
             revert CustomErrors.IRSNotionalAmountSpecifiedMustBeNonZero();
