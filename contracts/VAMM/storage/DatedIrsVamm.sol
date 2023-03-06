@@ -75,7 +75,7 @@ library DatedIrsVamm {
      * @dev Returns the vamm stored at the specified vamm id.
      */
     function load(uint256 id) internal pure returns (Data storage irsVamm) {
-        bytes32 s = keccak256(abi.encode("xyz.voltz.IRSVamm", id));
+        bytes32 s = keccak256(abi.encode("xyz.voltz.DatedIRSVamm", id));
         assembly {
             irsVamm.slot := s
         }

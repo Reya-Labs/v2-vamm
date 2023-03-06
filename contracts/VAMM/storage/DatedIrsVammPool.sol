@@ -10,7 +10,6 @@ library DatedIrsVammPool {
 
     struct Position {
         address accountId;
-        uint256 id;
         /** 
         * @dev position notional amount
         */
@@ -66,15 +65,20 @@ library DatedIrsVammPool {
 
         address gtwapOracle;
 
+        /**
+         * @dev Maps from position ID (see `getPositionId` to the properties of that position
+         */
         mapping(uint256 => Position) positions;
-
-        mapping(address => Position[]) positionsInAccount;
+        /**
+         * @dev Maps from an account address to a list of the position IDs of positions associated with that account address. Use the `positions` mapping to see full details of any given `Position`.
+         */
+        mapping(address => uint256[]) positionsInAccount;
 
         mapping(uint256 => bool) supportedMaturities;
     }
 
     function load(uint128 id) internal pure returns (Data storage self) {
-        bytes32 s = keccak256(abi.encode("xyz.voltz.VAMMPool", id));
+        bytes32 s = keccak256(abi.encode("xyz.voltz.DatedIRSVAMMPool", id));
         assembly {
             self.slot := s
         }
@@ -141,7 +145,7 @@ library DatedIrsVammPool {
         int24 tickLower = TickMath.getTickAtSqrtRatio(fixedRateUpper);
         int24 tickUpper = TickMath.getTickAtSqrtRatio(fixedRateLower);
 
-       uint256 positionId = openPosition(self, msg.sender, tickLower, tickUpper);
+       uint256 positionId = openPosition(self, msg.sender, tickLower, tickUpper); // TODO: it probably needn't be msg.sender, but when it's not we need to authenticate
 
         // what happens if vamm for maturity & market does not exist?
        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
@@ -170,8 +174,8 @@ library DatedIrsVammPool {
         uint256 numPositions = self.positionsInAccount[accountId].length;
 
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
-        for (uint256 i = 0; i <= numPositions; i++) {
-            Position memory position = getRawPosition(self, self.positionsInAccount[accountId][i].id, vamm);
+        for (uint256 i = 0; i < numPositions; i++) {
+            Position memory position = getRawPosition(self, self.positionsInAccount[accountId][i], vamm);
 
             baseBalancePool += position.tracker0Accumulated;
             quoteBalancePool += position.tracker1Accumulated;
@@ -195,8 +199,8 @@ library DatedIrsVammPool {
         if (numPositions != 0) {
             DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
 
-            for (uint256 i = 0; i <= numPositions; i++) {
-                Position memory position = getRawPosition(self, self.positionsInAccount[accountId][i].id, vamm);
+            for (uint256 i = 0; i < numPositions; i++) {
+                Position memory position = getRawPosition(self, self.positionsInAccount[accountId][i], vamm);
 
                 (int256 unfilledLong,, int256 unfilledShort,) = vamm.trackValuesBetweenTicks(
                     position.tickLower,
@@ -222,9 +226,9 @@ library DatedIrsVammPool {
         internal
         returns (uint256){
 
-        uint256 positionId = uint256(keccak256(abi.encodePacked(accountId, tickLower, tickUpper)));
+        uint256 positionId = getPositionId(accountId, tickLower, tickUpper);
 
-        if(self.positions[positionId].id == 0) {
+        if(self.positions[positionId].accountId == address(0)) {
             return positionId;
         }
 
@@ -232,9 +236,24 @@ library DatedIrsVammPool {
         self.positions[positionId].tickLower = tickLower;
         self.positions[positionId].tickUpper = tickUpper;
 
-        self.positionsInAccount[accountId].push(self.positions[positionId]);
+        self.positionsInAccount[accountId].push(positionId);
 
         return positionId;
+    }
+
+    /**
+     * @notice Returns the positionId that such a position would have, shoudl it exist. Does not check for existence.
+     */
+    function getPositionId(
+        address accountId,
+        int24 tickLower,
+        int24 tickUpper
+    )
+        public
+        pure
+        returns (uint256){
+
+        return uint256(keccak256(abi.encodePacked(accountId, tickLower, tickUpper)));
     }
 
     function getRawPosition(
@@ -245,7 +264,7 @@ library DatedIrsVammPool {
         internal
         returns (Position memory) {
 
-        require(self.positions[positionId].id != 0, "Missing position");
+        require(self.positions[positionId].accountId != address(0), "Missing position");
         
         propagatePosition(self, positionId, vamm);
         return self.positions[positionId];
