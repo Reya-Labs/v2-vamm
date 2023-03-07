@@ -14,6 +14,7 @@ import "prb-math/contracts/PRBMathSD59x18.sol";
 import "../libraries/FixedAndVariableMath.sol";
 import "../../utils/FixedPoint128.sol";
 import "../libraries/VAMMBase.sol";
+import "../../utils/CustomErrors.sol";
 
 /**
  * @title Connects external contracts that implement the `IVAMM` interface to the protocol.
@@ -127,11 +128,14 @@ library DatedIrsVamm {
 
     /**
      * @dev Finds the vamm id using market id and maturity and
-     * returns the vamm stored at the specified vamm id.
+     * returns the vamm stored at the specified vamm id. Reverts if no such VAMM is found.
      */
-    function loadByMaturityAndMarket(uint128 marketId, uint256 maturityTimestamp) internal pure returns (Data storage irsVamm) {
+    function loadByMaturityAndMarket(uint128 marketId, uint256 maturityTimestamp) internal view returns (Data storage irsVamm) {
         uint256 id = uint256(keccak256(abi.encodePacked(marketId, maturityTimestamp)));
-        return load(id);
+        irsVamm = load(id);
+        if (irsVamm.termEndTimestampWad == 0) {
+            revert CustomErrors.MarketAndMaturityCombinaitonNotSupported(marketId, maturityTimestamp);
+        }
     }
 
     /**

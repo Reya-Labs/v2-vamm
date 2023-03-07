@@ -37,6 +37,8 @@ interface CustomErrors {
 
     error OnlyFCM();
 
+    error MarketAndMaturityCombinaitonNotSupported(uint128 marketId, uint256 maturityTimestamp);
+
     /// Margin delta must not equal zero
     error InvalidMarginDelta();
 

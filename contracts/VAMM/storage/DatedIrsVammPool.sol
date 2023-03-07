@@ -48,9 +48,6 @@ library DatedIrsVammPool {
         external
         returns (int256 executedBaseAmount, int256 executedQuoteAmount){
 
-        require(self.supportedMaturities[maturityTimestamp], "Maturity not supported");
-
-        // what happens if vamm for maturity & market does not exist?
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
 
         VAMMBase.SwapParams memory swapParams;
@@ -92,9 +89,6 @@ library DatedIrsVammPool {
         external
         returns (int256 executedBaseAmount){ // TODO: returning 256 for 128 request seems wrong
         
-        // TODO: check if market+maturity combo is supported
-
-        // TODO: what happens if vamm for maturity & market does not exist?
        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
        return vamm.executeDatedMakerOrder(accountId, fixedRateLower, fixedRateUpper, requestedBaseAmount);
     }
@@ -107,7 +101,6 @@ library DatedIrsVammPool {
         external
         returns (int256 baseBalancePool, int256 quoteBalancePool) {
         
-        // TODO: what if market+maturity not supported?
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
         return vamm.getAccountFilledBalances(accountId);
     }
@@ -120,7 +113,6 @@ library DatedIrsVammPool {
         external
         returns (int256 unfilledBaseLong, int256 unfilledBaseShort)
     {
-        // TODO: what if market+maturity combo does not exist?
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
         return vamm.getAccountUnfilledBases(accountId);
     }
