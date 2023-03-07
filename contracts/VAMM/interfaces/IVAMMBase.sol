@@ -11,7 +11,6 @@ interface IVAMMBase is IVAMM {
     // events
     event Swap(
         address sender,
-        address indexed recipient,
         int24 indexed tickLower,
         int24 indexed tickUpper,
         int256 desiredNotional,

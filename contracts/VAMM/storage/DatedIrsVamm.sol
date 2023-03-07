@@ -566,7 +566,6 @@ library DatedIrsVamm {
 
         emit VAMMBase.Swap(
             msg.sender,
-            params.recipient,
             params.tickLower,
             params.tickUpper,
             params.amountSpecified,

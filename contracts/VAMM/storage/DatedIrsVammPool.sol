@@ -51,7 +51,6 @@ library DatedIrsVammPool {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
 
         VAMMBase.SwapParams memory swapParams;
-        swapParams.recipient = msg.sender; // TODO: not needed. No account ID needed either.
         swapParams.amountSpecified = baseAmount;
         swapParams.sqrtPriceLimitX96 = priceLimit == 0
                 ? (
