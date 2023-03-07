@@ -33,8 +33,8 @@ library DatedIrsVamm {
      */
     error IRSVammNotFound(uint128 vammId);
 
-    struct Position { // TODO: LP Position, unlike V1 where it could also be trader
-        uint128 accountId; // TODO: should be of custom type account ID (uint128)
+    struct LPPosition {
+        uint128 accountId;
         /** 
         * @dev position notional amount
         */
@@ -94,9 +94,9 @@ library DatedIrsVamm {
         /**
          * @dev Maps from position ID (see `getPositionId` to the properties of that position
          */
-        mapping(uint256 => Position) positions;
+        mapping(uint256 => LPPosition) positions;
         /**
-         * @dev Maps from an account address to a list of the position IDs of positions associated with that account address. Use the `positions` mapping to see full details of any given `Position`.
+         * @dev Maps from an account address to a list of the position IDs of positions associated with that account address. Use the `positions` mapping to see full details of any given `LPPosition`.
          */
         mapping(uint128 => uint256[]) positionsInAccount;
 
@@ -153,7 +153,7 @@ library DatedIrsVamm {
      * @param executedBaseAmount Executed amount of notional provided to a given vamm in terms of the virtual base tokens of the
      * market
      */
-    function executeMakerOrder( // TODO: should change to initiateMakerOrder. C&P interface shape from product
+    function executeDatedMakerOrder(
         Data storage self,
         uint128 accountId,
         uint160 fixedRateLower,
@@ -166,9 +166,9 @@ library DatedIrsVamm {
         int24 tickLower = TickMath.getTickAtSqrtRatio(fixedRateUpper);
         int24 tickUpper = TickMath.getTickAtSqrtRatio(fixedRateLower);
 
-        uint256 positionId = openPosition(self, accountId, tickLower, tickUpper); // TODO: it probably needn't be msg.sender, but when it's not we need to authenticate
+        uint256 positionId = openPosition(self, accountId, tickLower, tickUpper);
 
-        Position memory position = getRawPosition(self, positionId);
+        LPPosition memory position = getRawPosition(self, positionId);
 
         require(position.baseAmount + requestedBaseAmount >= 0, "Burning too much");
 
@@ -211,7 +211,7 @@ library DatedIrsVamm {
         uint256 positionId
     )
         internal
-        returns (Position memory) {
+        returns (LPPosition memory) {
 
         // TODO: check/enforce assertion that zero is not a valid account ID
         require(self.positions[positionId].accountId != 0, "Missing position");
@@ -226,7 +226,7 @@ library DatedIrsVamm {
     )
         internal {
 
-        Position memory position = self.positions[positionId];
+        LPPosition memory position = self.positions[positionId];
 
         (int256 tracker0GlobalGrowth, int256 tracker1GlobalGrowth) = 
             growthBetweenTicks(self, position.tickLower, position.tickUpper);
@@ -630,7 +630,7 @@ library DatedIrsVamm {
         uint256 numPositions = self.positionsInAccount[accountId].length;
         if (numPositions != 0) {
             for (uint256 i = 0; i < numPositions; i++) {
-                Position memory position = getRawPosition(self, self.positionsInAccount[accountId][i]); // TODO: Only positions for given subpool / VAMM
+                LPPosition memory position = getRawPosition(self, self.positionsInAccount[accountId][i]);
 
                 (int256 unfilledLong,, int256 unfilledShort,) = trackValuesBetweenTicks(
                     self,
@@ -649,13 +649,13 @@ library DatedIrsVamm {
         Data storage self,
         uint128 accountId
     )
-        external
+        internal
         returns (int256 baseBalancePool, int256 quoteBalancePool) {
         
         uint256 numPositions = self.positionsInAccount[accountId].length;
 
         for (uint256 i = 0; i < numPositions; i++) {
-            Position memory position = getRawPosition(self, self.positionsInAccount[accountId][i]); 
+            LPPosition memory position = getRawPosition(self, self.positionsInAccount[accountId][i]); 
 
             baseBalancePool += position.tracker0Accumulated;
             quoteBalancePool += position.tracker1Accumulated;

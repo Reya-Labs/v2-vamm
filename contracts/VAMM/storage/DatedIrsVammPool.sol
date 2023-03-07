@@ -38,8 +38,6 @@ library DatedIrsVammPool {
     }
 
     /// @dev note, a pool needs to have this interface to enable account closures initiated by products
-    /// @dev in the future -> executePerpetualTakerOrder(uint128 marketId, int256 baseAmount)
-    /// for products that don't have maturities
     function executeDatedTakerOrder(
         Data storage self,
         uint128 marketId,
@@ -83,7 +81,7 @@ library DatedIrsVammPool {
      * @param executedBaseAmount Executed amount of notional provided to a given vamm in terms of the virtual base tokens of the
      * market
      */
-    function initiateMakerOrder( // TODO: should change to initiateMakerOrder. C&P interface shape from product
+    function initiateDatedMakerOrder(
         uint128 accountId,
         uint128 marketId,
         uint256 maturityTimestamp,
@@ -98,7 +96,7 @@ library DatedIrsVammPool {
 
         // TODO: what happens if vamm for maturity & market does not exist?
        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
-       return vamm.executeMakerOrder(accountId, fixedRateLower, fixedRateUpper, requestedBaseAmount);
+       return vamm.executeDatedMakerOrder(accountId, fixedRateLower, fixedRateUpper, requestedBaseAmount);
     }
 
     function getAccountFilledBalances(
