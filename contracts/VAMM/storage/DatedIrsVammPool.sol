@@ -26,8 +26,6 @@ library DatedIrsVammPool {
          * See onlyVAMMOwner.
          */
         address owner;
-
-        mapping(uint256 => bool) supportedMaturities; // TODO: get rid of this - need to somehow check validity of market, maturity pair (could be done when loading?)
     }
 
     function load(uint128 id) internal pure returns (Data storage self) {
