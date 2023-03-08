@@ -55,13 +55,6 @@ library VAMMBase {
         mapping(int16 => uint256) _tickBitmap;
     }
 
-    struct VAMMVars {
-        /// @dev The current price of the pool as a sqrt(tracker1/tracker0) Q64.96 value
-        uint160 sqrtPriceX96;
-        /// @dev The current tick of the vamm, i.e. according to the last tick transition that was run.
-        int24 tick;
-    }
-
     struct SwapParams {
         /// @dev Address of the trader initiating the swap
         address recipient;
@@ -136,7 +129,7 @@ library VAMMBase {
         FlipTicksParams memory params,
         mapping(int24 => Tick.Info) storage _ticks,
         mapping(int16 => uint256) storage _tickBitmap,
-        VAMMVars memory _vammVars,
+        IVAMMBase.VAMMVars memory _vammVars,
         int256 _tracker0GrowthGlobalX128,
         int256 _tracker1GrowthGlobalX128,
         uint128 _maxLiquidityPerTick,
@@ -197,7 +190,7 @@ library VAMMBase {
 
     function checksBeforeSwap(
         SwapParams memory params,
-        VAMMVars memory vammVarsStart,
+        IVAMMBase.VAMMVars memory vammVarsStart,
         bool isFT
     ) internal pure {
 

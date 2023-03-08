@@ -35,12 +35,22 @@ interface IVAMMBase is IVAMM {
     event VAMMPriceChange(int24 tick);
 
     // structs
-
     struct VAMMVars {
         /// @dev The current price of the pool as a sqrt(tracker1/tracker0) Q64.96 value
         uint160 sqrtPriceX96;
         /// @dev The current tick of the vamm, i.e. according to the last tick transition that was run.
         int24 tick;
+        // the most-recently updated index of the observations array
+        uint16 observationIndex;
+        // the current maximum number of observations that are being stored
+        uint16 observationCardinality;
+        // the next maximum number of observations to store, triggered in observations.write
+        uint16 observationCardinalityNext;
+        // the current protocol fee as a percentage of the swap fee taken on withdrawal
+        // represented as an integer denominator (1/x)%
+        uint8 feeProtocol;
+        // whether the pool is locked
+        bool unlocked;
     }
 
     struct SwapParams {

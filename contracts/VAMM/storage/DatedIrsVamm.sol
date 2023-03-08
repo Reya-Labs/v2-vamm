@@ -71,6 +71,8 @@ library DatedIrsVamm {
     }
 
     struct Data {
+        /// @inheritdoc IVAMMBase
+        IVAMMBase.VAMMVars _vammVars;
         /**
          * @dev Numeric identifier for the vamm. Must be unique.
          * @dev There cannot be a vamm with id zero (See VAMMCreator.create()). Id zero is used as a null vamm reference.
@@ -104,14 +106,12 @@ library DatedIrsVamm {
         address gtwapOracle; // TODO: replace with GWAP interface
         uint256 termEndTimestampWad;
         uint128 _maxLiquidityPerTick;
-        bool _unlocked; // Mutex
         uint128 _accumulator;
         int256 _tracker0GrowthGlobalX128;
         int256 _tracker1GrowthGlobalX128;
         int24 _tickSpacing;
         mapping(int24 => Tick.Info) _ticks;
         mapping(int16 => uint256) _tickBitmap;
-        VAMMBase.VAMMVars _vammVars;
         mapping(address => bool) pauser;
         bool paused;
     }
@@ -342,11 +342,11 @@ library DatedIrsVamm {
     ) internal {
         self.paused.whenNotPaused();
         VAMMBase.checkCurrentTimestampTermEndTimestampDelta(self.termEndTimestampWad);
-        self._unlocked.lock();
+        self._vammVars.unlocked.lock();
 
         Tick.checkTicks(tickLower, tickUpper);
 
-        VAMMBase.VAMMVars memory lvammVars = self._vammVars; // SLOAD for gas optimization
+        IVAMMBase.VAMMVars memory lvammVars = self._vammVars; // SLOAD for gas optimization
 
         bool flippedLower;
         bool flippedUpper;
@@ -394,7 +394,7 @@ library DatedIrsVamm {
             }
         }
 
-        self._unlocked.unlock();
+        self._vammVars.unlocked.unlock();
 
         emit VAMMBase.Mint(msg.sender, recipient, tickLower, tickUpper, baseAmount);
     }
@@ -411,12 +411,12 @@ library DatedIrsVamm {
 
         Tick.checkTicks(params.tickLower, params.tickUpper);
 
-        VAMMBase.VAMMVars memory vammVarsStart = self._vammVars;
+        IVAMMBase.VAMMVars memory vammVarsStart = self._vammVars;
 
         VAMMBase.checksBeforeSwap(params, vammVarsStart, params.amountSpecified > 0);
 
         /// @dev lock the vamm while the swap is taking place
-        self._unlocked.lock();
+        self._vammVars.unlocked.lock();
 
         uint128 accumulatorStart = self._accumulator;
 
@@ -574,7 +574,7 @@ library DatedIrsVamm {
             tracker1Delta
         );
 
-        self._unlocked.unlock();
+        self._vammVars.unlocked.unlock();
     }
 
     function calculateUpdatedGlobalTrackerValues(
