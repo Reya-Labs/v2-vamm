@@ -15,6 +15,7 @@ import "../libraries/FixedAndVariableMath.sol";
 import "../../utils/FixedPoint128.sol";
 import "../libraries/VAMMBase.sol";
 import "../../utils/CustomErrors.sol";
+import "../libraries/Oracle.sol";
 
 /**
  * @title Connects external contracts that implement the `IVAMM` interface to the protocol.
@@ -28,6 +29,22 @@ library DatedIrsVamm {
     using VAMMBase for bool;
     using Tick for mapping(int24 => Tick.Info);
     using TickBitmap for mapping(int16 => uint256);
+    using Oracle for Oracle.Observation[65535];
+
+     /// @dev Returns the block timestamp truncated to 32 bits, i.e. mod 2**32
+    function _blockTimestamp() internal view returns (uint32) {
+        return uint32(block.timestamp); // truncation is desired
+    }
+
+    /// @notice Emitted by the pool for increases to the number of observations that can be stored
+    /// @dev observationCardinalityNext is not the observation cardinality until an observation is written at the index
+    /// just before a mint/swap/burn.
+    /// @param observationCardinalityNextOld The previous value of the next observation cardinality
+    /// @param observationCardinalityNextNew The updated value of the next observation cardinality
+    event IncreaseObservationCardinalityNext(
+        uint16 observationCardinalityNextOld,
+        uint16 observationCardinalityNextNew
+    );
 
     /**
      * @dev Thrown when a specified vamm is not found.
@@ -87,13 +104,13 @@ library DatedIrsVamm {
          *
          * Not required to be unique.
          */
-        string name;
+        string name; // TODO: necessary? If so, initialize.
         /**
          * @dev Creator of the vamm, which has configuration access rights for the vamm.
          *
          * See onlyVAMMOwner.
          */
-        address owner;
+        address owner; // TODO: move owner config to DatedIRSVammPool?
         /**
          * @dev Maps from position ID (see `getPositionId` to the properties of that position
          */
@@ -103,8 +120,11 @@ library DatedIrsVamm {
          */
         mapping(uint128 => uint256[]) positionsInAccount;
 
+        /// Circular buffer of Oracle Observations. Resizable but no more than type(uint16).max slots in the buffer
+        Oracle.Observation[65535] observations;
+
         address gtwapOracle; // TODO: replace with GWAP interface
-        uint256 termEndTimestampWad;
+        uint256 termEndTimestampWad; // TODO: change to non-wad or to PRB Math type
         uint128 _maxLiquidityPerTick;
         uint128 _accumulator;
         int256 _tracker0GrowthGlobalX128;
@@ -112,8 +132,8 @@ library DatedIrsVamm {
         int24 _tickSpacing;
         mapping(int24 => Tick.Info) _ticks;
         mapping(int16 => uint256) _tickBitmap;
-        mapping(address => bool) pauser;
-        bool paused;
+        mapping(address => bool) pauser; // TODO: move pauser config to DatedIRSVammPool?
+        bool paused; // TODO: move pause state to DatedIRSVammPool?
     }
 
     /**
@@ -139,10 +159,96 @@ library DatedIrsVamm {
     }
 
     /**
+     * @dev Finds the vamm id using market id and maturity and
+     * returns the vamm stored at the specified vamm id. Reverts if no such VAMM is found.
+     */
+    function createByMaturityAndMarket(uint128 marketId, uint256 maturityTimestamp,  uint160 sqrtPriceX96) internal returns (Data storage irsVamm) {
+        require(maturityTimestamp != 0);
+        uint256 id = uint256(keccak256(abi.encodePacked(marketId, maturityTimestamp)));
+        irsVamm = load(id);
+        if (irsVamm.termEndTimestampWad != 0) {
+            revert CustomErrors.MarketAndMaturityCombinaitonAlreadyExists(marketId, maturityTimestamp);
+        }
+    }
+
+    /// @dev not locked because it initializes unlocked
+    function initialize(Data storage self, uint160 sqrtPriceX96, uint256 _termEndTimestampWad, uint128 _marketId) internal {
+        require(self._vammVars.sqrtPriceX96 == 0, 'AI');
+
+        int24 tick = TickMath.getTickAtSqrtRatio(sqrtPriceX96);
+
+        self.marketId = _marketId;
+        self.termEndTimestampWad = _termEndTimestampWad;
+
+        // TODO: add other VAMM config such as _maxLiquidityPerTick
+
+        (uint16 cardinality, uint16 cardinalityNext) = self.observations.initialize(_blockTimestamp());
+
+        self._vammVars = IVAMMBase.VAMMVars({
+            sqrtPriceX96: sqrtPriceX96,
+            tick: tick,
+            observationIndex: 0,
+            observationCardinality: cardinality,
+            observationCardinalityNext: cardinalityNext,
+            feeProtocol: 0,
+            unlocked: true
+        });
+
+        // emit Initialize(sqrtPriceX96, tick); // TODO: emit log for new VAMM, either here or in DatedIrsVAMMPool
+    }
+
+    /// @notice Returns the cumulative tick and liquidity as of each timestamp `secondsAgo` from the current block timestamp
+    /// @dev To get a time weighted average tick or liquidity-in-range, you must call this with two values, one representing
+    /// the beginning of the period and another for the end of the period. E.g., to get the last hour time-weighted average tick,
+    /// you must call it with secondsAgos = [3600, 0].
+    /// @dev The time weighted average tick represents the geometric time weighted average price of the pool, in
+    /// log base sqrt(1.0001) of token1 / token0. The TickMath library can be used to go from a tick value to a ratio.
+    /// @param secondsAgos From how long ago each cumulative tick and liquidity value should be returned
+    /// @return tickCumulatives Cumulative tick values as of each `secondsAgos` from the current block timestamp
+    /// @return secondsPerLiquidityCumulativeX128s Cumulative seconds per liquidity-in-range value as of each `secondsAgos` from the current block
+    /// timestamp
+    function observe(
+        Data storage self,
+        uint32[] calldata secondsAgos)
+        internal
+        returns (int56[] memory tickCumulatives, uint160[] memory secondsPerLiquidityCumulativeX128s)
+    {
+        return
+            self.observations.observe(
+                _blockTimestamp(),
+                secondsAgos,
+                self._vammVars.tick,
+                self._vammVars.observationIndex,
+                0, // liquidity is untracked
+                self._vammVars.observationCardinality
+            );
+    }
+
+    /// @notice Increase the maximum number of price and liquidity observations that this pool will store
+    /// @dev This method is no-op if the pool already has an observationCardinalityNext greater than or equal to
+    /// the input observationCardinalityNext.
+    /// @param observationCardinalityNext The desired minimum number of observations for the pool to store
+    function increaseObservationCardinalityNext(Data storage self, uint16 observationCardinalityNext)
+        internal
+    {
+        self._vammVars.unlocked.lock();
+        uint16 observationCardinalityNextOld =  self._vammVars.observationCardinalityNext; // for the event
+        uint16 observationCardinalityNextNew =  self.observations.grow(
+            observationCardinalityNextOld,
+            observationCardinalityNext
+        );
+         self._vammVars.observationCardinalityNext = observationCardinalityNextNew;
+        if (observationCardinalityNextOld != observationCardinalityNextNew)
+            emit IncreaseObservationCardinalityNext(observationCardinalityNextOld, observationCardinalityNextNew);
+                self._vammVars.unlocked.unlock();
+
+    }
+
+    /**
      * @dev Reverts if the caller is not the owner of the specified vamm
      */
-    function onlyVAMMOwner(uint256 vammId, address caller) internal view {
-        if (DatedIrsVamm.load(vammId).owner != caller) {
+    function onlyVAMMOwner(Data storage self, address caller) internal view {
+        if (self.owner != caller) {
             revert AccessError.Unauthorized(caller);
         }
     }
@@ -174,7 +280,7 @@ library DatedIrsVamm {
 
         LPPosition memory position = getRawPosition(self, positionId);
 
-        require(position.baseAmount + requestedBaseAmount >= 0, "Burning too much");
+        require(position.baseAmount + requestedBaseAmount >= 0, "Burning too much"); // TODO: CustomError
 
         vammMint(self, msg.sender, tickLower, tickUpper, requestedBaseAmount);
 
@@ -267,13 +373,13 @@ library DatedIrsVamm {
         return uint256(keccak256(abi.encodePacked(accountId, tickLower, tickUpper)));
     }
 
-    function changePauser(Data storage self, address account, bool permission) internal {
+    function changePauser(Data storage self, address account, bool permission) internal { // TODO: move to DatedIRSVammPool?
       // not sure if msg.sender is the caller
-      onlyVAMMOwner(self.id, msg.sender);
+      onlyVAMMOwner(self, msg.sender);
       self.pauser[account] = permission;
     }
 
-    function setPausability(Data storage self, bool state) internal {
+    function setPausability(Data storage self, bool state) internal { // TODO: move to DatedIRSVammPool?
         require(self.pauser[msg.sender], "no role");
         self.paused = state;
     }
@@ -342,7 +448,7 @@ library DatedIrsVamm {
     ) internal {
         self.paused.whenNotPaused();
         VAMMBase.checkCurrentTimestampTermEndTimestampDelta(self.termEndTimestampWad);
-        self._vammVars.unlocked.lock();
+        self._vammVars.unlocked.lock(); // TODO: should lock move to executeDatedMakerOrder if that is the only possible entry point?
 
         Tick.checkTicks(tickLower, tickUpper);
 
@@ -355,6 +461,7 @@ library DatedIrsVamm {
 
         /// @dev update the ticks if necessary
         if (averageBase != 0) {
+
             VAMMBase.FlipTicksParams memory params;
             params.tickLower = tickLower;
             params.tickLower = tickLower;
@@ -523,17 +630,17 @@ library DatedIrsVamm {
             if (state.sqrtPriceX96 == step.sqrtPriceNextX96) {
                 // if the tick is initialized, run the tick transition
                 if (step.initialized) {
-                int128 accumulatorNet = self._ticks.cross(
-                    step.tickNext,
-                    state.tracker0GrowthGlobalX128,
-                    state.tracker1GrowthGlobalX128,
-                    0
-                );
+                    int128 accumulatorNet = self._ticks.cross(
+                        step.tickNext,
+                        state.tracker0GrowthGlobalX128,
+                        state.tracker1GrowthGlobalX128,
+                        0
+                    );
 
-                state.accumulator = LiquidityMath.addDelta(
-                    state.accumulator,
-                    advanceRight ? accumulatorNet : -accumulatorNet
-                );
+                    state.accumulator = LiquidityMath.addDelta(
+                        state.accumulator,
+                        advanceRight ? accumulatorNet : -accumulatorNet
+                    );
 
                 }
 
@@ -545,12 +652,25 @@ library DatedIrsVamm {
         }
 
         ///// UPDATE VAMM VARS AFTER SWAP /////
-
-        self._vammVars.sqrtPriceX96 = state.sqrtPriceX96;
-
         if (state.tick != vammVarsStart.tick) {
             // update the tick in case it changed
-            self._vammVars.tick = state.tick;
+            (uint16 observationIndex, uint16 observationCardinality) = self.observations.write(
+                vammVarsStart.observationIndex,
+                _blockTimestamp(),
+                vammVarsStart.tick,
+                0, // Liquidity not currently being tracked
+                vammVarsStart.observationCardinality,
+                vammVarsStart.observationCardinalityNext
+            );
+            (self._vammVars.sqrtPriceX96, self._vammVars.tick, self._vammVars.observationIndex, self._vammVars.observationCardinality) = (
+                state.sqrtPriceX96,
+                state.tick,
+                observationIndex,
+                observationCardinality
+            );
+        } else {
+            // otherwise just update the price
+            self._vammVars.sqrtPriceX96 = state.sqrtPriceX96;
         }
 
         // update liquidity if it changed

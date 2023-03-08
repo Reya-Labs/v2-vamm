@@ -10,22 +10,24 @@ library DatedIrsVammPool {
 
     struct Data {
         /**
-         * @dev Numeric identifier for the vamm. Must be unique.
+         * @dev Numeric identifier for the vamm pool. Must be unique.
          * @dev There cannot be a vamm with id zero (See VAMMCreator.create()). Id zero is used as a null vamm reference.
          */
-        uint128 id;
+        uint128 id; // TODO: delete if not needed?
         /**
          * @dev Text identifier for the vamm.
          *
          * Not required to be unique.
          */
-        string name;
+        string name; // TODO: delete if not needed?
         /**
          * @dev Creator of the vamm, which has configuration access rights for the vamm.
          *
          * See onlyVAMMOwner.
          */
-        address owner;
+        address owner; // TODO: use this (or somethng else) ao auth all activity
+
+        // TODO: add pause state and pauser roles here at the DatedIrsVammPool level
     }
 
     function load(uint128 id) internal pure returns (Data storage self) {
@@ -34,6 +36,8 @@ library DatedIrsVammPool {
             self.slot := s
         }
     }
+
+    // TODO: add function for creating a new VAMM instance, calling through to DatedIrsVamm.createByMaturityAndMarket
 
     /// @dev note, a pool needs to have this interface to enable account closures initiated by products
     function executeDatedTakerOrder(
