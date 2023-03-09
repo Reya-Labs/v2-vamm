@@ -9,7 +9,7 @@ import "../libraries/TickBitmap.sol";
 import "../../utils/SafeCastUni.sol";
 import "../../utils/SqrtPriceMath.sol";
 import "../libraries/SwapMath.sol";
-import "prb-math/contracts/PRBMathUD60x18.sol";
+import "prb-math/contracts/PRBMathUD60x18.sol"; // TODO: update to latst vrsion and use custom types
 import "prb-math/contracts/PRBMathSD59x18.sol";
 import "../libraries/FixedAndVariableMath.sol";
 import "../../utils/FixedPoint128.sol";
@@ -122,6 +122,10 @@ library DatedIrsVamm {
 
         /// Circular buffer of Oracle Observations. Resizable but no more than type(uint16).max slots in the buffer
         Oracle.Observation[65535] observations;
+        /// @dev the phi value to use when adjusting a TWAP price for the likely price impact of liquidation
+        uint256 priceImpactPhi;
+        /// @dev the beta value to use when adjusting a TWAP price for the likely price impact of liquidation
+        uint256 priceImpactBeta;
 
         address gtwapOracle; // TODO: replace with GWAP interface
         uint256 termEndTimestampWad; // TODO: change to non-wad or to PRB Math type
@@ -169,6 +173,7 @@ library DatedIrsVamm {
         if (irsVamm.termEndTimestampWad != 0) {
             revert CustomErrors.MarketAndMaturityCombinaitonAlreadyExists(marketId, maturityTimestamp);
         }
+        initialize(irsVamm, sqrtPriceX96, maturityTimestamp, marketId);
     }
 
     /// @dev not locked because it initializes unlocked
@@ -197,6 +202,65 @@ library DatedIrsVamm {
         // emit Initialize(sqrtPriceX96, tick); // TODO: emit log for new VAMM, either here or in DatedIrsVAMMPool
     }
 
+    /// @notice Calculates time-weighted geometric mean price based on the past `secondsAgo` seconds
+    /// @param secondsAgo Number of seconds in the past from which to calculate the time-weighted means
+    /// @param adjustForSpread Whether or not to adjust the returned price by the VAMM's configured spread.
+    /// @param priceImpactOrderSize The order size to use when adjusting the price for price impact. Or `0` to ignore price impact.
+    /// @return adjustedGeometricMeanPriceX96 The geometric mean price, adjusted according to requested parameters.
+    function twap(Data storage self, uint32 secondsAgo, uint256 priceImpactOrderSize, bool adjustForSpread)
+        internal
+        view
+        returns (uint256 adjustedGeometricMeanPriceX96) // TODO: expose result as PRB math instead?
+    {
+        int24 arithmeticMeanTick = observe(self, secondsAgo);
+
+        // Not yet adjusted
+        adjustedGeometricMeanPriceX96 = getPriceX96FromTick(arithmeticMeanTick);
+
+        if (adjustForSpread) {
+            // TODO
+        }
+
+        if (priceImpactOrderSize != 0) {
+            // TODO
+        }
+
+        return adjustedGeometricMeanPriceX96;
+    }
+
+    function getPriceX96FromTick(int24 tick) public pure returns(uint256 priceX96) {
+        uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(tick);
+        return FullMath.mulDiv(sqrtPriceX96, sqrtPriceX96, FixedPoint96.Q96);
+    }
+
+    /// @notice Calculates time-weighted arithmetic mean tick
+    /// @param secondsAgo Number of seconds in the past from which to calculate the time-weighted means
+    function observe(Data storage self, uint32 secondsAgo)
+        internal
+        view
+        returns (int24 arithmeticMeanTick)
+    {
+        if (secondsAgo == 0) {
+            // return the current tick if secondsAgo == 0
+            arithmeticMeanTick = self._vammVars.tick;
+        } else {
+            uint32[] memory secondsAgos = new uint32[](2);
+            secondsAgos[0] = secondsAgo;
+            secondsAgos[1] = 0;
+
+            (int56[] memory tickCumulatives, uint160[] memory secondsPerLiquidityCumulativeX128s) =
+                observe(self, secondsAgos);
+
+            int56 tickCumulativesDelta = tickCumulatives[1] - tickCumulatives[0];
+            uint160 secondsPerLiquidityCumulativesDelta =
+                secondsPerLiquidityCumulativeX128s[1] - secondsPerLiquidityCumulativeX128s[0];
+
+            arithmeticMeanTick = int24(tickCumulativesDelta / int56(uint56(secondsAgo)));
+            // Always round to negative infinity
+            if (tickCumulativesDelta < 0 && (tickCumulativesDelta % int56(uint56(secondsAgo)) != 0)) arithmeticMeanTick--;
+        }
+    }
+
     /// @notice Returns the cumulative tick and liquidity as of each timestamp `secondsAgo` from the current block timestamp
     /// @dev To get a time weighted average tick or liquidity-in-range, you must call this with two values, one representing
     /// the beginning of the period and another for the end of the period. E.g., to get the last hour time-weighted average tick,
@@ -209,8 +273,9 @@ library DatedIrsVamm {
     /// timestamp
     function observe(
         Data storage self,
-        uint32[] calldata secondsAgos)
+        uint32[] memory secondsAgos)
         internal
+        view
         returns (int56[] memory tickCumulatives, uint160[] memory secondsPerLiquidityCumulativeX128s)
     {
         return
