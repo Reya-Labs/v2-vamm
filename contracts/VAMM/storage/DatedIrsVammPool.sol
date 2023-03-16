@@ -3,10 +3,12 @@ pragma solidity >=0.8.13;
 
 import "./DatedIrsVamm.sol";
 import "../libraries/VAMMBase.sol";
+import "../../ownership/OwnableStorage.sol";
 
 /// @title Interface a Pool needs to adhere.
 library DatedIrsVammPool {
     using DatedIrsVamm for DatedIrsVamm.Data;
+    using VAMMBase for bool;
 
     struct Data {
         /**
@@ -19,7 +21,7 @@ library DatedIrsVammPool {
          *
          * Not required to be unique.
          */
-        string name; // TODO: delete if not needed?
+        string name; // TODO: delete if not needed? Maybe name should be constructed programmatically
         /**
          * @dev Creator of the vamm, which has configuration access rights for the vamm.
          *
@@ -27,7 +29,8 @@ library DatedIrsVammPool {
          */
         address owner; // TODO: use this (or somethng else) ao auth all activity
 
-        // TODO: add pause state and pauser roles here at the DatedIrsVammPool level
+        mapping(address => bool) pauser;
+        bool paused;
     }
 
     function load(uint128 id) internal pure returns (Data storage self) {
@@ -35,6 +38,17 @@ library DatedIrsVammPool {
         assembly {
             self.slot := s
         }
+    }
+
+    function changePauser(Data storage self, address account, bool permission) internal {
+      // not sure if msg.sender is the caller
+      OwnableStorage.onlyOwner();
+      self.pauser[account] = permission;
+    }
+
+    function setPauseState(Data storage self, bool state) internal { // TODO: move to DatedIRSVammPool?
+        require(self.pauser[msg.sender], "only pauser");
+        self.paused = state;
     }
 
     // TODO: add function for creating a new VAMM instance, calling through to DatedIrsVamm.createByMaturityAndMarket
@@ -49,6 +63,7 @@ library DatedIrsVammPool {
     )
         external
         returns (int256 executedBaseAmount, int256 executedQuoteAmount){
+        self.paused.whenNotPaused();
 
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
 
@@ -80,6 +95,7 @@ library DatedIrsVammPool {
      * market
      */
     function initiateDatedMakerOrder(
+        Data storage self,
         uint128 accountId,
         uint128 marketId,
         uint256 maturityTimestamp,
@@ -89,6 +105,7 @@ library DatedIrsVammPool {
     )
         external
         returns (int256 executedBaseAmount){ // TODO: returning 256 for 128 request seems wrong
+       self.paused.whenNotPaused();
         
        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
        return vamm.executeDatedMakerOrder(accountId, fixedRateLower, fixedRateUpper, requestedBaseAmount);

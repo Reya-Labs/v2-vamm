@@ -204,12 +204,4 @@ interface IVAMMBase is IVAMM {
             int256 tracker0GrowthInsideX128,
             int256 tracker1GrowthInsideX128
         );
-
-    
-    /// @notice refreshes the Rate Oracle attached to the Margin Engine
-    function refreshGTWAPOracle(address _gtwapOracle) external;
-
-    /// @notice The rateOracle contract which lets the protocol access historical apys in the yield bearing pools it is built on top of
-    /// @return The underlying ERC20 token (e.g. USDC)
-    function GTWAPOracle() external view returns (address);
 }
