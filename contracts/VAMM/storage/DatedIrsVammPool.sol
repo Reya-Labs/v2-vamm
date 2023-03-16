@@ -44,11 +44,14 @@ library DatedIrsVammPool {
       // not sure if msg.sender is the caller
       OwnableStorage.onlyOwner();
       self.pauser[account] = permission;
+      // TODO: emit log
     }
 
     function setPauseState(Data storage self, bool state) internal { // TODO: move to DatedIRSVammPool?
         require(self.pauser[msg.sender], "only pauser");
         self.paused = state;
+
+        // TODO: emit log
     }
 
     // TODO: add function for creating a new VAMM instance, calling through to DatedIrsVamm.createByMaturityAndMarket
