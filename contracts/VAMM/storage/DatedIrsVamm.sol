@@ -88,6 +88,14 @@ library DatedIrsVamm {
         int256 tracker1Accumulated;
     }
 
+    struct DatedIrsVAMMConfig {
+        /// @dev the phi value to use when adjusting a TWAP price for the likely price impact of liquidation
+        UD60x18 priceImpactPhi;
+        /// @dev the beta value to use when adjusting a TWAP price for the likely price impact of liquidation
+        UD60x18 priceImpactBeta;
+        /// @dev the term end timestamp in seconds
+    }
+
     struct Data {
         /// @inheritdoc IVAMMBase
         IVAMMBase.VAMMVars _vammVars;
@@ -107,12 +115,6 @@ library DatedIrsVamm {
          */
         string name; // TODO: necessary? If so, initialize.
         /**
-         * @dev Creator of the vamm, which has configuration access rights for the vamm.
-         *
-         * See onlyVAMMOwner.
-         */
-        address owner; // TODO: move owner config to DatedIRSVammPool?
-        /**
          * @dev Maps from position ID (see `getPositionId` to the properties of that position
          */
         mapping(uint256 => LPPosition) positions;
@@ -120,22 +122,18 @@ library DatedIrsVamm {
          * @dev Maps from an account address to a list of the position IDs of positions associated with that account address. Use the `positions` mapping to see full details of any given `LPPosition`.
          */
         mapping(uint128 => uint256[]) positionsInAccount;
-
-        /// Circular buffer of Oracle Observations. Resizable but no more than type(uint16).max slots in the buffer
-        Oracle.Observation[65535] observations;
-        /// @dev the phi value to use when adjusting a TWAP price for the likely price impact of liquidation
-        UD60x18 priceImpactPhi;
-        /// @dev the beta value to use when adjusting a TWAP price for the likely price impact of liquidation
-        UD60x18 priceImpactBeta;
-
         uint256 termEndTimestamp;
         uint128 _maxLiquidityPerTick;
+        int24 _tickSpacing;
+        DatedIrsVAMMConfig config;
         uint128 _accumulator;
         int256 _tracker0GrowthGlobalX128;
         int256 _tracker1GrowthGlobalX128;
-        int24 _tickSpacing;
         mapping(int24 => Tick.Info) _ticks;
         mapping(int16 => uint256) _tickBitmap;
+
+        /// Circular buffer of Oracle Observations. Resizable but no more than type(uint16).max slots in the buffer
+        Oracle.Observation[65535] observations;
     }
 
     /**
@@ -164,25 +162,33 @@ library DatedIrsVamm {
      * @dev Finds the vamm id using market id and maturity and
      * returns the vamm stored at the specified vamm id. Reverts if no such VAMM is found.
      */
-    // TODO: take a struct of params and pass it to configureVAMM
-    function createByMaturityAndMarket(uint128 marketId, uint256 maturityTimestamp,  uint160 sqrtPriceX96) internal returns (Data storage irsVamm) {
-        require(maturityTimestamp != 0);
-        uint256 id = uint256(keccak256(abi.encodePacked(marketId, maturityTimestamp)));
+    function createByMaturityAndMarket(uint128 _marketId, uint256 _maturityTimestamp,  uint160 _sqrtPriceX96, int24 _tickSpacing, DatedIrsVAMMConfig memory _config) internal returns (Data storage irsVamm) {
+        require(_maturityTimestamp != 0);
+        uint256 id = uint256(keccak256(abi.encodePacked(_marketId, _maturityTimestamp)));
         irsVamm = load(id);
         if (irsVamm.termEndTimestamp != 0) {
-            revert CustomErrors.MarketAndMaturityCombinaitonAlreadyExists(marketId, maturityTimestamp);
+            revert CustomErrors.MarketAndMaturityCombinaitonAlreadyExists(_marketId, _maturityTimestamp);
         }
-        initialize(irsVamm, sqrtPriceX96, maturityTimestamp, marketId);
+
+        // tick spacing is capped at 16384 to prevent the situation where tickSpacing is so large that
+        // TickBitmap#nextInitializedTickWithinOneWord overflows int24 container from a valid tick
+        // 16384 ticks represents a >5x price change with ticks of 1 bips
+        require(_tickSpacing > 0 && _tickSpacing < Tick.MAXIMUM_TICK_SPACING, "TSOOB");
+
+        initialize(irsVamm, _sqrtPriceX96, _maturityTimestamp, _marketId, _tickSpacing, _config);
     }
 
     /// @dev not locked because it initializes unlocked
-    function initialize(Data storage self, uint160 sqrtPriceX96, uint256 _termEndTimestamp, uint128 _marketId) internal {
+    function initialize(Data storage self, uint160 sqrtPriceX96, uint256 _termEndTimestamp, uint128 _marketId, int24 _tickSpacing, DatedIrsVAMMConfig memory _config) internal {
         require(self._vammVars.sqrtPriceX96 == 0, 'AI');
 
         int24 tick = TickMath.getTickAtSqrtRatio(sqrtPriceX96);
 
         self.marketId = _marketId;
         self.termEndTimestamp = _termEndTimestamp;
+        self._tickSpacing = _tickSpacing;
+
+        self._maxLiquidityPerTick = Tick.tickSpacingToMaxLiquidityPerTick(_tickSpacing);
 
         // TODO: add other VAMM config such as _maxLiquidityPerTick
 
@@ -197,6 +203,8 @@ library DatedIrsVamm {
             feeProtocol: 0,
             unlocked: true
         });
+
+        configure(self, _config);
 
         // emit Initialize(sqrtPriceX96, tick); // TODO: emit log for new VAMM, either here or in DatedIrsVAMMPool
     }
@@ -223,7 +231,7 @@ library DatedIrsVamm {
 
         if (priceImpactOrderSize != 0) {
             // TODO: verify that slippage < 1
-            UD60x18 priceImpact = self.priceImpactPhi.mul(convert(uint256(priceImpactOrderSize > 0 ? priceImpactOrderSize : -priceImpactOrderSize)).pow(self.priceImpactBeta));
+            UD60x18 priceImpact = self.config.priceImpactPhi.mul(convert(uint256(priceImpactOrderSize > 0 ? priceImpactOrderSize : -priceImpactOrderSize)).pow(self.config.priceImpactBeta));
 
             // The projected price impact of a trade will move the price up for buys, down for sells
             if (priceImpactOrderSize > 0) {
@@ -314,15 +322,6 @@ library DatedIrsVamm {
             emit IncreaseObservationCardinalityNext(observationCardinalityNextOld, observationCardinalityNextNew);
                 self._vammVars.unlocked.unlock();
 
-    }
-
-    /**
-     * @dev Reverts if the caller is not the owner of the specified vamm
-     */
-    function onlyVAMMOwner(Data storage self, address caller) internal view {
-        if (self.owner != caller) {
-            revert AccessError.Unauthorized(caller);
-        }
     }
 
     /**
@@ -445,26 +444,16 @@ library DatedIrsVamm {
         return uint256(keccak256(abi.encodePacked(accountId, tickLower, tickUpper)));
     }
 
+    function configure(
+        Data storage self,
+        DatedIrsVAMMConfig memory _config) internal {
 
+        // TODO: sanity checks - e.g. price impact calculated must never be >= 1
 
+        self.config = _config;
 
-
-    // TODO: add a configureVAMM() funciton that takes a single struct and updates everything, emitting a single log
-    // TODO: Struct should include tickSpacing, risk params, spread params, slippage/price-impact params for TWAP, maxLiquidityPerTick(?), termEndTimestamp, starting tick/price
-    // function configureVAMM(uint256 _termEndTimestampWad, int24 __tickSpacing) {
-
-    //     // tick spacing is capped at 16384 to prevent the situation where tickSpacing is so large that
-    //     // TickBitmap#nextInitializedTickWithinOneWord overflows int24 container from a valid tick
-    //     // 16384 ticks represents a >5x price change with ticks of 1 bips
-    //     require(__tickSpacing > 0 && __tickSpacing < Tick.MAXIMUM_TICK_SPACING, "TSOOB");
-
-    //     _tickSpacing = __tickSpacing;
-    //     _maxLiquidityPerTick = Tick.tickSpacingToMaxLiquidityPerTick(_tickSpacing);
-    //     termEndTimestampWad = _termEndTimestampWad;
-
-    //     __Ownable_init();
-    //     __UUPSUpgradeable_init();
-    // }
+        // TODO: emit log
+    }
 
     /// GETTERS & TRACKERS
 
