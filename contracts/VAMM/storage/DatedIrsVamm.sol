@@ -23,6 +23,7 @@ import "../libraries/Oracle.sol";
  */
 library DatedIrsVamm {
 
+    UD60x18 constant ONE = UD60x18.wrap(1e18);
     using SafeCastUni for uint256;
     using SafeCastUni for int256;
     using VAMMBase for VAMMBase.FlipTicksParams;
@@ -123,9 +124,9 @@ library DatedIrsVamm {
         /// Circular buffer of Oracle Observations. Resizable but no more than type(uint16).max slots in the buffer
         Oracle.Observation[65535] observations;
         /// @dev the phi value to use when adjusting a TWAP price for the likely price impact of liquidation
-        uint256 priceImpactPhi;
+        UD60x18 priceImpactPhi;
         /// @dev the beta value to use when adjusting a TWAP price for the likely price impact of liquidation
-        uint256 priceImpactBeta;
+        UD60x18 priceImpactBeta;
 
         address gtwapOracle; // TODO: replace with GWAP interface
         uint256 termEndTimestamp; // TODO: change to non-wad or to PRB Math type
@@ -208,7 +209,7 @@ library DatedIrsVamm {
     /// @param adjustForSpread Whether or not to adjust the returned price by the VAMM's configured spread.
     /// @param priceImpactOrderSize The order size to use when adjusting the price for price impact. Or `0` to ignore price impact.
     /// @return geometricMeanPrice The geometric mean price, which might be adjusted according to input parameters.
-    function twap(Data storage self, uint32 secondsAgo, uint256 priceImpactOrderSize, bool adjustForSpread)
+    function twap(Data storage self, uint32 secondsAgo, int256 priceImpactOrderSize, bool adjustForSpread)
         internal
         view
         returns (UD60x18 geometricMeanPrice)
@@ -224,7 +225,16 @@ library DatedIrsVamm {
         }
 
         if (priceImpactOrderSize != 0) {
-            // TODO
+            // TODO: verify that slippage < 1
+            UD60x18 priceImpact = self.priceImpactPhi.mul(convert(uint256(priceImpactOrderSize > 0 ? priceImpactOrderSize : -priceImpactOrderSize)).pow(self.priceImpactBeta));
+
+            // The projected price impact of a trade will move the price up for buys, down for sells
+            if (priceImpactOrderSize > 0) {
+                geometricMeanPrice = geometricMeanPrice.mul(ONE.add(priceImpact));
+            } else {
+                geometricMeanPrice = geometricMeanPrice.mul(ONE.sub(priceImpact));
+            }
+
         }
 
         return geometricMeanPrice;
@@ -255,7 +265,7 @@ library DatedIrsVamm {
 
             int56 tickCumulativesDelta = tickCumulatives[1] - tickCumulatives[0];
             arithmeticMeanTick = int24(tickCumulativesDelta / int56(uint56(secondsAgo)));
-            
+
             // Always round to negative infinity
             if (tickCumulativesDelta < 0 && (tickCumulativesDelta % int56(uint56(secondsAgo)) != 0)) arithmeticMeanTick--;
         }
