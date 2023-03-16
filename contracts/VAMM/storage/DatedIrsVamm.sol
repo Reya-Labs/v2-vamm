@@ -9,8 +9,8 @@ import "../libraries/TickBitmap.sol";
 import "../../utils/SafeCastUni.sol";
 import "../../utils/SqrtPriceMath.sol";
 import "../libraries/SwapMath.sol";
-import "prb-math/contracts/PRBMathUD60x18.sol"; // TODO: update to latst vrsion and use custom types
-import "prb-math/contracts/PRBMathSD59x18.sol";
+import { UD60x18, convert } from "@prb/math/src/UD60x18.sol"; // TODO: update to latst vrsion and use custom types
+import { SD59x18, convert } from "@prb/math/src/SD59x18.sol";
 import "../libraries/FixedAndVariableMath.sol";
 import "../../utils/FixedPoint128.sol";
 import "../libraries/VAMMBase.sol";
@@ -51,7 +51,7 @@ library DatedIrsVamm {
      */
     error IRSVammNotFound(uint128 vammId);
 
-    struct LPPosition {
+    struct LPPosition { // TODO: consider moving Position and the operations affecting Positions into a separate library for readbaility
         uint128 accountId;
         /** 
         * @dev position notional amount
@@ -128,7 +128,7 @@ library DatedIrsVamm {
         uint256 priceImpactBeta;
 
         address gtwapOracle; // TODO: replace with GWAP interface
-        uint256 termEndTimestampWad; // TODO: change to non-wad or to PRB Math type
+        uint256 termEndTimestamp; // TODO: change to non-wad or to PRB Math type
         uint128 _maxLiquidityPerTick;
         uint128 _accumulator;
         int256 _tracker0GrowthGlobalX128;
@@ -157,7 +157,7 @@ library DatedIrsVamm {
     function loadByMaturityAndMarket(uint128 marketId, uint256 maturityTimestamp) internal view returns (Data storage irsVamm) {
         uint256 id = uint256(keccak256(abi.encodePacked(marketId, maturityTimestamp)));
         irsVamm = load(id);
-        if (irsVamm.termEndTimestampWad == 0) {
+        if (irsVamm.termEndTimestamp == 0) {
             revert CustomErrors.MarketAndMaturityCombinaitonNotSupported(marketId, maturityTimestamp);
         }
     }
@@ -166,24 +166,25 @@ library DatedIrsVamm {
      * @dev Finds the vamm id using market id and maturity and
      * returns the vamm stored at the specified vamm id. Reverts if no such VAMM is found.
      */
+    // TODO: take a struct of params and pass it to configureVAMM
     function createByMaturityAndMarket(uint128 marketId, uint256 maturityTimestamp,  uint160 sqrtPriceX96) internal returns (Data storage irsVamm) {
         require(maturityTimestamp != 0);
         uint256 id = uint256(keccak256(abi.encodePacked(marketId, maturityTimestamp)));
         irsVamm = load(id);
-        if (irsVamm.termEndTimestampWad != 0) {
+        if (irsVamm.termEndTimestamp != 0) {
             revert CustomErrors.MarketAndMaturityCombinaitonAlreadyExists(marketId, maturityTimestamp);
         }
         initialize(irsVamm, sqrtPriceX96, maturityTimestamp, marketId);
     }
 
     /// @dev not locked because it initializes unlocked
-    function initialize(Data storage self, uint160 sqrtPriceX96, uint256 _termEndTimestampWad, uint128 _marketId) internal {
+    function initialize(Data storage self, uint160 sqrtPriceX96, uint256 _termEndTimestamp, uint128 _marketId) internal {
         require(self._vammVars.sqrtPriceX96 == 0, 'AI');
 
         int24 tick = TickMath.getTickAtSqrtRatio(sqrtPriceX96);
 
         self.marketId = _marketId;
-        self.termEndTimestampWad = _termEndTimestampWad;
+        self.termEndTimestamp = _termEndTimestamp;
 
         // TODO: add other VAMM config such as _maxLiquidityPerTick
 
@@ -206,16 +207,17 @@ library DatedIrsVamm {
     /// @param secondsAgo Number of seconds in the past from which to calculate the time-weighted means
     /// @param adjustForSpread Whether or not to adjust the returned price by the VAMM's configured spread.
     /// @param priceImpactOrderSize The order size to use when adjusting the price for price impact. Or `0` to ignore price impact.
-    /// @return adjustedGeometricMeanPriceX96 The geometric mean price, adjusted according to requested parameters.
+    /// @return geometricMeanPrice The geometric mean price, which might be adjusted according to input parameters.
     function twap(Data storage self, uint32 secondsAgo, uint256 priceImpactOrderSize, bool adjustForSpread)
         internal
         view
-        returns (uint256 adjustedGeometricMeanPriceX96) // TODO: expose result as PRB math instead?
+        returns (UD60x18 geometricMeanPrice)
     {
         int24 arithmeticMeanTick = observe(self, secondsAgo);
 
         // Not yet adjusted
-        adjustedGeometricMeanPriceX96 = getPriceX96FromTick(arithmeticMeanTick);
+        uint256 adjustedGeometricMeanPriceX96 = getPriceX96FromTick(arithmeticMeanTick);
+        geometricMeanPrice = UD60x18.wrap(FullMath.mulDiv(adjustedGeometricMeanPriceX96, 1e18, FixedPoint96.Q96));
 
         if (adjustForSpread) {
             // TODO
@@ -225,7 +227,7 @@ library DatedIrsVamm {
             // TODO
         }
 
-        return adjustedGeometricMeanPriceX96;
+        return geometricMeanPrice;
     }
 
     function getPriceX96FromTick(int24 tick) public pure returns(uint256 priceX96) {
@@ -248,14 +250,12 @@ library DatedIrsVamm {
             secondsAgos[0] = secondsAgo;
             secondsAgos[1] = 0;
 
-            (int56[] memory tickCumulatives, uint160[] memory secondsPerLiquidityCumulativeX128s) =
+            (int56[] memory tickCumulatives,) =
                 observe(self, secondsAgos);
 
             int56 tickCumulativesDelta = tickCumulatives[1] - tickCumulatives[0];
-            uint160 secondsPerLiquidityCumulativesDelta =
-                secondsPerLiquidityCumulativeX128s[1] - secondsPerLiquidityCumulativeX128s[0];
-
             arithmeticMeanTick = int24(tickCumulativesDelta / int56(uint56(secondsAgo)));
+            
             // Always round to negative infinity
             if (tickCumulativesDelta < 0 && (tickCumulativesDelta % int56(uint56(secondsAgo)) != 0)) arithmeticMeanTick--;
         }
@@ -420,7 +420,7 @@ library DatedIrsVamm {
         self.positions[positionId].tracker0UpdatedGrowth = tracker0GlobalGrowth;
         self.positions[positionId].tracker1UpdatedGrowth = tracker1GlobalGrowth;
         self.positions[positionId].tracker0Accumulated += tracket0DeltaGrowth * averageBase;
-        self.positions[positionId].tracker1Accumulated += tracker1GlobalGrowth * averageBase;
+        self.positions[positionId].tracker1Accumulated += tracket1DeltaGrowth * averageBase;
     }
 
     /**
@@ -449,8 +449,9 @@ library DatedIrsVamm {
         self.paused = state;
     }
 
-    // TODO: move in Creator
-    // constructor(address _gtwapOracle, uint256 _termEndTimestampWad, int24 __tickSpacing) {
+    // TODO: add a configureVAMM() funciton that takes a single struct and updates everything, emitting a single log
+    // TODO: Struct should include tickSpacing, risk params, spread params, slippage/price-impact params for TWAP, maxLiquidityPerTick(?), termEndTimestamp, starting tick/price
+    // function configureVAMM(address _gtwapOracle, uint256 _termEndTimestampWad, int24 __tickSpacing) {
 
     //     // tick spacing is capped at 16384 to prevent the situation where tickSpacing is so large that
     //     // TickBitmap#nextInitializedTickWithinOneWord overflows int24 container from a valid tick
@@ -480,7 +481,7 @@ library DatedIrsVamm {
       int256 baseAmount,
       int24 tickLower,
       int24 tickUpper,
-      uint256 termEndTimestampWad
+      uint256 termEndTimestamp
     )
         internal
         view
@@ -489,12 +490,13 @@ library DatedIrsVamm {
         )
     {
 
-        uint160 averagePrice = (TickMath.getSqrtRatioAtTick(tickUpper) + TickMath.getSqrtRatioAtTick(tickLower)) / 2;
-        uint256 timeDeltaUntilMaturity = FixedAndVariableMath.accrualFact(termEndTimestampWad - Time.blockTimestampScaled()); 
+        uint256 averagePrice = uint256((TickMath.getSqrtRatioAtTick(tickUpper) + TickMath.getSqrtRatioAtTick(tickLower)) / 2); // TODO: this assumes linear ticks. Recalculate for the reality of arithmetic ticks.
+        UD60x18 timeDeltaUntilMaturity = FixedAndVariableMath.accrualFact(termEndTimestamp - block.timestamp); 
 
-        // TODO: needs library
-        // self.oracle.latest() TODO: implement Oracle
-        trackedValue = ( ( -baseAmount * 100 ) / 1e18 ) * ( ( uint256(averagePrice).toInt256() * int256(timeDeltaUntilMaturity) ) / 1e18  + 1e18);
+        int256 currentOracleValue = 1;  // self.oracle.latest() TODO: implement link to oracle - which oracle is this? Price oracle for base currency?
+        UD60x18 timeComponent = convert(uint256(1)).add(convert(averagePrice).mul(timeDeltaUntilMaturity));
+        SD59x18 trackedValueDecimal = convert(int256(-baseAmount)).mul(convert(currentOracleValue)).mul(SD59x18.wrap(UD60x18.unwrap(timeComponent).toInt256()));
+        trackedValue = convert(trackedValueDecimal);
     }
 
     function refreshGTWAPOracle(Data storage self, address _gtwapOracle)
@@ -512,7 +514,7 @@ library DatedIrsVamm {
         int128 baseAmount
     ) internal {
         self.paused.whenNotPaused();
-        VAMMBase.checkCurrentTimestampTermEndTimestampDelta(self.termEndTimestampWad);
+        VAMMBase.checkCurrentTimestampTermEndTimestampDelta(self.termEndTimestamp);
         self._vammVars.unlocked.lock(); // TODO: should lock move to executeDatedMakerOrder if that is the only possible entry point?
 
         Tick.checkTicks(tickLower, tickUpper);
@@ -579,7 +581,7 @@ library DatedIrsVamm {
         returns (int256 tracker0Delta, int256 tracker1Delta)
     {
         self.paused.whenNotPaused();
-        VAMMBase.checkCurrentTimestampTermEndTimestampDelta(self.termEndTimestampWad);
+        VAMMBase.checkCurrentTimestampTermEndTimestampDelta(self.termEndTimestamp);
 
         Tick.checkTicks(params.tickLower, params.tickUpper);
 
@@ -657,7 +659,7 @@ library DatedIrsVamm {
                     sqrtRatioTargetX96: sqrtRatioTargetX96,
                     liquidity: state.accumulator,
                     amountRemaining: state.amountSpecifiedRemaining,
-                    timeToMaturityInSecondsWad: self.termEndTimestampWad - Time.blockTimestampScaled()
+                    timeToMaturityInSeconds: self.termEndTimestamp - block.timestamp
                 })
             );
 
@@ -682,7 +684,7 @@ library DatedIrsVamm {
                 ) = calculateUpdatedGlobalTrackerValues( 
                     state,
                     step,
-                    self.termEndTimestampWad
+                    self.termEndTimestamp
                 );
 
                 state.tracker0DeltaCumulative -= step.tracker0Delta; // opposite sign from that of the LP's
@@ -765,7 +767,7 @@ library DatedIrsVamm {
     function calculateUpdatedGlobalTrackerValues(
         VAMMBase.SwapState memory state,
         VAMMBase.StepComputations memory step,
-        uint256 termEndTimestampWad
+        uint256 termEndTimestamp
     )
         internal
         view
@@ -779,7 +781,7 @@ library DatedIrsVamm {
             step.baseInStep,
             state.tick,
             step.tickNext,
-            termEndTimestampWad
+            termEndTimestamp
         );
 
         // update global trackers
@@ -801,9 +803,9 @@ library DatedIrsVamm {
             return (0, 0);
         }
 
-        int256 base = VAMMBase.baseBetweenTicks(tickLower, tickUpper, averageBase);
+        int256 base = VAMMBase.baseBetweenTicks(tickLower, tickUpper, averageBase); // TODO: unused?
 
-        tracker0GrowthOutside = trackFixedTokens(averageBase, tickLower, tickUpper, self.termEndTimestampWad);
+        tracker0GrowthOutside = trackFixedTokens(averageBase, tickLower, tickUpper, self.termEndTimestamp);
         tracker1GrowthOutside = averageBase;
 
     }

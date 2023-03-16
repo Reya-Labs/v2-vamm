@@ -4,8 +4,8 @@ pragma solidity >=0.8.13;
 
 import "../../utils/FullMath.sol";
 import "../../utils/SqrtPriceMath.sol";
-import "prb-math/contracts/PRBMathUD60x18.sol";
-import "prb-math/contracts/PRBMathSD59x18.sol";
+import { UD60x18 } from "@prb/math/src/UD60x18.sol";
+import { SD59x18 } from "@prb/math/src/SD59x18.sol";
 import "./FixedAndVariableMath.sol";
 
 /// @title Computes the result of a swap within ticks
@@ -16,25 +16,21 @@ library SwapMath {
         uint160 sqrtRatioTargetX96;
         uint128 liquidity;
         int256 amountRemaining;
-        uint256 timeToMaturityInSecondsWad;
+        uint256 timeToMaturityInSeconds;
     }
 
-    function computeFeeAmount(
-        uint256 notionalWad,
-        uint256 timeToMaturityInSecondsWad,
-        uint256 feePercentageWad
-    ) internal pure returns (uint256 feeAmount) {
-        uint256 timeInYearsWad = FixedAndVariableMath.accrualFact(
-            timeToMaturityInSecondsWad
-        );
+    // function computeFeeAmount(
+    //     UD60x18 notional,
+    //     uint256 timeToMaturityInSeconds,
+    //     UD60x18 feePercentage
+    // ) internal pure returns (uint256 feeAmount) {
+    //     UD60x18 timeInYears = FixedAndVariableMath.accrualFact(
+    //         timeToMaturityInSeconds
+    //     );
 
-        uint256 feeAmountWad = PRBMathUD60x18.mul(
-            notionalWad,
-            PRBMathUD60x18.mul(feePercentageWad, timeInYearsWad)
-        );
-
-        feeAmount = PRBMathUD60x18.toUint(feeAmountWad);
-    }
+    //     UD60x18 feeAmountWad = notional.mul(feePercentage).mul(timeInYears);
+    //     feeAmount = convert(feeAmountWad);
+    // }
 
     /// @notice Computes the result of swapping some amount in, or amount out, given the parameters of the swap
     /// @dev The fee, plus the amount in, will never exceed the amount remaining if the swap's `amountSpecified` is positive
@@ -115,7 +111,6 @@ library SwapMath {
         }
 
         bool max = params.sqrtRatioTargetX96 == sqrtRatioNextX96;
-        uint256 notional;
 
         // get the input/output amounts
         if (zeroForOne) {
