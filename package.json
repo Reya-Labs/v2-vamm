@@ -28,6 +28,6 @@
     "typescript": ">=4.5.0"
   },
   "dependencies": {
-    "prb-math": "^2.4.3"
+    "@prb/math": "^3.3.0"
   }
 }
