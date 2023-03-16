@@ -128,8 +128,7 @@ library DatedIrsVamm {
         /// @dev the beta value to use when adjusting a TWAP price for the likely price impact of liquidation
         UD60x18 priceImpactBeta;
 
-        address gtwapOracle; // TODO: replace with GWAP interface
-        uint256 termEndTimestamp; // TODO: change to non-wad or to PRB Math type
+        uint256 termEndTimestamp;
         uint128 _maxLiquidityPerTick;
         uint128 _accumulator;
         int256 _tracker0GrowthGlobalX128;
@@ -137,8 +136,6 @@ library DatedIrsVamm {
         int24 _tickSpacing;
         mapping(int24 => Tick.Info) _ticks;
         mapping(int16 => uint256) _tickBitmap;
-        mapping(address => bool) pauser; // TODO: move pauser config to DatedIRSVammPool?
-        bool paused; // TODO: move pause state to DatedIRSVammPool?
     }
 
     /**
@@ -448,27 +445,19 @@ library DatedIrsVamm {
         return uint256(keccak256(abi.encodePacked(accountId, tickLower, tickUpper)));
     }
 
-    function changePauser(Data storage self, address account, bool permission) internal { // TODO: move to DatedIRSVammPool?
-      // not sure if msg.sender is the caller
-      onlyVAMMOwner(self, msg.sender);
-      self.pauser[account] = permission;
-    }
 
-    function setPausability(Data storage self, bool state) internal { // TODO: move to DatedIRSVammPool?
-        require(self.pauser[msg.sender], "no role");
-        self.paused = state;
-    }
+
+
 
     // TODO: add a configureVAMM() funciton that takes a single struct and updates everything, emitting a single log
     // TODO: Struct should include tickSpacing, risk params, spread params, slippage/price-impact params for TWAP, maxLiquidityPerTick(?), termEndTimestamp, starting tick/price
-    // function configureVAMM(address _gtwapOracle, uint256 _termEndTimestampWad, int24 __tickSpacing) {
+    // function configureVAMM(uint256 _termEndTimestampWad, int24 __tickSpacing) {
 
     //     // tick spacing is capped at 16384 to prevent the situation where tickSpacing is so large that
     //     // TickBitmap#nextInitializedTickWithinOneWord overflows int24 container from a valid tick
     //     // 16384 ticks represents a >5x price change with ticks of 1 bips
     //     require(__tickSpacing > 0 && __tickSpacing < Tick.MAXIMUM_TICK_SPACING, "TSOOB");
 
-    //     gtwapOracle = _gtwapOracle;
     //     _tickSpacing = __tickSpacing;
     //     _maxLiquidityPerTick = Tick.tickSpacingToMaxLiquidityPerTick(_tickSpacing);
     //     termEndTimestampWad = _termEndTimestampWad;
@@ -509,12 +498,6 @@ library DatedIrsVamm {
         trackedValue = convert(trackedValueDecimal);
     }
 
-    function refreshGTWAPOracle(Data storage self, address _gtwapOracle)
-        internal
-    {
-        self.gtwapOracle = _gtwapOracle;
-    }
-
     // TODO: return data
     function vammMint(
         Data storage self,
@@ -523,7 +506,6 @@ library DatedIrsVamm {
         int24 tickUpper,
         int128 baseAmount
     ) internal {
-        self.paused.whenNotPaused();
         VAMMBase.checkCurrentTimestampTermEndTimestampDelta(self.termEndTimestamp);
         self._vammVars.unlocked.lock(); // TODO: should lock move to executeDatedMakerOrder if that is the only possible entry point?
 
@@ -590,7 +572,6 @@ library DatedIrsVamm {
         internal
         returns (int256 tracker0Delta, int256 tracker1Delta)
     {
-        self.paused.whenNotPaused();
         VAMMBase.checkCurrentTimestampTermEndTimestampDelta(self.termEndTimestamp);
 
         Tick.checkTicks(params.tickLower, params.tickUpper);

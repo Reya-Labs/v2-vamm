@@ -27,8 +27,21 @@ interface CustomErrors {
         int256 fixedTokenDeltaUnbalanced
     );
 
+    /**
+     * @dev Thrown when a zero address was passed as a function parameter (0x0000000000000000000000000000000000000000).
+     */
+    error ZeroAddress();
+
+    /**
+     * @dev Thrown when a change is expected but none is detected.
+     */
+    error NoChange();
+
     /// The position/trader needs to be below the liquidation threshold to be liquidated
     error CannotLiquidate();
+
+    /// The operation is not authorized by the executing adddress
+    error Unauthorized(address unauthorizedAddr);
 
     /// Only the position/trade owner can update the LP/Trader margin
     error OnlyOwnerCanUpdatePosition();
