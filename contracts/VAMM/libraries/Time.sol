@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pragma solidity >=0.8.13;
-import "prb-math/contracts/PRBMathUD60x18.sol";
+import { UD60x18, convert } from "@prb/math/src/UD60x18.sol";
 
 library Time {
-    uint256 public constant SECONDS_IN_DAY_WAD = 86400e18;
+    uint256 public constant SECONDS_IN_A_DAY = 86400;
 
     /// @notice Calculate block.timestamp to wei precision
     /// @return Current timestamp in wei-seconds (1/1e18)
-    function blockTimestampScaled() internal view returns (uint256) {
+    function blockTimestampScaled() internal view returns (UD60x18) {
         // solhint-disable-next-line not-rely-on-time
-        return PRBMathUD60x18.fromUint(block.timestamp);
+        return convert(block.timestamp);
     }
 
     /// @dev Returns the block timestamp truncated to 32 bits, checking for overflow.
@@ -26,13 +26,13 @@ library Time {
         require((timestamp = uint32(_timestamp)) == _timestamp, "TSOFLOW");
     }
 
-    function isCloseToMaturityOrBeyondMaturity(uint256 termEndTimestampWad)
+    function isCloseToMaturityOrBeyondMaturity(uint256 termEndTimestamp)
         internal
         view
         returns (bool vammInactive)
     {
         return
-            Time.blockTimestampScaled() + SECONDS_IN_DAY_WAD >=
-            termEndTimestampWad;
+            block.timestamp + SECONDS_IN_A_DAY >=
+            termEndTimestamp;
     }
 }

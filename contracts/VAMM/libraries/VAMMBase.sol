@@ -11,8 +11,8 @@ import "../../utils/SafeCastUni.sol";
 import "../../utils/SqrtPriceMath.sol";
 import "../../utils/CustomErrors.sol";
 import "../libraries/SwapMath.sol";
-import "prb-math/contracts/PRBMathUD60x18.sol";
-import "prb-math/contracts/PRBMathSD59x18.sol";
+import { UD60x18 } from "@prb/math/src/UD60x18.sol";
+import { SD59x18 } from "@prb/math/src/SD59x18.sol";
 import "../libraries/FixedAndVariableMath.sol";
 import "../../utils/FixedPoint128.sol";
 import "../interfaces/IVAMMBase.sol";
@@ -215,8 +215,8 @@ library VAMMBase {
 
     /// @dev Modifier that ensures new LP positions cannot be minted after one day before the maturity of the vamm
     /// @dev also ensures new swaps cannot be conducted after one day before maturity of the vamm
-    function checkCurrentTimestampTermEndTimestampDelta(uint256 termEndTimestampWad) internal view {
-        if (Time.isCloseToMaturityOrBeyondMaturity(termEndTimestampWad)) {
+    function checkCurrentTimestampTermEndTimestampDelta(uint256 termEndTimestamp) internal view {
+        if (Time.isCloseToMaturityOrBeyondMaturity(termEndTimestamp)) {
             revert("closeToOrBeyondMaturity");
         }
     }
