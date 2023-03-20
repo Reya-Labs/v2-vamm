@@ -19,11 +19,10 @@ library Tick {
         uint128 liquidityGross;
         /// @dev amount of net liquidity added (subtracted) when tick is crossed from left to right (right to left),
         int128 liquidityNet;
-        /// @dev fee growth per unit of liquidity on the _other_ side of this tick (relative to the current tick)
+        /// @dev growth per unit of liquidity on the _other_ side of this tick (relative to the current tick)
         /// @dev only has relative meaning, not absolute — the value depends on when the tick is initialized
         int256 tracker0GrowthOutsideX128;
         int256 tracker1GrowthOutsideX128;
-        uint256 feeGrowthOutsideX128;
         /// @dev true iff the tick is initialized, i.e. the value is exactly equivalent to the expression liquidityGross != 0
         /// @dev these 8 bits are set to prevent fresh sstores when crossing newly initialized ticks
         bool initialized;
@@ -92,27 +91,6 @@ library Tick {
             (_growthBelowX128 + _growthAboveX128);
 
         return _growthInsideX128;
-    }
-
-    function getFeeGrowthInside(
-        mapping(int24 => Tick.Info) storage self,
-        FeeGrowthInsideParams memory params
-    ) internal view returns (uint256 feeGrowthInsideX128) {
-        unchecked {
-            Info storage lower = self[params.tickLower];
-            Info storage upper = self[params.tickUpper];
-
-            feeGrowthInsideX128 = uint256(
-                _getGrowthInside(
-                    params.tickLower,
-                    params.tickUpper,
-                    params.tickCurrent,
-                    params.feeGrowthGlobalX128.toInt256(),
-                    lower.feeGrowthOutsideX128.toInt256(),
-                    upper.feeGrowthOutsideX128.toInt256()
-                )
-            );
-        }
     }
 
     struct VariableTokenGrowthInsideParams {
@@ -238,20 +216,14 @@ library Tick {
     /// @param tick The destination tick of the transition
     /// @param fixedTokenGrowthGlobalX128 The fixed token growth accumulated per unit of liquidity for the entire life of the vamm
     /// @param variableTokenGrowthGlobalX128 The variable token growth accumulated per unit of liquidity for the entire life of the vamm
-    /// @param feeGrowthGlobalX128 The fee growth collected per unit of liquidity for the entire life of the vamm
     /// @return liquidityNet The amount of liquidity added (subtracted) when tick is crossed from left to right (right to left)
     function cross(
         mapping(int24 => Tick.Info) storage self,
         int24 tick,
         int256 fixedTokenGrowthGlobalX128,
-        int256 variableTokenGrowthGlobalX128,
-        uint256 feeGrowthGlobalX128
+        int256 variableTokenGrowthGlobalX128
     ) internal returns (int128 liquidityNet) {
         Tick.Info storage info = self[tick];
-
-        info.feeGrowthOutsideX128 =
-            feeGrowthGlobalX128 -
-            info.feeGrowthOutsideX128;
 
         info.tracker0GrowthOutsideX128 =
             fixedTokenGrowthGlobalX128 -
