@@ -9,13 +9,14 @@ import "../libraries/TickBitmap.sol";
 import "../../utils/SafeCastUni.sol";
 import "../../utils/SqrtPriceMath.sol";
 import "../libraries/SwapMath.sol";
-import { UD60x18, convert } from "@prb/math/src/UD60x18.sol"; // TODO: update to latst vrsion and use custom types
+import { UD60x18, convert } from "@prb/math/src/UD60x18.sol";
 import { SD59x18, convert } from "@prb/math/src/SD59x18.sol";
 import "../libraries/FixedAndVariableMath.sol";
 import "../../utils/FixedPoint128.sol";
 import "../libraries/VAMMBase.sol";
 import "../../utils/CustomErrors.sol";
 import "../libraries/Oracle.sol";
+import "../../interfaces/IRateOracle.sol";
 
 /**
  * @title Connects external contracts that implement the `IVAMM` interface to the protocol.
@@ -24,6 +25,7 @@ import "../libraries/Oracle.sol";
 library DatedIrsVamm {
 
     UD60x18 constant ONE = UD60x18.wrap(1e18);
+    UD60x18 constant ZERO = UD60x18.wrap(0);
     using SafeCastUni for uint256;
     using SafeCastUni for int256;
     using VAMMBase for VAMMBase.FlipTicksParams;
@@ -93,7 +95,10 @@ library DatedIrsVamm {
         UD60x18 priceImpactPhi;
         /// @dev the beta value to use when adjusting a TWAP price for the likely price impact of liquidation
         UD60x18 priceImpactBeta;
-        /// @dev the term end timestamp in seconds
+        /// @dev the spread taken by LPs on each trade. As decimal number where 1 = 100%. E.g. 0.003 means that the spread is 0.3% of notional
+        UD60x18 spread;
+        /// @dev the spread taken by LPs on each trade. As decimal number where 1 = 100%. E.g. 0.003 means that the spread is 0.3% of notional
+        IRateOracle rateOracle;
     }
 
     struct Data {
@@ -108,12 +113,6 @@ library DatedIrsVamm {
          * Note: maybe we can find a better way of identifying a market than just a simple id
          */
         uint128 marketId;
-        /**
-         * @dev Text identifier for the vamm.
-         *
-         * Not required to be unique.
-         */
-        string name; // TODO: necessary? If so, initialize.
         /**
          * @dev Maps from position ID (see `getPositionId` to the properties of that position
          */
@@ -190,8 +189,6 @@ library DatedIrsVamm {
 
         self._maxLiquidityPerTick = Tick.tickSpacingToMaxLiquidityPerTick(_tickSpacing);
 
-        // TODO: add other VAMM config such as _maxLiquidityPerTick
-
         (uint16 cardinality, uint16 cardinalityNext) = self.observations.initialize(_blockTimestamp());
 
         self._vammVars = IVAMMBase.VAMMVars({
@@ -212,9 +209,9 @@ library DatedIrsVamm {
     /// @notice Calculates time-weighted geometric mean price based on the past `secondsAgo` seconds
     /// @param secondsAgo Number of seconds in the past from which to calculate the time-weighted means
     /// @param adjustForSpread Whether or not to adjust the returned price by the VAMM's configured spread.
-    /// @param priceImpactOrderSize The order size to use when adjusting the price for price impact. Or `0` to ignore price impact.
+    /// @param orderSize The order size to use when adjusting the price for price impact. Or `0` to ignore price impact.
     /// @return geometricMeanPrice The geometric mean price, which might be adjusted according to input parameters.
-    function twap(Data storage self, uint32 secondsAgo, int256 priceImpactOrderSize, bool adjustForSpread)
+    function twap(Data storage self, uint32 secondsAgo, int256 orderSize, bool adjustForSpread)
         internal
         view
         returns (UD60x18 geometricMeanPrice)
@@ -222,32 +219,33 @@ library DatedIrsVamm {
         int24 arithmeticMeanTick = observe(self, secondsAgo);
 
         // Not yet adjusted
-        uint256 adjustedGeometricMeanPriceX96 = getPriceX96FromTick(arithmeticMeanTick);
-        geometricMeanPrice = UD60x18.wrap(FullMath.mulDiv(adjustedGeometricMeanPriceX96, 1e18, FixedPoint96.Q96));
+        geometricMeanPrice = getPriceFromTick(arithmeticMeanTick);
+        UD60x18 spreadImpact = ZERO;
+        UD60x18 priceImpact = ZERO;
 
         if (adjustForSpread) {
-            // TODO
+            spreadImpact = self.config.spread;
         }
 
-        if (priceImpactOrderSize != 0) {
-            // TODO: verify that slippage < 1
-            UD60x18 priceImpact = self.config.priceImpactPhi.mul(convert(uint256(priceImpactOrderSize > 0 ? priceImpactOrderSize : -priceImpactOrderSize)).pow(self.config.priceImpactBeta));
+        if (orderSize != 0) {
+            // TODO: verify that price impact < 1?
+            priceImpact = self.config.priceImpactPhi.mul(convert(uint256(orderSize > 0 ? orderSize : -orderSize)).pow(self.config.priceImpactBeta));
+        }
 
-            // The projected price impact of a trade will move the price up for buys, down for sells
-            if (priceImpactOrderSize > 0) {
-                geometricMeanPrice = geometricMeanPrice.mul(ONE.add(priceImpact));
-            } else {
-                geometricMeanPrice = geometricMeanPrice.mul(ONE.sub(priceImpact));
-            }
-
+        // The projected price impact and spread of a trade will move the price up for buys, down for sells
+        if (orderSize > 0) {
+            geometricMeanPrice = geometricMeanPrice.mul(ONE.add(priceImpact)).mul(ONE.add(spreadImpact));
+        } else {
+            geometricMeanPrice = geometricMeanPrice.mul(ONE.sub(priceImpact)).mul(ONE.add(spreadImpact));
         }
 
         return geometricMeanPrice;
     }
 
-    function getPriceX96FromTick(int24 tick) public pure returns(uint256 priceX96) {
+    function getPriceFromTick(int24 tick) public pure returns(UD60x18 price) {
         uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(tick);
-        return FullMath.mulDiv(sqrtPriceX96, sqrtPriceX96, FixedPoint96.Q96);
+        uint256 priceX96 = FullMath.mulDiv(sqrtPriceX96, sqrtPriceX96, FixedPoint96.Q96);
+        return UD60x18.wrap(FullMath.mulDiv(priceX96, 1e18, FixedPoint96.Q96));
     }
 
     /// @notice Calculates time-weighted arithmetic mean tick
@@ -466,6 +464,7 @@ library DatedIrsVamm {
     }
 
     function trackFixedTokens(
+      Data storage self,
       int256 baseAmount,
       int24 tickLower,
       int24 tickUpper,
@@ -478,12 +477,12 @@ library DatedIrsVamm {
         )
     {
 
-        uint256 averagePrice = uint256((TickMath.getSqrtRatioAtTick(tickUpper) + TickMath.getSqrtRatioAtTick(tickLower)) / 2); // TODO: this assumes linear ticks. Recalculate for the reality of arithmetic ticks.
+        UD60x18 averagePrice = getPriceFromTick(tickUpper).add(getPriceFromTick(tickLower)).div(convert(uint256(2))); // TODO: this is a good estimate across small numbers of tick boundaries, but is fundamentally not exact for nonlinear ticks. Is it good enough?
         UD60x18 timeDeltaUntilMaturity = FixedAndVariableMath.accrualFact(termEndTimestamp - block.timestamp); 
 
-        int256 currentOracleValue = 1;  // self.oracle.latest() TODO: implement link to oracle - which oracle is this? Price oracle for base currency?
-        UD60x18 timeComponent = convert(uint256(1)).add(convert(averagePrice).mul(timeDeltaUntilMaturity));
-        SD59x18 trackedValueDecimal = convert(int256(-baseAmount)).mul(convert(currentOracleValue)).mul(SD59x18.wrap(UD60x18.unwrap(timeComponent).toInt256()));
+        UD60x18 currentOracleValue = self.config.rateOracle.getCurrentIndex();
+        UD60x18 timeComponent = convert(uint256(1)).add(averagePrice.mul(timeDeltaUntilMaturity));
+        SD59x18 trackedValueDecimal = convert(int256(-baseAmount)).mul(SD59x18.wrap(UD60x18.unwrap(currentOracleValue).toInt256())).mul(SD59x18.wrap(UD60x18.unwrap(timeComponent).toInt256()));
         trackedValue = convert(trackedValueDecimal);
     }
 
@@ -496,7 +495,7 @@ library DatedIrsVamm {
         int128 baseAmount
     ) internal {
         VAMMBase.checkCurrentTimestampTermEndTimestampDelta(self.termEndTimestamp);
-        self._vammVars.unlocked.lock(); // TODO: should lock move to executeDatedMakerOrder if that is the only possible entry point?
+        self._vammVars.unlocked.lock(); // TODO: should lock move to executeDatedMakerOrder if that is the only possible entry point? Perhaps most gas efficient here as it's a slot 
 
         Tick.checkTicks(tickLower, tickUpper);
 
@@ -662,6 +661,7 @@ library DatedIrsVamm {
                     state.tracker0GrowthGlobalX128,
                     step.tracker0Delta // for LP
                 ) = calculateUpdatedGlobalTrackerValues( 
+                    self,
                     state,
                     step,
                     self.termEndTimestamp
@@ -680,8 +680,7 @@ library DatedIrsVamm {
                     int128 accumulatorNet = self._ticks.cross(
                         step.tickNext,
                         state.tracker0GrowthGlobalX128,
-                        state.tracker1GrowthGlobalX128,
-                        0
+                        state.tracker1GrowthGlobalX128
                     );
 
                     state.accumulator = LiquidityMath.addDelta(
@@ -745,6 +744,7 @@ library DatedIrsVamm {
     }
 
     function calculateUpdatedGlobalTrackerValues(
+        Data storage self,
         VAMMBase.SwapState memory state,
         VAMMBase.StepComputations memory step,
         uint256 termEndTimestamp
@@ -758,6 +758,7 @@ library DatedIrsVamm {
         )
     {
         tracker0Delta = trackFixedTokens(
+            self,
             step.baseInStep,
             state.tick,
             step.tickNext,
@@ -783,9 +784,9 @@ library DatedIrsVamm {
             return (0, 0);
         }
 
-        int256 base = VAMMBase.baseBetweenTicks(tickLower, tickUpper, averageBase); // TODO: unused?
+        int256 base = VAMMBase.baseBetweenTicks(tickLower, tickUpper, averageBase); // TODO: why unused?
 
-        tracker0GrowthOutside = trackFixedTokens(averageBase, tickLower, tickUpper, self.termEndTimestamp);
+        tracker0GrowthOutside = trackFixedTokens(self, averageBase, tickLower, tickUpper, self.termEndTimestamp);
         tracker1GrowthOutside = averageBase;
 
     }

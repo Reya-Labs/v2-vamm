@@ -47,7 +47,7 @@ library DatedIrsVammPool {
       // TODO: emit log
     }
 
-    function setPauseState(Data storage self, bool state) internal { // TODO: move to DatedIRSVammPool?
+    function setPauseState(Data storage self, bool state) internal {
         require(self.pauser[msg.sender], "only pauser");
         self.paused = state;
 
