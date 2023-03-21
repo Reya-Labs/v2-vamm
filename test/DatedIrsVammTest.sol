@@ -1,50 +1,26 @@
 pragma solidity >=0.8.13;
 
 import "forge-std/Test.sol";
+ import "forge-std/console.sol";
 import "../contracts/VAMM/storage/DatedIrsVAMM.sol";
 import { UD60x18, convert } from "@prb/math/src/UD60x18.sol";
 import { SD59x18, convert } from "@prb/math/src/SD59x18.sol";
 
 
-// contract ExposedDatedIrsVamm is CoreState {
-// contract ExposedDatedIrsVamm {
-//     using DatedIrsVamm for DatedIrsVamm.Data;
-//     DatedIrsVamm.Data public vamm;
+contract ExposedDatedIrsVamm {
 
-
-//     function initialize(uint160 sqrtPriceX96, uint256 _termEndTimestamp, uint128 _marketId, int24 _tickSpacing, DatedIrsVamm.DatedIrsVAMMConfig memory _config) internal {
-//         vamm.initialize(sqrtPriceX96, _termEndTimestamp, _marketId, _tickSpacing,  _config);
-//         // emit Initialize(sqrtPriceX96, tick); // TODO: emit log for new VAMM, either here or in DatedIrsVAMMPool
-//     }
-
-//     // Exposed functions
-//     // function load(uint128 id) external {
-//     //     vamm = DatedIrsVamm.load(id);
-//     // }
-
-//     // function create(uint128 _marketId, uint256 _maturityTimestamp,  uint160 _sqrtPriceX96, int24 _tickSpacing, DatedIrsVamm.DatedIrsVAMMConfig memory _config) external returns (bytes32 s) {
-//     //     DatedIrsVamm.Data storage account = Account.create(id, owner);
-//     //     assembly {
-//     //         s := account.slot
-//     //     }
-//     // }
-
-//     function propagatePosition(uint256 positionId) external {
-//         vamm.propagatePosition(positionId);
-//     }
-
-//     function executeDatedMakerOrder(uint128 accountId,
-//         uint160 fixedRateLower,
-//         uint160 fixedRateUpper,
-//         int128 requestedBaseAmount) external returns (int256 executedBaseAmount) {
-//         return vamm.executeDatedMakerOrder(accountId,
-//         fixedRateLower,
-//         fixedRateUpper,
-//         requestedBaseAmount);
-//     }
-// }
+    // Exposed functions
+    function getAverageBase(
+        int24 tickLower,
+        int24 tickUpper,
+        int128 baseAmount
+    ) external pure returns(int128) {
+        return DatedIrsVamm.getAverageBase(tickLower, tickUpper, baseAmount);
+    }
+}
 
 contract VammTest is Test {
+    ExposedDatedIrsVamm exposedVamm;
     using DatedIrsVamm for DatedIrsVamm.Data;
     uint256 latestPositionId;
     uint256 testNumber;
@@ -57,16 +33,20 @@ contract VammTest is Test {
     });
 
     function setUp() public {
+        exposedVamm = new ExposedDatedIrsVamm();
         vamm.initialize(uint160(FixedPoint96.Q96), block.timestamp+100, 0, 100, config);
         testNumber = 42;
     }
 
-    function test_NumberIs42() public {
-        assertEq(testNumber, 42);
-    }
-
-    function testFail_Subtract43() public {
-        testNumber -= 43;
+    function testFuzz_GetAverageBase(
+        int24 tickLower,
+        int24 tickUpper,
+        int128 baseAmount)
+    public {
+        vm.assume(tickLower < tickUpper); // Ticks cannot be equal
+        vm.assume(tickLower >= TickMath.MIN_TICK);
+        vm.assume(tickUpper <= TickMath.MAX_TICK);
+        assertEq(exposedVamm.getAverageBase(tickLower, tickUpper, baseAmount), baseAmount / (tickUpper - tickLower));
     }
 
     function testFail_GetUnopenedPosition() public {
