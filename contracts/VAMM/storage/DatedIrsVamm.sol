@@ -161,7 +161,7 @@ library DatedIrsVamm {
      * @dev Finds the vamm id using market id and maturity and
      * returns the vamm stored at the specified vamm id. Reverts if no such VAMM is found.
      */
-    function createByMaturityAndMarket(uint128 _marketId, uint256 _maturityTimestamp,  uint160 _sqrtPriceX96, int24 _tickSpacing, DatedIrsVAMMConfig memory _config) internal returns (Data storage irsVamm) {
+    function create(uint128 _marketId, uint256 _maturityTimestamp,  uint160 _sqrtPriceX96, int24 _tickSpacing, DatedIrsVAMMConfig memory _config) internal returns (Data storage irsVamm) {
         require(_maturityTimestamp != 0);
         uint256 id = uint256(keccak256(abi.encodePacked(_marketId, _maturityTimestamp)));
         irsVamm = load(id);
@@ -180,6 +180,7 @@ library DatedIrsVamm {
     /// @dev not locked because it initializes unlocked
     function initialize(Data storage self, uint160 sqrtPriceX96, uint256 _termEndTimestamp, uint128 _marketId, int24 _tickSpacing, DatedIrsVAMMConfig memory _config) internal {
         require(self._vammVars.sqrtPriceX96 == 0, 'AI');
+        require(_termEndTimestamp > block.timestamp, 'TS');
 
         int24 tick = TickMath.getTickAtSqrtRatio(sqrtPriceX96);
 
@@ -236,6 +237,9 @@ library DatedIrsVamm {
         if (orderSize > 0) {
             geometricMeanPrice = geometricMeanPrice.mul(ONE.add(priceImpact)).mul(ONE.add(spreadImpact));
         } else {
+            if (priceImpact.gt(ONE)) {
+                // TODO: return zero?
+            }
             geometricMeanPrice = geometricMeanPrice.mul(ONE.sub(priceImpact)).mul(ONE.add(spreadImpact));
         }
 
@@ -372,7 +376,7 @@ library DatedIrsVamm {
 
         uint256 positionId = getPositionId(accountId, tickLower, tickUpper);
 
-        if(self.positions[positionId].accountId == 0) {
+        if(self.positions[positionId].accountId != 0) {
             return positionId;
         }
 
