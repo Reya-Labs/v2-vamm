@@ -4,7 +4,8 @@ import "forge-std/Test.sol";
  import "forge-std/console.sol";
 import "../contracts/VAMM/storage/DatedIrsVAMM.sol";
 import { UD60x18, convert } from "@prb/math/src/UD60x18.sol";
-import { SD59x18, convert } from "@prb/math/src/SD59x18.sol";
+// import { PRBMathAssertions } from "@prb/math/src/test/Assertions.sol";
+import { SD59x18 } from "@prb/math/src/SD59x18.sol";
 
 
 contract ExposedDatedIrsVamm {
@@ -20,11 +21,27 @@ contract ExposedDatedIrsVamm {
 }
 
 contract VammTest is Test {
-    ExposedDatedIrsVamm exposedVamm;
+
+    function assertEq(UD60x18 a, UD60x18 b) internal {
+        assertEq(UD60x18.unwrap(a), UD60x18.unwrap(b));
+    }
+
+    function assertEq(UD60x18 a, UD60x18 b, string memory err) internal {
+        assertEq(UD60x18.unwrap(a), UD60x18.unwrap(b), err);
+    }
+
+    // Contracts under test
     using DatedIrsVamm for DatedIrsVamm.Data;
-    uint256 latestPositionId;
-    uint256 testNumber;
     DatedIrsVamm.Data internal vamm;
+    ExposedDatedIrsVamm exposedVamm;
+
+    // Test state
+    uint256 latestPositionId;
+
+    // Initial VAMM state
+    uint160 initSqrtPriceX96 = uint160(2 * FixedPoint96.Q96);
+    uint128 initMarketId = 1;
+    int24 initTickSpacing = 1000;
     DatedIrsVamm.DatedIrsVAMMConfig internal config = DatedIrsVamm.DatedIrsVAMMConfig({
         priceImpactPhi: convert(uint256(0)),
         priceImpactBeta: convert(uint256(0)),
@@ -34,8 +51,19 @@ contract VammTest is Test {
 
     function setUp() public {
         exposedVamm = new ExposedDatedIrsVamm();
-        vamm.initialize(uint160(FixedPoint96.Q96), block.timestamp+100, 0, 100, config);
-        testNumber = 42;
+        vamm.initialize(initSqrtPriceX96, block.timestamp + 100, initMarketId, initTickSpacing, config);
+    }
+
+    function test_InitState() public {
+        assertEq(vamm._vammVars.sqrtPriceX96, initSqrtPriceX96); 
+        assertEq(vamm._vammVars.tick, TickMath.getTickAtSqrtRatio(initSqrtPriceX96)); 
+    }
+
+    function test_InitOracle() public {
+        int24 tick = vamm._vammVars.tick;
+        assertEq(vamm.observe(0), tick); 
+        UD60x18 geometricMeanPrice = vamm.twap(0, 0 , false); // no lookback, no adjustments
+        assertEq(geometricMeanPrice, DatedIrsVamm.getPriceFromTick(tick)); 
     }
 
     function testFuzz_GetAverageBase(
