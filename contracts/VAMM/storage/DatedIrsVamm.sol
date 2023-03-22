@@ -209,10 +209,11 @@ library DatedIrsVamm {
 
     /// @notice Calculates time-weighted geometric mean price based on the past `secondsAgo` seconds
     /// @param secondsAgo Number of seconds in the past from which to calculate the time-weighted means
+    /// @param orderSize The order size to use when adjusting the price for price impact or spread. Must not be zero if either of the boolean params is true because it used to indicate the direction of the trade and therefore the direction of the adjustment. Function will revert if `abs(orderSize)` overflows when cast to a `U60x18`
+    /// @param adjustForPriceImpact Whether or not to adjust the returned price by the VAMM's configured spread.
     /// @param adjustForSpread Whether or not to adjust the returned price by the VAMM's configured spread.
-    /// @param orderSize The order size to use when adjusting the price for price impact. Or `0` to ignore price impact.
-    /// @return geometricMeanPrice The geometric mean price, which might be adjusted according to input parameters.
-    function twap(Data storage self, uint32 secondsAgo, int256 orderSize, bool adjustForSpread)
+    /// @return geometricMeanPrice The geometric mean price, which might be adjusted according to input parameters. May return zero if adjustments would take the price to or below zero - e.g. when anticipated price impact is large because the order size is large.
+    function twap(Data storage self, uint32 secondsAgo, int256 orderSize, bool adjustForPriceImpact,  bool adjustForSpread)
         internal
         view
         returns (UD60x18 geometricMeanPrice)
@@ -221,26 +222,32 @@ library DatedIrsVamm {
 
         // Not yet adjusted
         geometricMeanPrice = getPriceFromTick(arithmeticMeanTick);
-        UD60x18 spreadImpact = ZERO;
-        UD60x18 priceImpact = ZERO;
+        UD60x18 spreadImpactDelta = ZERO;
+        UD60x18 priceImpactAsFraction = ZERO;
 
         if (adjustForSpread) {
-            spreadImpact = self.config.spread;
+            require(orderSize != 0);
+            spreadImpactDelta = self.config.spread; // TODO: this is actually just a delta and not a multiplier
         }
 
-        if (orderSize != 0) {
-            // TODO: verify that price impact < 1?
-            priceImpact = self.config.priceImpactPhi.mul(convert(uint256(orderSize > 0 ? orderSize : -orderSize)).pow(self.config.priceImpactBeta));
+        if (adjustForPriceImpact) {
+            require(orderSize != 0);
+            priceImpactAsFraction = self.config.priceImpactPhi.mul(convert(uint256(orderSize > 0 ? orderSize : -orderSize)).pow(self.config.priceImpactBeta));
         }
 
         // The projected price impact and spread of a trade will move the price up for buys, down for sells
-        if (orderSize > 0) {
-            geometricMeanPrice = geometricMeanPrice.mul(ONE.add(priceImpact)).mul(ONE.add(spreadImpact));
+        if (orderSize > 0) { //TODO: need some other param to indicate buy vs. sell?
+            geometricMeanPrice = geometricMeanPrice.add(spreadImpactDelta).mul(ONE.add(priceImpactAsFraction));
         } else {
-            if (priceImpact.gt(ONE)) {
-                // TODO: return zero?
+            if (spreadImpactDelta.gte(geometricMeanPrice)) {
+                // The spread is higher than the price
+                return ZERO;
             }
-            geometricMeanPrice = geometricMeanPrice.mul(ONE.sub(priceImpact)).mul(ONE.add(spreadImpact));
+            if (priceImpactAsFraction.gte(ONE)) {
+                // The model suggests that the price will drop below zero after price impact
+                return ZERO;
+            }
+            geometricMeanPrice = geometricMeanPrice.sub(spreadImpactDelta).mul(ONE.sub(priceImpactAsFraction));
         }
 
         return geometricMeanPrice;
