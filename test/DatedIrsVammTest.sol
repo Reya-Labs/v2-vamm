@@ -64,7 +64,7 @@ contract VammTest is VoltzAssertions {
     ExposedDatedIrsVamm exposedVamm;
 
     // Test state
-    uint256 latestPositionId;
+    // uint256 latestPositionId;
 
     // Initial VAMM state
     uint160 initSqrtPriceX96 = uint160(2 * FixedPoint96.Q96 / 10); // 0.2 => price ~= 0.04 = 4%
@@ -190,15 +190,50 @@ contract VammTest is VoltzAssertions {
         vamm.getRawPosition(1);
     }
 
-    function test_OpenPosition() public {
-        uint128 accountId = 1;
-        int24 tickLower = 2;
-        int24 tickUpper = 3;
-        latestPositionId = vamm.openPosition(accountId,tickLower,tickUpper);
-        assertEq(latestPositionId, DatedIrsVamm.getPositionId(accountId,tickLower,tickUpper));
-        assertEq(vamm.positions[latestPositionId].accountId, accountId);
-        assertEq(vamm.positions[latestPositionId].tickLower, tickLower);
-        assertEq(vamm.positions[latestPositionId].tickUpper, tickUpper);
-        vamm.getRawPosition(latestPositionId);
+    function testFuzz_GetAccountFilledBalancesUnusedAccount(uint128 accountId) public {
+        (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(accountId);
+        assertEq(baseBalancePool, 0);
+        assertEq(quoteBalancePool, 0);
+    }
+
+    function testFuzz_GetAccountUnfilledBasesUnusedAccount(uint128 accountId) public {
+        (int256 unfilledBaseLong, int256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
+        assertEq(unfilledBaseLong, 0);
+        assertEq(unfilledBaseShort, 0);
+    }
+
+    function openPosition(
+        uint128 accountId,
+        int24 tickLower,
+        int24 tickUpper)
+    internal
+    returns (uint256 positionId, DatedIrsVamm.LPPosition memory position)
+    {
+        positionId = vamm.openPosition(accountId,tickLower,tickUpper);
+        position = vamm.positions[positionId];
+    }
+
+    function testFuzz_OpenPosition(uint128 accountId, int24 tickLower, int24 tickUpper) public {
+        vm.assume(accountId != 0);
+        vm.assume(tickLower < tickUpper); // Ticks cannot be equal
+        vm.assume(tickLower >= TickMath.MIN_TICK);
+        vm.assume(tickUpper <= TickMath.MAX_TICK);
+
+        (uint256 positionId, DatedIrsVamm.LPPosition memory p) = openPosition(accountId,tickLower,tickUpper);
+        assertEq(positionId, DatedIrsVamm.getPositionId(accountId,tickLower,tickUpper));
+        assertEq(p.accountId, accountId);
+        assertEq(p.tickLower, tickLower);
+        assertEq(p.tickUpper, tickUpper);
+        assertEq(p.baseAmount, 0);
+        assertEq(p.tracker0UpdatedGrowth, 0);
+        assertEq(p.tracker1UpdatedGrowth, 0);
+        assertEq(p.tracker0Accumulated, 0);
+        assertEq(p.tracker1Accumulated, 0);
+        vamm.getRawPosition(positionId);
+
+        // Position just opened so no filled balances
+        (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(accountId);
+        assertEq(baseBalancePool, 0);
+        assertEq(quoteBalancePool, 0);
     }
 }
