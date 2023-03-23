@@ -16,7 +16,7 @@ library DatedIrsVammPool {
     }
 
     function load(uint128 id) internal pure returns (Data storage self) {
-        require(id != 0, "ID0");
+        require(id != 0, "ID0"); // TODO: custom error
         bytes32 s = keccak256(abi.encode("xyz.voltz.DatedIRSVAMMPool", id));
         assembly {
             self.slot := s

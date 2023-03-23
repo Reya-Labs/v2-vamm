@@ -107,7 +107,7 @@ library DatedIrsVamm {
         IVAMMBase.VAMMVars _vammVars;
         /**
          * @dev Numeric identifier for the vamm. Must be unique.
-         * @dev There cannot be a vamm with id zero (See VAMMCreator.create()). Id zero is used as a null vamm reference.
+         * @dev There cannot be a vamm with id zero (See `load()`). Id zero is used as a null vamm reference.
          */
         uint256 id;
         /**
@@ -140,6 +140,7 @@ library DatedIrsVamm {
      * @dev Returns the vamm stored at the specified vamm id.
      */
     function load(uint256 id) internal pure returns (Data storage irsVamm) {
+        require(id != 0); // TODO: custom error
         bytes32 s = keccak256(abi.encode("xyz.voltz.DatedIRSVamm", id));
         assembly {
             irsVamm.slot := s
@@ -163,7 +164,9 @@ library DatedIrsVamm {
      * returns the vamm stored at the specified vamm id. Reverts if no such VAMM is found.
      */
     function create(uint128 _marketId, uint256 _maturityTimestamp,  uint160 _sqrtPriceX96, int24 _tickSpacing, Config memory _config) internal returns (Data storage irsVamm) {
-        require(_maturityTimestamp != 0);
+        if (_maturityTimestamp == 0) {
+            revert CustomErrors.MaturityMustBeInFuture(block.timestamp, _maturityTimestamp);
+        }
         uint256 id = uint256(keccak256(abi.encodePacked(_marketId, _maturityTimestamp)));
         irsVamm = load(id);
         if (irsVamm.termEndTimestamp != 0) {
@@ -180,8 +183,15 @@ library DatedIrsVamm {
 
     /// @dev not locked because it initializes unlocked
     function initialize(Data storage self, uint160 sqrtPriceX96, uint256 _termEndTimestamp, uint128 _marketId, int24 _tickSpacing, Config memory _config) internal {
-        require(self._vammVars.sqrtPriceX96 == 0, 'AI');
-        require(_termEndTimestamp > block.timestamp, 'TS');
+        if (sqrtPriceX96 == 0) {
+            revert CustomErrors.ExpectedNonZeroSqrtPriceForInit(sqrtPriceX96);
+        }
+        if (self._vammVars.sqrtPriceX96 != 0) {
+            revert CustomErrors.ExpectedSqrtPriceZeroBeforeInit(self._vammVars.sqrtPriceX96);
+        }
+        if (_termEndTimestamp <= block.timestamp) {
+            revert CustomErrors.MaturityMustBeInFuture(block.timestamp, _termEndTimestamp);
+        }
 
         int24 tick = TickMath.getTickAtSqrtRatio(sqrtPriceX96);
 
@@ -225,12 +235,12 @@ library DatedIrsVamm {
         UD60x18 priceImpactAsFraction = ZERO;
 
         if (adjustForSpread) {
-            require(orderSize != 0);
+            require(orderSize != 0); // TODO: custom error
             spreadImpactDelta = self.config.spread;
         }
 
         if (adjustForPriceImpact) {
-            require(orderSize != 0);
+            require(orderSize != 0); // TODO: custom error
             priceImpactAsFraction = self.config.priceImpactPhi.mul(convert(uint256(orderSize > 0 ? orderSize : -orderSize)).pow(self.config.priceImpactBeta));
         }
 
@@ -376,7 +386,7 @@ library DatedIrsVamm {
         uint128 accountId,
         int24 tickLower,
         int24 tickUpper
-    )
+    ) 
         internal
         returns (uint256){
 
@@ -403,7 +413,7 @@ library DatedIrsVamm {
         returns (LPPosition memory) {
 
         // Account zero is not a valid account. (See `Account.create()`)
-        require(self.positions[positionId].accountId != 0, "Missing position");
+        require(self.positions[positionId].accountId != 0, "Missing position"); // TODO: custom error
         
         propagatePosition(self, positionId);
         return self.positions[positionId];
