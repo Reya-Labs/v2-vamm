@@ -35,6 +35,16 @@ contract VoltzAssertions is Test {
     function assertEq(UD60x18 a, UD60x18 b, string memory err) internal {
         assertEq(UD60x18.unwrap(a), UD60x18.unwrap(b), err);
     }
+    function boundTicks(
+        int24 _tickLower,
+        int24 _tickUpper)
+    internal returns (int24 tickLower, int24 tickUpper)
+    {
+        // Ticks must be in range and cannot be equal
+        tickLower = int24(bound(_tickLower,  TickMath.MIN_TICK, TickMath.MAX_TICK - 1));
+        tickUpper = int24(bound(_tickUpper,  TickMath.MIN_TICK + 1, TickMath.MAX_TICK));
+        vm.assume(tickLower < tickUpper);
+    }
 }
 
 // Helpers
@@ -63,6 +73,8 @@ contract VammTest is VoltzAssertions {
     DatedIrsVamm.Data internal vamm;
     ExposedDatedIrsVamm exposedVamm;
 
+    address constant mockRateOracle = 0xAa73aA73Aa73Aa73AA73Aa73aA73AA73aa73aa73;
+
     // Test state
     // uint256 latestPositionId;
 
@@ -70,11 +82,11 @@ contract VammTest is VoltzAssertions {
     uint160 initSqrtPriceX96 = uint160(2 * FixedPoint96.Q96 / 10); // 0.2 => price ~= 0.04 = 4%
     uint128 initMarketId = 1;
     int24 initTickSpacing = 1000;
-    DatedIrsVamm.DatedIrsVAMMConfig internal config = DatedIrsVamm.DatedIrsVAMMConfig({
+    DatedIrsVamm.Config internal config = DatedIrsVamm.Config({
         priceImpactPhi: ud60x18(1e17), // 0.1
         priceImpactBeta: ud60x18(125e15), // 0.125
         spread: ud60x18(3e15), // 0.3%
-        rateOracle: IRateOracle(address(0))
+        rateOracle: IRateOracle(mockRateOracle)
     });
 
     function setUp() public {
@@ -155,9 +167,7 @@ contract VammTest is VoltzAssertions {
     /// @dev Useful check that we do not crash (e.g. due to underflow) while making adjustments to TWAP output
     function testFuzz_Init_Twap(int256 orderSize, bool adjustForPriceImpact,  bool adjustForSpread) public {
         vm.assume(orderSize != 0);
-        vm.assume(orderSize > type(int256).min);
-        vm.assume(orderSize < int256(uMAX_UD60x18 / uUNIT));
-        vm.assume(-orderSize < int256(uMAX_UD60x18 / uUNIT));
+        orderSize = bound(orderSize, -int256(uMAX_UD60x18 / uUNIT), int256(uMAX_UD60x18 / uUNIT));
 
         int24 tick = vamm._vammVars.tick;
         assertEq(vamm.observe(0), tick);
@@ -180,9 +190,7 @@ contract VammTest is VoltzAssertions {
         int24 tickUpper,
         int128 baseAmount)
     public {
-        vm.assume(tickLower < tickUpper); // Ticks cannot be equal
-        vm.assume(tickLower >= TickMath.MIN_TICK);
-        vm.assume(tickUpper <= TickMath.MAX_TICK);
+        (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
         assertEq(exposedVamm.getAverageBase(tickLower, tickUpper, baseAmount), baseAmount / (tickUpper - tickLower));
     }
 
@@ -215,9 +223,7 @@ contract VammTest is VoltzAssertions {
 
     function testFuzz_OpenPosition(uint128 accountId, int24 tickLower, int24 tickUpper) public {
         vm.assume(accountId != 0);
-        vm.assume(tickLower < tickUpper); // Ticks cannot be equal
-        vm.assume(tickLower >= TickMath.MIN_TICK);
-        vm.assume(tickUpper <= TickMath.MAX_TICK);
+        (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
 
         (uint256 positionId, DatedIrsVamm.LPPosition memory p) = openPosition(accountId,tickLower,tickUpper);
         assertEq(positionId, DatedIrsVamm.getPositionId(accountId,tickLower,tickUpper));
@@ -230,10 +236,37 @@ contract VammTest is VoltzAssertions {
         assertEq(p.tracker0Accumulated, 0);
         assertEq(p.tracker1Accumulated, 0);
         vamm.getRawPosition(positionId);
+    }
+
+    function test_TrackFixedTokens() public {
+      int256 baseAmount = 99;
+      int24 tickLower = 2;
+      int24 tickUpper = 3;
+      uint256 termEndTimestamp = block.timestamp + 100;
+ 
+      UD60x18 currentLiquidityIndex = ud60x18(100e18);
+      vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(currentLiquidityIndex));
+
+      (int256 trackedValue) = vamm.trackFixedTokens(baseAmount, tickLower, tickUpper, termEndTimestamp);
+    //   assertEq(trackedValue, 0); // TODO: validate result
+    }
+
+    function test_NewPositionTracking() public {
+        uint128 accountId = 1;
+        int24 tickLower = 2;
+        int24 tickUpper = 3;
+        (uint256 positionId, DatedIrsVamm.LPPosition memory p) = openPosition(accountId,tickLower,tickUpper);
 
         // Position just opened so no filled balances
         (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(accountId);
         assertEq(baseBalancePool, 0);
         assertEq(quoteBalancePool, 0);
+    
+        // Position just opened so no unfilled balances
+        UD60x18 currentLiquidityIndex = ud60x18(100e18);
+        vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(currentLiquidityIndex));
+        (int256 unfilledBaseLong, int256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
+        assertEq(unfilledBaseLong, 0);
+        assertEq(unfilledBaseShort, 0);
     }
 }

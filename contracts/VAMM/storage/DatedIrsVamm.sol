@@ -90,7 +90,8 @@ library DatedIrsVamm {
         int256 tracker1Accumulated;
     }
 
-    struct DatedIrsVAMMConfig {
+    /// @dev Mutable (or maybe one day mutable, perahps through governance) Config for this VAMM
+    struct Config {
         /// @dev the phi value to use when adjusting a TWAP price for the likely price impact of liquidation
         UD60x18 priceImpactPhi;
         /// @dev the beta value to use when adjusting a TWAP price for the likely price impact of liquidation
@@ -124,7 +125,7 @@ library DatedIrsVamm {
         uint256 termEndTimestamp;
         uint128 _maxLiquidityPerTick;
         int24 _tickSpacing;
-        DatedIrsVAMMConfig config;
+        Config config;
         uint128 _accumulator;
         int256 _tracker0GrowthGlobalX128;
         int256 _tracker1GrowthGlobalX128;
@@ -161,7 +162,7 @@ library DatedIrsVamm {
      * @dev Finds the vamm id using market id and maturity and
      * returns the vamm stored at the specified vamm id. Reverts if no such VAMM is found.
      */
-    function create(uint128 _marketId, uint256 _maturityTimestamp,  uint160 _sqrtPriceX96, int24 _tickSpacing, DatedIrsVAMMConfig memory _config) internal returns (Data storage irsVamm) {
+    function create(uint128 _marketId, uint256 _maturityTimestamp,  uint160 _sqrtPriceX96, int24 _tickSpacing, Config memory _config) internal returns (Data storage irsVamm) {
         require(_maturityTimestamp != 0);
         uint256 id = uint256(keccak256(abi.encodePacked(_marketId, _maturityTimestamp)));
         irsVamm = load(id);
@@ -178,7 +179,7 @@ library DatedIrsVamm {
     }
 
     /// @dev not locked because it initializes unlocked
-    function initialize(Data storage self, uint160 sqrtPriceX96, uint256 _termEndTimestamp, uint128 _marketId, int24 _tickSpacing, DatedIrsVAMMConfig memory _config) internal {
+    function initialize(Data storage self, uint160 sqrtPriceX96, uint256 _termEndTimestamp, uint128 _marketId, int24 _tickSpacing, Config memory _config) internal {
         require(self._vammVars.sqrtPriceX96 == 0, 'AI');
         require(_termEndTimestamp > block.timestamp, 'TS');
 
@@ -203,8 +204,6 @@ library DatedIrsVamm {
         });
 
         configure(self, _config);
-
-        // emit Initialize(sqrtPriceX96, tick); // TODO: emit log for new VAMM, either here or in DatedIrsVAMMPool
     }
 
     /// @notice Calculates time-weighted geometric mean price based on the past `secondsAgo` seconds
@@ -227,7 +226,7 @@ library DatedIrsVamm {
 
         if (adjustForSpread) {
             require(orderSize != 0);
-            spreadImpactDelta = self.config.spread; // TODO: this is actually just a delta and not a multiplier
+            spreadImpactDelta = self.config.spread;
         }
 
         if (adjustForPriceImpact) {
@@ -236,7 +235,7 @@ library DatedIrsVamm {
         }
 
         // The projected price impact and spread of a trade will move the price up for buys, down for sells
-        if (orderSize > 0) { //TODO: need some other param to indicate buy vs. sell?
+        if (orderSize > 0) {
             geometricMeanPrice = geometricMeanPrice.add(spreadImpactDelta).mul(ONE.add(priceImpactAsFraction));
         } else {
             if (spreadImpactDelta.gte(geometricMeanPrice)) {
@@ -403,7 +402,7 @@ library DatedIrsVamm {
         internal
         returns (LPPosition memory) {
 
-        // TODO: check/enforce assertion that zero is not a valid account ID
+        // Account zero is not a valid account. (See `Account.create()`)
         require(self.positions[positionId].accountId != 0, "Missing position");
         
         propagatePosition(self, positionId);
@@ -455,13 +454,11 @@ library DatedIrsVamm {
 
     function configure(
         Data storage self,
-        DatedIrsVAMMConfig memory _config) internal {
+        Config memory _config) internal {
 
-        // TODO: sanity checks - e.g. price impact calculated must never be >= 1
+        // TODO: sanity check config - e.g. price impact calculated must never be >= 1
 
         self.config = _config;
-
-        // TODO: emit log
     }
 
     /// GETTERS & TRACKERS
@@ -510,7 +507,7 @@ library DatedIrsVamm {
         int128 baseAmount
     ) internal {
         VAMMBase.checkCurrentTimestampTermEndTimestampDelta(self.termEndTimestamp);
-        self._vammVars.unlocked.lock(); // TODO: should lock move to executeDatedMakerOrder if that is the only possible entry point? Perhaps most gas efficient here as it's a slot 
+        self._vammVars.unlocked.lock();
 
         Tick.checkTicks(tickLower, tickUpper);
 

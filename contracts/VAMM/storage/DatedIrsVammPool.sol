@@ -11,50 +11,71 @@ library DatedIrsVammPool {
     using VAMMBase for bool;
 
     struct Data {
-        /**
-         * @dev Numeric identifier for the vamm pool. Must be unique.
-         * @dev There cannot be a vamm with id zero (See VAMMCreator.create()). Id zero is used as a null vamm reference.
-         */
-        uint128 id; // TODO: delete if not needed?
-        /**
-         * @dev Text identifier for the vamm.
-         *
-         * Not required to be unique.
-         */
-        string name; // TODO: delete if not needed? Maybe name should be constructed programmatically
-        /**
-         * @dev Creator of the vamm, which has configuration access rights for the vamm.
-         *
-         * See onlyVAMMOwner.
-         */
-        address owner; // TODO: use this (or somethng else) ao auth all activity
-
         mapping(address => bool) pauser;
         bool paused;
     }
 
     function load(uint128 id) internal pure returns (Data storage self) {
+        require(id != 0, "ID0");
         bytes32 s = keccak256(abi.encode("xyz.voltz.DatedIRSVAMMPool", id));
         assembly {
             self.slot := s
         }
     }
 
-    function changePauser(Data storage self, address account, bool permission) internal {
-      // not sure if msg.sender is the caller
+    event Pauser(address account, bool isNowPauser);
+
+    function changePauser(Data storage self, address account, bool permission) external {
       OwnableStorage.onlyOwner();
       self.pauser[account] = permission;
-      // TODO: emit log
+      emit Pauser(account, permission);
     }
 
-    function setPauseState(Data storage self, bool state) internal {
+    event PauseState(bool newPauseState);
+
+    function setPauseState(Data storage self, bool state) external {
         require(self.pauser[msg.sender], "only pauser");
         self.paused = state;
-
-        // TODO: emit log
+        emit PauseState(state);
     }
 
-    // TODO: add function for creating a new VAMM instance, calling through to DatedIrsVamm.createByMaturityAndMarket
+    event VammCreated(
+        uint128 indexed marketId,
+        uint256 indexed maturityTimestamp,
+        uint160 sqrtPriceX96,
+        int24 tickSpacing,
+        uint128 maxLiquidityPerTick,
+        int24 tick,
+        DatedIrsVamm.Config _config);
+
+    function createVamm(uint128 _marketId, uint256 _maturityTimestamp,  uint160 _sqrtPriceX96, int24 _tickSpacing, DatedIrsVamm.Config calldata _config)
+    external
+    {
+        OwnableStorage.onlyOwner();
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.create(_marketId, _maturityTimestamp, _sqrtPriceX96, _tickSpacing, _config);
+        emit VammCreated(
+            _marketId,
+            _maturityTimestamp,
+            _sqrtPriceX96,
+            _tickSpacing,
+            vamm._maxLiquidityPerTick,
+            vamm._vammVars.tick,
+            _config);
+    }
+
+    event VammConfigUpdated(
+        uint128 _marketId,
+        uint256 _maturityTimestamp,
+        DatedIrsVamm.Config _config);
+
+    function configureVamm(uint128 _marketId, uint256 _maturityTimestamp, DatedIrsVamm.Config calldata _config)
+    external
+    {
+        OwnableStorage.onlyOwner();
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(_marketId, _maturityTimestamp);
+        vamm.configure(_config);
+        emit VammConfigUpdated(_marketId, _maturityTimestamp, _config);
+    }
 
     /// @dev note, a pool needs to have this interface to enable account closures initiated by products
     function executeDatedTakerOrder(
@@ -66,6 +87,7 @@ library DatedIrsVammPool {
     )
         external
         returns (int256 executedBaseAmount, int256 executedQuoteAmount){
+        // TODO: authentication!
         self.paused.whenNotPaused();
 
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
@@ -107,8 +129,9 @@ library DatedIrsVammPool {
         int128 requestedBaseAmount
     )
         external
-        returns (int256 executedBaseAmount){ // TODO: returning 256 for 128 request seems wrong
+        returns (int256 executedBaseAmount){ // TODO: returning 256 for 128 request seems wrong?
        self.paused.whenNotPaused();
+        // TODO: authentication!
         
        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
        return vamm.executeDatedMakerOrder(accountId, fixedRateLower, fixedRateUpper, requestedBaseAmount);
@@ -121,6 +144,7 @@ library DatedIrsVammPool {
     )
         external
         returns (int256 baseBalancePool, int256 quoteBalancePool) {
+         // TODO: not a view function because it propagates a position. Hard to be sure that more state writes won't creep in, so as such should we authenticate?         
         
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
         return vamm.getAccountFilledBalances(accountId);
@@ -134,6 +158,7 @@ library DatedIrsVammPool {
         external
         returns (int256 unfilledBaseLong, int256 unfilledBaseShort)
     {
+        // TODO: not a view function because it propagates a position. Hard to be sure that more state writes won't creep in, so as such should we authenticate?         
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
         return vamm.getAccountUnfilledBases(accountId);
     }
