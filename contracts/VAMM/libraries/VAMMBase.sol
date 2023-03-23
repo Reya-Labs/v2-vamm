@@ -179,12 +179,16 @@ library VAMMBase {
     }
 
     function lock(bool _unlocked) internal pure {
-        require(_unlocked, "LOK");
+        if (!_unlocked) {
+            revert CustomErrors.CanOnlyTradeIfUnlocked();
+        }
         _unlocked = false;
     }
 
     function unlock(bool _unlocked) internal pure {
-        require(!_unlocked, "NLOK");
+        if (_unlocked) {
+            revert CustomErrors.CanOnlyUnlockIfLocked();
+        }
         _unlocked = true;
     }
 
