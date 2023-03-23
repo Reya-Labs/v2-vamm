@@ -474,6 +474,10 @@ library DatedIrsVamm {
         return baseAmount / (tickUpper - tickLower);
     }
 
+    function sd59x18(UD60x18 ud) internal pure returns (SD59x18 sd) {  // TODO: move into util library
+        return SD59x18.wrap(UD60x18.unwrap(ud).toInt256());
+    }
+
     function trackFixedTokens(
       Data storage self,
       int256 baseAmount,
@@ -491,9 +495,9 @@ library DatedIrsVamm {
         UD60x18 averagePrice = getPriceFromTick(tickUpper).add(getPriceFromTick(tickLower)).div(convert(uint256(2))); // TODO: this is a good estimate across small numbers of tick boundaries, but is fundamentally not exact for nonlinear ticks. Is it good enough?
         UD60x18 timeDeltaUntilMaturity = FixedAndVariableMath.accrualFact(termEndTimestamp - block.timestamp); 
 
-        UD60x18 currentOracleValue = self.config.rateOracle.getCurrentIndex();
-        UD60x18 timeComponent = convert(uint256(1)).add(averagePrice.mul(timeDeltaUntilMaturity));
-        SD59x18 trackedValueDecimal = convert(int256(-baseAmount)).mul(SD59x18.wrap(UD60x18.unwrap(currentOracleValue).toInt256())).mul(SD59x18.wrap(UD60x18.unwrap(timeComponent).toInt256()));
+        SD59x18 currentOracleValue = sd59x18(self.config.rateOracle.getCurrentIndex());
+        SD59x18 timeComponent = sd59x18(ONE.add(averagePrice.mul(timeDeltaUntilMaturity)));
+        SD59x18 trackedValueDecimal = convert(int256(-baseAmount)).mul(currentOracleValue.mul(timeComponent));
         trackedValue = convert(trackedValueDecimal);
     }
 
