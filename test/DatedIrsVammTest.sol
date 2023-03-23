@@ -6,22 +6,10 @@ import "../contracts/VAMM/storage/DatedIrsVAMM.sol";
 import { UD60x18, convert, ud60x18, uMAX_UD60x18, uUNIT } from "@prb/math/src/UD60x18.sol";
 import { SD59x18 } from "@prb/math/src/SD59x18.sol";
 
+// Asserts - TODO: move into own source file
 
-contract ExposedDatedIrsVamm {
+contract VoltzAssertions is Test {
 
-    // Exposed functions
-    function getAverageBase(
-        int24 tickLower,
-        int24 tickUpper,
-        int128 baseAmount
-    ) external pure returns(int128) {
-        return DatedIrsVamm.getAverageBase(tickLower, tickUpper, baseAmount);
-    }
-}
-
-contract VammTest is Test {
-
-    // Asserts - TODO: move into own library
     function assertEq(UD60x18 a, UD60x18 b) internal {
         assertEq(UD60x18.unwrap(a), UD60x18.unwrap(b));
     }
@@ -47,15 +35,29 @@ contract VammTest is Test {
     function assertEq(UD60x18 a, UD60x18 b, string memory err) internal {
         assertEq(UD60x18.unwrap(a), UD60x18.unwrap(b), err);
     }
+}
 
-    // Helpers
-    function abs(int256 x) private pure returns (uint256) {
-        return x >= 0 ? uint256(x) : uint256(-x);
+// Helpers
+function abs(int256 x) pure returns (uint256) {
+    return x >= 0 ? uint256(x) : uint256(-x);
+}
+
+// Constants
+UD60x18 constant ONE = UD60x18.wrap(1e18);
+
+contract ExposedDatedIrsVamm {
+
+    // Exposed functions
+    function getAverageBase(
+        int24 tickLower,
+        int24 tickUpper,
+        int128 baseAmount
+    ) external pure returns(int128) {
+        return DatedIrsVamm.getAverageBase(tickLower, tickUpper, baseAmount);
     }
+}
 
-    // Constants
-    UD60x18 ONE = convert(uint256(1));
-
+contract VammTest is VoltzAssertions {
     // Contracts under test
     using DatedIrsVamm for DatedIrsVamm.Data;
     DatedIrsVamm.Data internal vamm;
