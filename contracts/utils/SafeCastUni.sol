@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 // With contributions from OpenZeppelin Contracts v4.4.0 (utils/math/SafeCast.sol)
 
-pragma solidity =0.8.9;
+pragma solidity >=0.8.13;
 
 /// @title Safe casting methods
 /// @notice Contains methods for safely casting between types

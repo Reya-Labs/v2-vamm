@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: BUSL-1.1
 
-pragma solidity =0.8.9;
+pragma solidity >=0.8.13;
 
-import "../utils/FullMath.sol";
-import "../utils/SqrtPriceMath.sol";
+import "../../utils/FullMath.sol";
+import "../../utils/SqrtPriceMath.sol";
 import "prb-math/contracts/PRBMathUD60x18.sol";
 import "prb-math/contracts/PRBMathSD59x18.sol";
-import "../core_libraries/FixedAndVariableMath.sol";
+import "./FixedAndVariableMath.sol";
 
 /// @title Computes the result of a swap within ticks
 /// @notice Contains methods for computing the result of a swap within a single tick price range, i.e., a single tick.
@@ -16,7 +16,6 @@ library SwapMath {
         uint160 sqrtRatioTargetX96;
         uint128 liquidity;
         int256 amountRemaining;
-        uint256 feePercentageWad;
         uint256 timeToMaturityInSecondsWad;
     }
 
@@ -46,17 +45,16 @@ library SwapMath {
     /// @return sqrtRatioNextX96 The price after swapping the amount in/out, not to exceed the price target
     /// @return amountIn The amount to be swapped in, of either token0 or token1, based on the direction of the swap
     /// @return amountOut The amount to be received, of either token0 or token1, based on the direction of the swa
-    /// @return feeAmount Amount of fees in underlying tokens incurred by the position during the swap step, i.e. single iteration of the while loop in the VAMM
     function computeSwapStep(SwapStepParams memory params)
         internal
         pure
         returns (
             uint160 sqrtRatioNextX96,
             uint256 amountIn,
-            uint256 amountOut,
-            uint256 feeAmount
+            uint256 amountOut
         )
-    {
+    { 
+        // to left
         bool zeroForOne = params.sqrtRatioCurrentX96 >=
             params.sqrtRatioTargetX96;
         bool exactIn = params.amountRemaining >= 0;
@@ -137,8 +135,6 @@ library SwapMath {
                     params.liquidity,
                     false
                 );
-            // variable taker
-            notional = amountOut;
         } else {
             amountIn = max && exactIn
                 ? amountIn
@@ -156,9 +152,6 @@ library SwapMath {
                     params.liquidity,
                     false
                 );
-
-            // fixed taker
-            notional = amountIn;
         }
 
         // cap the output amount to not exceed the remaining output amount
@@ -168,11 +161,5 @@ library SwapMath {
         }
 
         // uint256 notionalWad = PRBMathUD60x18.fromUint(notional);
-
-        feeAmount = computeFeeAmount(
-            PRBMathUD60x18.fromUint(notional),
-            params.timeToMaturityInSecondsWad,
-            params.feePercentageWad
-        );
     }
 }
