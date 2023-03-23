@@ -15,9 +15,8 @@ library DatedIrsVammPool {
         bool paused;
     }
 
-    function load(uint128 id) internal pure returns (Data storage self) {
-        require(id != 0, "ID0"); // TODO: custom error
-        bytes32 s = keccak256(abi.encode("xyz.voltz.DatedIRSVAMMPool", id));
+    function load() internal pure returns (Data storage self) {
+        bytes32 s = keccak256(abi.encode("xyz.voltz.DatedIRSVAMMPool"));
         assembly {
             self.slot := s
         }
@@ -25,15 +24,16 @@ library DatedIrsVammPool {
 
     event Pauser(address account, bool isNowPauser);
 
-    function changePauser(Data storage self, address account, bool permission) external {
+    function changePauser(address account, bool permission) external {
       OwnableStorage.onlyOwner();
-      self.pauser[account] = permission;
+      DatedIrsVammPool.load().pauser[account] = permission;
       emit Pauser(account, permission);
     }
 
     event PauseState(bool newPauseState);
 
-    function setPauseState(Data storage self, bool state) external {
+    function setPauseState(bool state) external {
+        Data storage self = DatedIrsVammPool.load();
         require(self.pauser[msg.sender], "only pauser");
         self.paused = state;
         emit PauseState(state);
@@ -79,7 +79,6 @@ library DatedIrsVammPool {
 
     /// @dev note, a pool needs to have this interface to enable account closures initiated by products
     function executeDatedTakerOrder(
-        Data storage self,
         uint128 marketId,
         uint256 maturityTimestamp,
         int256 baseAmount,
@@ -88,6 +87,7 @@ library DatedIrsVammPool {
         external
         returns (int256 executedBaseAmount, int256 executedQuoteAmount){
         // TODO: authentication!
+        Data storage self = DatedIrsVammPool.load();
         self.paused.whenNotPaused();
 
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
@@ -120,7 +120,6 @@ library DatedIrsVammPool {
      * market
      */
     function initiateDatedMakerOrder(
-        Data storage self,
         uint128 accountId,
         uint128 marketId,
         uint256 maturityTimestamp,
@@ -130,7 +129,9 @@ library DatedIrsVammPool {
     )
         external
         returns (int256 executedBaseAmount){ // TODO: returning 256 for 128 request seems wrong?
-       self.paused.whenNotPaused();
+       
+        Data storage self = DatedIrsVammPool.load();
+        self.paused.whenNotPaused();
         // TODO: authentication!
         
        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
