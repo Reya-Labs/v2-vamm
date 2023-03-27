@@ -232,7 +232,7 @@ library DatedIrsVamm {
         int24 arithmeticMeanTick = observe(self, secondsAgo);
 
         // Not yet adjusted
-        geometricMeanPrice = getPriceFromTick(arithmeticMeanTick);
+        geometricMeanPrice = VAMMBase.getPriceFromTick(arithmeticMeanTick);
         UD60x18 spreadImpactDelta = ZERO;
         UD60x18 priceImpactAsFraction = ZERO;
 
@@ -262,12 +262,6 @@ library DatedIrsVamm {
         }
 
         return geometricMeanPrice;
-    }
-
-    function getPriceFromTick(int24 tick) public pure returns(UD60x18 price) {
-        uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(tick);
-        uint256 priceX96 = FullMath.mulDiv(sqrtPriceX96, sqrtPriceX96, FixedPoint96.Q96);
-        return UD60x18.wrap(FullMath.mulDiv(priceX96, 1e18, FixedPoint96.Q96));
     }
 
     /// @notice Calculates time-weighted arithmetic mean tick
@@ -480,8 +474,9 @@ library DatedIrsVamm {
     ///   Cashflow = notional * (variableAPY - fixedAPY) * timeFactor
 
     /// GETTERS & TRACKERS
-    /// @dev Internal. Calculates the fixed token balance using the formula:
-    ///  fixed token balance = -(baseTokens * liquidityIndex[current]) * (1 + fixedRate * timeInYearsTillMaturity)
+    /// @dev Internal. Returns the fixed token balance using the formula:
+    ///  fixed token balance = -notional                               * expectedMagnitudeOfFixedRateCashflowBetweenNowAndMaturity
+    ///                      = -(baseTokens * liquidityIndex[current]) * (1 + fixedRate * timeInYearsTillMaturity)
     function _trackFixedTokens(
       Data storage self,
       int256 baseAmount,
@@ -508,7 +503,7 @@ library DatedIrsVamm {
 
         // TODO: cache time factor and rateNow outside this function and pass as param to avoid recalculations
         
-        UD60x18 averagePrice = getPriceFromTick(tickUpper).add(getPriceFromTick(tickLower)).div(convert(uint256(2))); // TODO: this is a good estimate across small numbers of tick boundaries, but is fundamentally not exact for nonlinear ticks. Is it good enough?
+        UD60x18 averagePrice = VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper);
         UD60x18 timeDeltaUntilMaturity = FixedAndVariableMath.accrualFact(termEndTimestamp - block.timestamp); 
                 // currentOracleValue = rateNow
         SD59x18 currentOracleValue = VAMMBase.sd59x18(self.config.rateOracle.getCurrentIndex());

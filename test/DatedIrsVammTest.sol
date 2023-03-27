@@ -84,7 +84,7 @@ contract VammTest is VoltzAssertions {
 
     function setUp() public {
         // exposedVamm = new ExposedDatedIrsVamm(); // TODO: delete if unused
-        vamm.initialize(initSqrtPriceX96, block.timestamp + 100, initMarketId, initTickSpacing, config);
+        vamm.initialize(initSqrtPriceX96, block.timestamp + convert(FixedAndVariableMath.SECONDS_IN_YEAR), initMarketId, initTickSpacing, config);
     }
 
     function test_Init_State() public {
@@ -111,7 +111,7 @@ contract VammTest is VoltzAssertions {
 
         // no lookback, no adjustments
         UD60x18 geometricMeanPrice = vamm.twap(0, 0, false, false);
-        assertEq(geometricMeanPrice, DatedIrsVamm.getPriceFromTick(tick)); 
+        assertEq(geometricMeanPrice, VAMMBase.getPriceFromTick(tick)); 
         assertAlmostEqual(geometricMeanPrice, ud60x18(4e16)); // Approx 0.04. Not exact cos snaps to tick boundary.
     }
 
@@ -123,14 +123,14 @@ contract VammTest is VoltzAssertions {
             // no lookback, adjust for spread, positive order size
             UD60x18 twapPrice = vamm.twap(0, 1, false, true);
             // Spread adds 0.3% to the price (as an absolute amount, not as a percentage of the price)
-            assertEq(twapPrice, DatedIrsVamm.getPriceFromTick(tick).add(config.spread)); 
+            assertEq(twapPrice, VAMMBase.getPriceFromTick(tick).add(config.spread)); 
         }
 
         {
             // no lookback, adjust for spread, negative order size
             UD60x18 twapPrice = vamm.twap(0, -1, false, true);
             // Spread subtracts 0.3% from the price (as an absolute amount, not as a percentage of the price)
-            assertEq(twapPrice, DatedIrsVamm.getPriceFromTick(tick).sub(config.spread));
+            assertEq(twapPrice, VAMMBase.getPriceFromTick(tick).sub(config.spread));
         }
     }
 
@@ -146,7 +146,7 @@ contract VammTest is VoltzAssertions {
             // Price impact adds a multiple of 0.1*orderSize^0.125
             //                               = 0.1*100000000^0.125
             //                               = 0.1*10 = 1 to the price, i.e. doubles the price
-            assertAlmostEqual(twapPrice, DatedIrsVamm.getPriceFromTick(tick).mul(ONE.add(ONE)));  
+            assertAlmostEqual(twapPrice, VAMMBase.getPriceFromTick(tick).mul(ONE.add(ONE)));  
         }
 
         {
@@ -157,7 +157,7 @@ contract VammTest is VoltzAssertions {
             // Price impact subtracts a multiple of 0.1*abs(orderSize)^0.125
             //                               = 0.1*256^0.125
             //                               = 0.1*2 = 0.2 times the price, i.e. takes 20% off the price
-            assertAlmostEqual(twapPrice, DatedIrsVamm.getPriceFromTick(tick).mul(ud60x18(8e17)));  
+            assertAlmostEqual(twapPrice, VAMMBase.getPriceFromTick(tick).mul(ud60x18(8e17)));  
         }
     }
 
@@ -168,7 +168,7 @@ contract VammTest is VoltzAssertions {
 
         int24 tick = vamm._vammVars.tick;
         assertEq(vamm.observe(0), tick);
-        UD60x18 instantPrice = DatedIrsVamm.getPriceFromTick(tick);
+        UD60x18 instantPrice = VAMMBase.getPriceFromTick(tick);
 
         // no lookback
         UD60x18 twapPrice = vamm.twap(0, orderSize, adjustForPriceImpact, adjustForSpread);
