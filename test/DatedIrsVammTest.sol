@@ -3,6 +3,7 @@ pragma solidity >=0.8.13;
 import "forge-std/Test.sol";
  import "forge-std/console2.sol";
 import "../contracts/VAMM/storage/DatedIrsVAMM.sol";
+import "../contracts/utils/CustomErrors.sol";
 import { UD60x18, convert, ud60x18, uMAX_UD60x18, uUNIT } from "@prb/math/src/UD60x18.sol";
 import { SD59x18 } from "@prb/math/src/SD59x18.sol";
 
@@ -55,23 +56,15 @@ function abs(int256 x) pure returns (uint256) {
 // Constants
 UD60x18 constant ONE = UD60x18.wrap(1e18);
 
-contract ExposedDatedIrsVamm {
-
-    // Exposed functions
-    function getAverageBase(
-        int24 tickLower,
-        int24 tickUpper,
-        int128 baseAmount
-    ) external pure returns(int128) {
-        return DatedIrsVamm.getAverageBase(tickLower, tickUpper, baseAmount);
-    }
-}
+// TODO: delete if unused
+// contract ExposedDatedIrsVamm {
+// }
 
 contract VammTest is VoltzAssertions {
     // Contracts under test
     using DatedIrsVamm for DatedIrsVamm.Data;
     DatedIrsVamm.Data internal vamm;
-    ExposedDatedIrsVamm exposedVamm;
+    // ExposedDatedIrsVamm exposedVamm; // TODO: delete if unused
 
     address constant mockRateOracle = 0xAa73aA73Aa73Aa73AA73Aa73aA73AA73aa73aa73;
 
@@ -90,7 +83,7 @@ contract VammTest is VoltzAssertions {
     });
 
     function setUp() public {
-        exposedVamm = new ExposedDatedIrsVamm();
+        // exposedVamm = new ExposedDatedIrsVamm(); // TODO: delete if unused
         vamm.initialize(initSqrtPriceX96, block.timestamp + 100, initMarketId, initTickSpacing, config);
     }
 
@@ -106,6 +99,10 @@ contract VammTest is VoltzAssertions {
         assertEq(vamm.config.priceImpactBeta, config.priceImpactBeta); 
         assertEq(vamm.config.spread, config.spread); 
         assertEq(address(vamm.config.rateOracle), address(config.rateOracle)); 
+
+        // Check that we cannot re-init
+        vm.expectRevert();
+        vamm.initialize(initSqrtPriceX96, block.timestamp + 100, initMarketId, initTickSpacing, config);
     }
 
     function test_Init_Twap_Unadjusted() public {
@@ -185,13 +182,22 @@ contract VammTest is VoltzAssertions {
         }
     }
 
-    function testFuzz_GetAverageBase(
+    function testFuzz_BaseBetweenTicks(
+        int24 tickLower,
+        int24 tickUpper,
+        int128 basePerTick)
+    public {
+        (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
+        assertEq(VAMMBase.baseBetweenTicks(tickLower, tickUpper, basePerTick), int256(basePerTick) * (tickUpper - tickLower));
+    }
+
+    function testFuzz_BasePerTick(
         int24 tickLower,
         int24 tickUpper,
         int128 baseAmount)
     public {
         (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
-        assertEq(exposedVamm.getAverageBase(tickLower, tickUpper, baseAmount), baseAmount / (tickUpper - tickLower));
+        assertEq(VAMMBase.basePerTick(tickLower, tickUpper, baseAmount), baseAmount / (tickUpper - tickLower));
     }
 
     function testFail_GetUnopenedPosition() public {
@@ -269,4 +275,19 @@ contract VammTest is VoltzAssertions {
         assertEq(unfilledBaseLong, 0);
         assertEq(unfilledBaseShort, 0);
     }
+
+    // function test_Mint() public {
+    //     uint128 accountId = 1;
+    //     int24 tickLower = 2;
+    //     int24 tickUpper = 3;
+    //     int128 baseAmount = 100;
+    //     (uint256 positionId, DatedIrsVamm.LPPosition memory p) = openPosition(accountId,tickLower,tickUpper);
+
+    //     // Pre-mint checks
+
+    //     // Mint
+    //     vamm.vammMint(accountId, tickLower, tickUpper, baseAmount);
+    
+    //     // Post-mint checks
+    // }
 }

@@ -42,7 +42,7 @@ library VAMMBase {
     /// @dev emitted after a successful minting of a given LP position
     event Mint(
         address sender,
-        address indexed owner,
+        uint128 indexed accountId,
         int24 indexed tickLower,
         int24 indexed tickUpper,
         int256 amount
@@ -117,12 +117,27 @@ library VAMMBase {
         int128 accumulatorDelta;
     }
 
+    /// @dev Computes the agregate amount of base between two ticks, given a tick range and the amount of base per tick. Reverts on overflow.
     function baseBetweenTicks(
-        int24 tickLower,
-        int24 tickUpper,
-        int256 accumulator
+        int24 _tickLower,
+        int24 _tickUpper,
+        int128 _basePerTick
     ) internal pure returns(int256) {
-        return accumulator * (tickUpper - tickLower);
+        return int256(_basePerTick) * (_tickUpper - _tickLower);
+    }
+
+    /// @dev Computes the amount of base per tick, given a tick range and an aggregate base amount
+    function basePerTick(
+        int24 _tickLower,
+        int24 _tickUpper,
+        int128 _aggregateBaseAmount
+    ) internal pure returns(int128) {
+        return _aggregateBaseAmount / (_tickUpper - _tickLower);
+    }
+
+    /// @dev Safely casts a `UD60x18` to a `SD59x18`. Reverts on overflow.
+    function sd59x18(UD60x18 ud) internal pure returns (SD59x18 sd) {
+        return SD59x18.wrap(UD60x18.unwrap(ud).toInt256());
     }
 
     function flipTicks(
