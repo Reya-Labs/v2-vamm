@@ -200,6 +200,37 @@ contract VammTest is VoltzAssertions {
         assertEq(VAMMBase.basePerTick(tickLower, tickUpper, baseAmount), baseAmount / (tickUpper - tickLower));
     }
 
+    function averagePriceBetweenTicksUsingLoop(
+        int24 tickLower,
+        int24 tickUpper)
+    internal returns (UD60x18)
+    {
+        UD60x18 sumOfPrices = VAMMBase.getPriceFromTick(tickLower);
+        for (int24 i = tickLower + 1; i <= tickUpper; i++) {
+            sumOfPrices = sumOfPrices.add(VAMMBase.getPriceFromTick(i));
+        }
+        return sumOfPrices.div(convert(uint256(int256(1 + tickUpper - tickLower))));
+    }
+
+    function test_AveragePriceBetweenTicks()
+    public {
+        // The greater the tick range, the more the real answer deviates from a naive average of the top and bottom price
+        // a range of ~500 is sufficient to illustrate a diversion, but note that larger ranges have much larger diversions
+        int24 tickLower = 2;
+        int24 tickUpper = 500;
+        UD60x18 expected = averagePriceBetweenTicksUsingLoop(tickLower, tickUpper);
+        assertAlmostEqual(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), expected);
+    }
+
+    // function testFuzz_AveragePriceBetweenTicks(
+    //     int24 tickLower,
+    //     int24 tickUpper)
+    // public {
+    //     (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
+    //     UD60x18 expected = averagePriceBetweenTicksUsingLoop(tickLower, tickUpper);
+    //     assertAlmostEqual(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), expected);
+    // }
+
     function testFail_GetUnopenedPosition() public {
         vamm.getRawPosition(1);
     }
