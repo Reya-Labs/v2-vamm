@@ -371,7 +371,7 @@ library DatedIrsVamm {
 
         require(position.baseAmount + requestedBaseAmount >= 0, "Burning too much"); // TODO: CustomError
 
-        vammMint(self, msg.sender, tickLower, tickUpper, requestedBaseAmount);
+        vammMint(self, accountId, tickLower, tickUpper, requestedBaseAmount);
 
         self.positions[positionId].baseAmount += requestedBaseAmount;
        
@@ -435,7 +435,7 @@ library DatedIrsVamm {
         int256 tracket1DeltaGrowth =
                 tracker1GlobalGrowth - position.tracker1UpdatedGrowth;
 
-        int256 averageBase = DatedIrsVamm.getAverageBase(
+        int256 averageBase = VAMMBase.basePerTick(
             position.tickLower,
             position.tickUpper,
             position.baseAmount
@@ -472,19 +472,7 @@ library DatedIrsVamm {
     }
 
     /// GETTERS & TRACKERS
-
-    function getAverageBase(
-        int24 tickLower,
-        int24 tickUpper,
-        int128 baseAmount
-    ) internal pure returns(int128) {
-        return baseAmount / (tickUpper - tickLower);
-    }
-
-    function sd59x18(UD60x18 ud) internal pure returns (SD59x18 sd) {  // TODO: move into util library
-        return SD59x18.wrap(UD60x18.unwrap(ud).toInt256());
-    }
-
+    /// @dev Calculates the fixed token balance
     function trackFixedTokens(
       Data storage self,
       int256 baseAmount,
@@ -498,20 +486,32 @@ library DatedIrsVamm {
             int256 trackedValue
         )
     {
+        // Settlement = base * liq index(settlement) + quote
+        // cashflow = notional * (variableAPY - fixed Rate) * timeFactor
+        // variableAPY * timeFactor = (rate(settlment) / rate(now)) - 1
+        // cashflow = notional * (rate(settlment) / rate(now) - 1 - fixedRate*timeFactor)
+        // base = notional / rateNow
+        // cashflow = notional * (rate(settlment) / rate(now)) - notional(1 + fixedRate*timeFactor)
+        // cashflow = base*rate(settlment) - (base*RateNow)(1 + fixedRate*timeFactor)
+        // These terms are tracked:
+        // - base token balance = base
+        // - fixed token balance = - (base*RateNow)(1 + fixedRate*timeFactor)
 
+        // TODO: cache time factor and rateNow outside this function and pass as param to avoid recalculations
+        
         UD60x18 averagePrice = getPriceFromTick(tickUpper).add(getPriceFromTick(tickLower)).div(convert(uint256(2))); // TODO: this is a good estimate across small numbers of tick boundaries, but is fundamentally not exact for nonlinear ticks. Is it good enough?
         UD60x18 timeDeltaUntilMaturity = FixedAndVariableMath.accrualFact(termEndTimestamp - block.timestamp); 
-
-        SD59x18 currentOracleValue = sd59x18(self.config.rateOracle.getCurrentIndex());
-        SD59x18 timeComponent = sd59x18(ONE.add(averagePrice.mul(timeDeltaUntilMaturity)));
+                // currentOracleValue = rateNow
+        SD59x18 currentOracleValue = VAMMBase.sd59x18(self.config.rateOracle.getCurrentIndex());
+        SD59x18 timeComponent = VAMMBase.sd59x18(ONE.add(averagePrice.mul(timeDeltaUntilMaturity))); // (1 + fixedRate*timeFactor)
         SD59x18 trackedValueDecimal = convert(int256(-baseAmount)).mul(currentOracleValue.mul(timeComponent));
         trackedValue = convert(trackedValueDecimal);
     }
 
     // TODO: return data
-    function vammMint(
+    function vammMint( // TODO: unlike internal functions that we expect to call from DatedIrsVammPool, this function should not be called from outside. Maybe prefix such functions with _?
         Data storage self,
-        address recipient,
+        uint128 accountId,
         int24 tickLower,
         int24 tickUpper,
         int128 baseAmount
@@ -526,7 +526,7 @@ library DatedIrsVamm {
         bool flippedLower;
         bool flippedUpper;
 
-        int128 averageBase = getAverageBase(tickLower, tickUpper, baseAmount);
+        int128 averageBase = VAMMBase.basePerTick(tickLower, tickUpper, baseAmount);
 
         /// @dev update the ticks if necessary
         if (averageBase != 0) {
@@ -572,7 +572,7 @@ library DatedIrsVamm {
 
         self._vammVars.unlocked.unlock();
 
-        emit VAMMBase.Mint(msg.sender, recipient, tickLower, tickUpper, baseAmount);
+        emit VAMMBase.Mint(msg.sender, accountId, tickLower, tickUpper, baseAmount);
     }
 
     function vammSwap(
@@ -765,7 +765,7 @@ library DatedIrsVamm {
         self._vammVars.unlocked.unlock();
     }
 
-    function calculateUpdatedGlobalTrackerValues(
+    function calculateUpdatedGlobalTrackerValues( // TODO: flag really-internal somehow, e.g. prefix with underscore
         Data storage self,
         VAMMBase.SwapState memory state,
         VAMMBase.StepComputations memory step,
@@ -793,9 +793,10 @@ library DatedIrsVamm {
         stateFixedTokenGrowthGlobalX128 = state.tracker0GrowthGlobalX128 + FullMath.mulDivSigned(tracker0Delta, FixedPoint128.Q128, state.accumulator);
     }
 
+    /// @dev 
     function trackValuesBetweenTicksOutside(
         Data storage self,
-        int256 averageBase,
+        int128 basePerTick, // base per tick (after spreading notional across all ticks)
         int24 tickLower,
         int24 tickUpper
     ) internal view returns(
@@ -806,13 +807,33 @@ library DatedIrsVamm {
             return (0, 0);
         }
 
-        int256 base = VAMMBase.baseBetweenTicks(tickLower, tickUpper, averageBase); // TODO: why unused?
+        // Example
+        // User 1 mints 1,000 notional between 2-4%
+        // Assume 1% - 1 tick for simplicity
+        // averageBase[user_1] = 500
+        // averageBasePerTick[2%] += 500
+        // averageBasePerTick[4%] -= 500
+        // User 2
+        // mints 1,000 notional between 2-6%
+        // averageBase[user_2] = 250
+        // averageBasePerTick[2%] += 250
+        // averageBasePerTick[6%] -= 250
+        // averageBase @ 3% = 750
+        // averageBase @ 5% = 250
 
-        tracker0GrowthOutside = trackFixedTokens(self, averageBase, tickLower, tickUpper, self.termEndTimestamp);
-        tracker1GrowthOutside = averageBase;
+        // current tick = 3%
+        // at 1%, outside values = (-infinity, 1%)
+        // at 5%, outside values = (5%, infinity)
+        // outside values for tick x don't need to change until current price passes x
+        // when current prices passes x, outside value "flips" to aggregateGlobalValue - outside value
 
+        int256 base = VAMMBase.baseBetweenTicks(tickLower, tickUpper, basePerTick);
+
+        tracker0GrowthOutside = trackFixedTokens(self, base, tickLower, tickUpper, self.termEndTimestamp);
+        tracker1GrowthOutside = base;
     }
 
+    // @dev For a given LP posiiton, how much of it is available to trade imn each direction?
     function getAccountUnfilledBases(
         Data storage self,
         uint128 accountId
@@ -825,19 +846,29 @@ library DatedIrsVamm {
             for (uint256 i = 0; i < numPositions; i++) {
                 LPPosition memory position = getRawPosition(self, self.positionsInAccount[accountId][i]);
 
-                (int256 unfilledLong,, int256 unfilledShort,) = trackValuesBetweenTicks(
+                // Get how liquidity is currently arranged
+                //  LP has 1000 base liquidity between 2% and 4% (500 per tick)
+                // Qn: how much of that liquidity is avail to traders in each direction
+                (int256 unfilledLongBase,, int256 unfilledShortBase,) = trackValuesBetweenTicks(
                     self,
                     position.tickLower,
                     position.tickUpper,
                     position.baseAmount
                 );
 
-                unfilledBaseLong += unfilledLong;
-                unfilledBaseShort += unfilledShort;
+                unfilledBaseLong += unfilledLongBase;
+                unfilledBaseShort += unfilledShortBase;
             }
         }
     }
 
+    // getAccountUnfilledBases
+    // -> trackValuesBetweenTicks
+    //    -> trackValuesBetweenTicksOutside
+    //       -> trackFixedTokens 
+    //       -> VAMMBase.baseBetweenTicks 
+
+    // @dev For a given LP posiiton, how much of it is already traded and what are base and quote tokens representing those exiting trades?
     function getAccountFilledBalances(
         Data storage self,
         uint128 accountId
@@ -871,13 +902,33 @@ library DatedIrsVamm {
             return (0, 0, 0, 0);
         }
 
-        int128 averageBase = getAverageBase(tickLower, tickUpper, baseAmount);
+        int128 averageBase = VAMMBase.basePerTick(tickLower, tickUpper, baseAmount);
+
+        // Python
+        // # compute unfilled tokens to left
+        // tmp_left = self.tracked_values_between_ticks_outside(
+        //     average_base=average_base,
+        //     tick_lower=min(tick_lower, self._current_tick),
+        //     tick_upper=min(tick_upper, self._current_tick),
+        // )
+        // tmp_left = list(map(lambda x: -x, tmp_left))
+
+        // # compute unfilled tokens to right
+        // tmp_right = self.tracked_values_between_ticks_outside(
+        //     average_base=average_base,
+        //     tick_lower=max(tick_lower, self._current_tick),
+        //     tick_upper=max(tick_upper, self._current_tick),
+        // )
+
+        // return tmp_left, tmp_right
+
+        // TODO: change code below to correspond to python
 
         (int256 tracker0GrowthOutsideLeft_, int256 tracker1GrowthOutsideLeft_) = trackValuesBetweenTicksOutside(
             self,
             averageBase,
             tickLower < self._vammVars.tick ? tickLower : self._vammVars.tick,
-            tickUpper > self._vammVars.tick ? tickUpper : self._vammVars.tick
+            tickUpper < self._vammVars.tick ? tickUpper : self._vammVars.tick
         );
         tracker0GrowthOutsideLeft = -tracker0GrowthOutsideLeft_;
         tracker1GrowthOutsideLeft = -tracker1GrowthOutsideLeft_;
@@ -885,8 +936,8 @@ library DatedIrsVamm {
         (tracker0GrowthOutsideRight, tracker1GrowthOutsideRight) = trackValuesBetweenTicksOutside(
             self,
             averageBase,
-            tickLower < self._vammVars.tick ? tickLower : self._vammVars.tick,
-            tickUpper > self._vammVars.tick ? tickUpper : self._vammVars.tick
+            tickLower > self._vammVars.tick ? tickLower : self._vammVars.tick,
+            tickUpper < self._vammVars.tick ? tickUpper : self._vammVars.tick
         );
 
     }
