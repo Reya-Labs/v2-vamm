@@ -125,6 +125,21 @@ library VAMMBase {
         return _aggregateBaseAmount / (_tickUpper - _tickLower);
     }
 
+    function getPriceFromTick(int24 _tick) public pure returns(UD60x18 price) {
+        uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(_tick);
+        uint256 priceX96 = FullMath.mulDiv(sqrtPriceX96, sqrtPriceX96, FixedPoint96.Q96);
+        return UD60x18.wrap(FullMath.mulDiv(priceX96, 1e18, FixedPoint96.Q96));
+    }
+
+    /// @dev Computes the average price of a trade, assuming uniform distribution of the trade across the specified tick range
+    function averagePriceBetweenTicks(
+        int24 _tickLower,
+        int24 _tickUpper
+    ) internal pure returns(UD60x18) {
+         // TODO: this is a good estimate across small numbers of tick boundaries, but is fundamentally not exact for nonlinear ticks. Is it good enough?
+        return getPriceFromTick(_tickUpper).add(getPriceFromTick(_tickLower)).div(convert(uint256(2)));
+    }
+
     /// @dev Safely casts a `UD60x18` to a `SD59x18`. Reverts on overflow.
     function sd59x18(UD60x18 ud) internal pure returns (SD59x18 sd) {
         return SD59x18.wrap(UD60x18.unwrap(ud).toInt256());
