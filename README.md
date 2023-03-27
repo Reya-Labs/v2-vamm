@@ -32,9 +32,7 @@ Continue with docs and tests of low-level functions in isolation, and work up to
 
 Docs will act as a sanity check that I'm testing the right thing.
 
-- baseBetweenTicks
-- flipTicks
-- getAverageBase
+- flipTicks?
 - trackFixedTokens
 - trackValuesBetweenTicks
 - calculateUpdatedGlobalTrackerValues

@@ -6,35 +6,10 @@ import "../libraries/Tick.sol";
 import "./IVAMM.sol";
 
 interface IVAMMBase is IVAMM {
-    function setPausability(bool state) external;
 
-    // events
-    event Swap(
-        address sender,
-        int24 indexed tickLower,
-        int24 indexed tickUpper,
-        int256 desiredNotional,
-        uint160 sqrtPriceLimitX96,
-        uint256 cumulativeFeeIncurred,
-        int256 tracker0Delta,
-        int256 tracker1Delta
-    );
+    // ===================== STRUCTS ===================
 
-    /// @dev emitted after a given vamm is successfully initialized
-    event VAMMInitialization(uint160 sqrtPriceX96, int24 tick);
-
-    /// @dev emitted after a successful minting of a given LP position
-    event Mint(
-        address sender,
-        address indexed owner,
-        int24 indexed tickLower,
-        int24 indexed tickUpper,
-        uint128 amount
-    );
-
-    event VAMMPriceChange(int24 tick);
-
-    // structs
+    /// @dev Internal, frequently-updated state of the VAMM, which is comp[ressed into one storage slot.
     struct VAMMVars {
         /// @dev The current price of the pool as a sqrt(tracker1/tracker0) Q64.96 value
         uint160 sqrtPriceX96;
@@ -56,65 +31,14 @@ interface IVAMMBase is IVAMM {
     struct SwapParams {
         /// @dev Address of the trader initiating the swap
         address recipient;
-        /// @dev The amount of the swap, which implicitly configures the swap as exact input (positive), or exact output (negative)
-        int256 amountSpecified;
+        /// @dev The amount of the swap in base tokens, which implicitly configures the swap as exact input (positive), or exact output (negative)
+        int256 baseAmountSpecified;
         /// @dev The Q64.96 sqrt price limit. If !isFT, the price cannot be less than this
         uint160 sqrtPriceLimitX96;
         /// @dev lower tick of the position
         int24 tickLower;
         /// @dev upper tick of the position
         int24 tickUpper;
-    }
-
-    /// @dev the top level state of the swap, the results of which are recorded in storage at the end
-    struct SwapState {
-        /// @dev the amount remaining to be swapped in/out of the input/output asset
-        int256 amountSpecifiedRemaining;
-        /// @dev the amount swapped out/in of the output/input asset during swap step
-        int256 baseInStep;
-        /// @dev current sqrt(price)
-        uint160 sqrtPriceX96;
-        /// @dev the tick associated with the current price
-        int24 tick;
-        /// @dev the global fixed token growth
-        int256 tracker0GrowthGlobalX128;
-        /// @dev the global variable token growth
-        int256 tracker1GrowthGlobalX128;
-        /// @dev the current liquidity in range
-        uint128 accumulator;
-        /// @dev tracker0Delta that will be applied to the fixed token balance of the position executing the swap (recipient)
-        int256 tracker0DeltaCumulative;
-        /// @dev tracker1Delta that will be applied to the variable token balance of the position executing the swap (recipient)
-        int256 tracker1DeltaCumulative;
-    }
-
-    struct StepComputations {
-        /// @dev the price at the beginning of the step
-        uint160 sqrtPriceStartX96;
-        /// @dev the next tick to swap to from the current tick in the swap direction
-        int24 tickNext;
-        /// @dev whether tickNext is initialized or not
-        bool initialized;
-        /// @dev sqrt(price) for the next tick (1/0)
-        uint160 sqrtPriceNextX96;
-        /// @dev how much is being swapped in in this step
-        uint256 amountIn;
-        /// @dev how much is being swapped out
-        uint256 amountOut;
-        /// @dev ...
-        int256 tracker0Delta; // for LP
-        /// @dev ...
-        int256 tracker1Delta; // for LP
-    }
-
-    struct FlipTicksParams {
-        // the address that owns the position
-        address owner;
-        // the lower and upper tick of the position
-        int24 tickLower;
-        int24 tickUpper;
-        // any change in liquidity
-        int128 deltaAccumulator;
     }
 
     /// @dev "constructor" for proxy instances

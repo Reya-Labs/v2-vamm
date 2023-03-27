@@ -25,12 +25,18 @@ library VAMMBase {
     using Tick for mapping(int24 => Tick.Info);
     using TickBitmap for mapping(int16 => uint256);
 
-    // events
+    struct TickData {
+        mapping(int24 => Tick.Info) _ticks;
+        mapping(int16 => uint256) _tickBitmap;
+    }
+
+    // ==================== EVENTS ======================
+    /// @dev emitted after a successful swap transaction
     event Swap(
         address sender,
         int24 indexed tickLower,
         int24 indexed tickUpper,
-        int256 desiredNotional,
+        int256 desiredBaseAmount,
         uint160 sqrtPriceLimitX96,
         int256 tracker0Delta,
         int256 tracker1Delta
@@ -45,28 +51,12 @@ library VAMMBase {
         uint128 indexed accountId,
         int24 indexed tickLower,
         int24 indexed tickUpper,
-        int256 amount
+        int128 baseAmount
     );
 
     event VAMMPriceChange(int24 tick);
 
-    struct TickData {
-        mapping(int24 => Tick.Info) _ticks;
-        mapping(int16 => uint256) _tickBitmap;
-    }
-
-    struct SwapParams {
-        /// @dev Address of the trader initiating the swap
-        address recipient;
-        /// @dev The amount of the swap, which implicitly configures the swap as exact input (positive), or exact output (negative)
-        int256 amountSpecified;
-        /// @dev The Q64.96 sqrt price limit. If !isFT, the price cannot be less than this
-        uint160 sqrtPriceLimitX96;
-        /// @dev lower tick of the position
-        int24 tickLower;
-        /// @dev upper tick of the position
-        int24 tickUpper;
-    }
+    // STRUCTS
 
     /// @dev the top level state of the swap, the results of which are recorded in storage at the end
     struct SwapState {
@@ -208,12 +198,12 @@ library VAMMBase {
     }
 
     function checksBeforeSwap(
-        SwapParams memory params,
+        IVAMMBase.SwapParams memory params,
         IVAMMBase.VAMMVars memory vammVarsStart,
         bool isFT
     ) internal pure {
 
-        if (params.amountSpecified == 0) {
+        if (params.baseAmountSpecified == 0) {
             revert CustomErrors.IRSNotionalAmountSpecifiedMustBeNonZero();
         }
 
