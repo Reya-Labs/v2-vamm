@@ -253,7 +253,7 @@ contract VammTest is VoltzAssertions {
       UD60x18 currentLiquidityIndex = ud60x18(100e18);
       vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(currentLiquidityIndex));
 
-      (int256 trackedValue) = vamm.trackFixedTokens(baseAmount, tickLower, tickUpper, termEndTimestamp);
+      (int256 trackedValue) = vamm._trackFixedTokens(baseAmount, tickLower, tickUpper, termEndTimestamp);
     //   assertEq(trackedValue, 0); // TODO: validate result
     }
 

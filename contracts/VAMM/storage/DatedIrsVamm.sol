@@ -14,6 +14,8 @@ import { SD59x18, convert } from "@prb/math/src/SD59x18.sol";
 import "../libraries/FixedAndVariableMath.sol";
 import "../../utils/FixedPoint128.sol";
 import "../libraries/VAMMBase.sol";
+import "../interfaces/IVAMMBase.sol";
+import "../interfaces/IVAMM.sol";
 import "../../utils/CustomErrors.sol";
 import "../libraries/Oracle.sol";
 import "../../interfaces/IRateOracle.sol";
@@ -471,9 +473,16 @@ library DatedIrsVamm {
         self.config = _config;
     }
 
+    /// @dev Settlment cash flow from first principles. We define baseTokens to be the tokens at some past
+    // timestamp `x` when the liquidity index was 1.
+    ///   Settlement = baseTokens * liquidityIndex[maturityTimestamp] + quoteTokens
+    /// At any given time, cashflow can then be calcuated as:
+    ///   Cashflow = notional * (variableAPY - fixedAPY) * timeFactor
+
     /// GETTERS & TRACKERS
-    /// @dev Calculates the fixed token balance
-    function trackFixedTokens(
+    /// @dev Internal. Calculates the fixed token balance using the formula:
+    ///  fixed token balance = -(baseTokens * liquidityIndex[current]) * (1 + fixedRate * timeInYearsTillMaturity)
+    function _trackFixedTokens(
       Data storage self,
       int256 baseAmount,
       int24 tickLower,
@@ -577,7 +586,7 @@ library DatedIrsVamm {
 
     function vammSwap(
         Data storage self,
-        VAMMBase.SwapParams memory params
+        IVAMMBase.SwapParams memory params
     )
         internal
         returns (int256 tracker0Delta, int256 tracker1Delta)
@@ -588,7 +597,7 @@ library DatedIrsVamm {
 
         IVAMMBase.VAMMVars memory vammVarsStart = self._vammVars;
 
-        VAMMBase.checksBeforeSwap(params, vammVarsStart, params.amountSpecified > 0);
+        VAMMBase.checksBeforeSwap(params, vammVarsStart, params.baseAmountSpecified > 0);
 
         /// @dev lock the vamm while the swap is taking place
         self._vammVars.unlocked.lock();
@@ -596,7 +605,7 @@ library DatedIrsVamm {
         uint128 accumulatorStart = self._accumulator;
 
         VAMMBase.SwapState memory state = VAMMBase.SwapState({
-            amountSpecifiedRemaining: params.amountSpecified, // base ramaining
+            amountSpecifiedRemaining: params.baseAmountSpecified, // base ramaining
             sqrtPriceX96: vammVarsStart.sqrtPriceX96,
             tick: vammVarsStart.tick,
             accumulator: accumulatorStart,
@@ -607,7 +616,7 @@ library DatedIrsVamm {
         });
 
         // continue swapping as long as we haven't used the entire input/output and haven't reached the price (implied fixed rate) limit
-        bool advanceRight = params.amountSpecified > 0;
+        bool advanceRight = params.baseAmountSpecified > 0;
         while (
             state.amountSpecifiedRemaining != 0 &&
             state.sqrtPriceX96 != params.sqrtPriceLimitX96
@@ -756,7 +765,7 @@ library DatedIrsVamm {
             msg.sender,
             params.tickLower,
             params.tickUpper,
-            params.amountSpecified,
+            params.baseAmountSpecified,
             params.sqrtPriceLimitX96,
             tracker0Delta,
             tracker1Delta
@@ -764,6 +773,7 @@ library DatedIrsVamm {
 
         self._vammVars.unlocked.unlock();
     }
+
 
     function calculateUpdatedGlobalTrackerValues( // TODO: flag really-internal somehow, e.g. prefix with underscore
         Data storage self,
@@ -779,7 +789,7 @@ library DatedIrsVamm {
             int256 tracker0Delta// for LP
         )
     {
-        tracker0Delta = trackFixedTokens(
+        tracker0Delta = _trackFixedTokens(
             self,
             step.baseInStep,
             state.tick,
@@ -829,7 +839,7 @@ library DatedIrsVamm {
 
         int256 base = VAMMBase.baseBetweenTicks(tickLower, tickUpper, basePerTick);
 
-        tracker0GrowthOutside = trackFixedTokens(self, base, tickLower, tickUpper, self.termEndTimestamp);
+        tracker0GrowthOutside = _trackFixedTokens(self, base, tickLower, tickUpper, self.termEndTimestamp);
         tracker1GrowthOutside = base;
     }
 

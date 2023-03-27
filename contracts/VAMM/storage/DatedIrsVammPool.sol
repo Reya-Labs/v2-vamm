@@ -92,8 +92,8 @@ library DatedIrsVammPool {
 
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
 
-        VAMMBase.SwapParams memory swapParams;
-        swapParams.amountSpecified = baseAmount;
+        IVAMMBase.SwapParams memory swapParams;
+        swapParams.baseAmountSpecified = baseAmount;
         swapParams.sqrtPriceLimitX96 = priceLimit == 0
                 ? (
                     baseAmount < 0 // VT
