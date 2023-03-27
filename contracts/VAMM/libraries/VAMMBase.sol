@@ -12,7 +12,7 @@ import "../../utils/SqrtPriceMath.sol";
 import "../../utils/CustomErrors.sol";
 import "../libraries/SwapMath.sol";
 import { UD60x18 } from "@prb/math/src/UD60x18.sol";
-import { SD59x18 } from "@prb/math/src/SD59x18.sol";
+import { SD59x18, convert as convert_sd } from "@prb/math/src/SD59x18.sol";
 import "../libraries/FixedAndVariableMath.sol";
 import "../../utils/FixedPoint128.sol";
 import "../interfaces/IVAMMBase.sol";
@@ -24,6 +24,9 @@ library VAMMBase {
     using SafeCastUni for int256;
     using Tick for mapping(int24 => Tick.Info);
     using TickBitmap for mapping(int16 => uint256);
+
+    SD59x18 constant PRICE_EXPONENT_BASE = SD59x18.wrap(10001e14); // 1.0001
+    UD60x18 constant PRICE_EXPONENT_BASE_MINUS_ONE = UD60x18.wrap(1e14); // 0.0001
 
     struct TickData {
         mapping(int24 => Tick.Info) _ticks;
@@ -131,18 +134,43 @@ library VAMMBase {
         return UD60x18.wrap(FullMath.mulDiv(priceX96, 1e18, FixedPoint96.Q96));
     }
 
+    // @dev The sum of 1.0001^x for x=0,...,n is 1.0001^(n+1) / (1-1.0001)
+    function sumOfAllPricesUpTo(int24 tick) public pure returns(UD60x18 price) {
+        // Tick might be negative and UD60x18 does not support `.pow(x)` for x < 0, so we must use SD59x18
+        SD59x18 numeratorSigned = PRICE_EXPONENT_BASE.pow(convert_sd(int256(tick + 1)));
+
+        // We know that 1.0001^x is positive even for negative x, so we can safely cast to UD60x18 now
+        UD60x18 numerator = ud60x18(numeratorSigned);
+        return numerator.div(PRICE_EXPONENT_BASE_MINUS_ONE);
+    }
+
     /// @dev Computes the average price of a trade, assuming uniform distribution of the trade across the specified tick range
     function averagePriceBetweenTicks(
         int24 _tickLower,
         int24 _tickUpper
     ) internal pure returns(UD60x18) {
          // TODO: this is a good estimate across small numbers of tick boundaries, but is fundamentally not exact for nonlinear ticks. Is it good enough?
-        return getPriceFromTick(_tickUpper).add(getPriceFromTick(_tickLower)).div(convert(uint256(2)));
+        // return convert(uint256(int256(1 + _tickUpper - _tickLower)));
+        return sumOfAllPricesUpTo(_tickUpper).sub(sumOfAllPricesUpTo(_tickLower - 1)).div(convert(uint256(int256(1 + _tickUpper - _tickLower))));
     }
+
+    /// @dev Computes the average price of a trade, assuming uniform distribution of the trade across the specified tick range
+    // function OLD_averagePriceBetweenTicks(
+    //     int24 _tickLower,
+    //     int24 _tickUpper
+    // ) internal pure returns(UD60x18) {
+    //      // TODO: this is a good estimate across small numbers of tick boundaries, but is fundamentally not exact for nonlinear ticks. Is it good enough?
+    //     return getPriceFromTick(_tickUpper).add(getPriceFromTick(_tickLower)).div(convert(uint256(2)));
+    // }
 
     /// @dev Safely casts a `UD60x18` to a `SD59x18`. Reverts on overflow.
     function sd59x18(UD60x18 ud) internal pure returns (SD59x18 sd) {
         return SD59x18.wrap(UD60x18.unwrap(ud).toInt256());
+    }
+
+    /// @dev Safely casts a `SD59x18` to a `UD60x18`. Reverts on overflow.
+    function ud60x18(SD59x18 sd) internal pure returns (UD60x18 ud) {
+        return UD60x18.wrap(SD59x18.unwrap(sd).toUint256());
     }
 
     function flipTicks(

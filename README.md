@@ -6,9 +6,10 @@
 
 # Testing
 
-`forge test -vvv`
+Install [foundry](https://book.getfoundry.sh/getting-started/installation) and run: `forge test`. E.g.
 
-Install [foundry](https://book.getfoundry.sh/getting-started/installation) and run:
+- `forge test --no-match-test "SlowFuzz"` will run all of the tests except some exceptionally slow fuzzing tests.
+- `forge test -vvv"` will run all of the tests and provide verbose output (for even more verbose, add more `v`s).
 
 # Deployment
 
@@ -17,7 +18,6 @@ TODO.
 # Open issues
 
 - Testing is very much a work in progress. _Lots_ still to test.
-  - In particular, I (Cyclops) have low confidence that toekn tracking functions such as `trackFixedTokens` are doing the correct thing.
 - Need to add the concept of spread to all trades, so that LPs take the spread. (Safest to do this alongside relevant tests.)
 - Deployment logic is non-existent
 - We need to integrate with the `v2-core` repo, and in doing so we will presumably discover some API incompatibilities.
