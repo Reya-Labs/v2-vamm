@@ -17,6 +17,9 @@ contract VoltzAssertions is Test {
     function assertEq(UD60x18 a, UD60x18 b) internal {
         assertEq(UD60x18.unwrap(a), UD60x18.unwrap(b));
     }
+    function assertEq(SD59x18 a, SD59x18 b) internal {
+        assertEq(SD59x18.unwrap(a), SD59x18.unwrap(b));
+    }
     function assertGt(UD60x18 a, UD60x18 b) internal {
         assertGt(UD60x18.unwrap(a), UD60x18.unwrap(b));
     }
@@ -47,8 +50,16 @@ contract VoltzAssertions is Test {
         UD60x18 deltaAsFractionOfA = ud60x18(1e14); // 0.01%
         assertAlmostEqual(a, b, deltaAsFractionOfA);
     }
+    function assertAlmostExactlyEqual(UD60x18 a, UD60x18 b) internal {
+        UD60x18 deltaAsFractionOfA = ud60x18(1e12); // 0.0001%
+        assertAlmostEqual(a, b, deltaAsFractionOfA);
+    }
     function assertAlmostEqual(SD59x18 a, SD59x18 b) internal {
         SD59x18 deltaAsFractionOfA = sd59x18(1e14); // 0.01%
+        assertAlmostEqual(a, b, deltaAsFractionOfA);
+    }
+    function assertAlmostExactlyEqual(SD59x18 a, SD59x18 b) internal {
+        SD59x18 deltaAsFractionOfA = sd59x18(1e12); // 0.0001%
         assertAlmostEqual(a, b, deltaAsFractionOfA);
     }
     function assertAlmostEqual(int256 a, int256 b) internal {
@@ -327,24 +338,67 @@ contract VammTest is VoltzAssertions {
       assertAlmostEqual(trackedValue, baseAmount * -2 * int256(mockLiquidityIndex));
     }
 
-    // function test_NewPositionTracking() public {
-    //     uint128 accountId = 1;
-    //     int24 tickLower = 2;
-    //     int24 tickUpper = 3;
-    //     (uint256 positionId, DatedIrsVamm.LPPosition memory p) = openPosition(accountId,tickLower,tickUpper);
+    function testFuzz_TrackFixedTokens_VaryTicks(int24 tickLower, int24 tickUpper) public {
+      (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
+      int256 baseAmount = -9e30;
+      uint256 mockLiquidityIndex = 1;
+      uint256 termEndTimestamp = block.timestamp + convert(FixedAndVariableMath.SECONDS_IN_YEAR);
+ 
+      UD60x18 currentLiquidityIndex = convert(mockLiquidityIndex);
+      vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(currentLiquidityIndex));
 
-    //     // Position just opened so no filled balances
-    //     (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(accountId);
-    //     assertEq(baseBalancePool, 0);
-    //     assertEq(quoteBalancePool, 0);
+      (int256 trackedValue) = vamm._trackFixedTokens(baseAmount, tickLower, tickUpper, termEndTimestamp);
+
+      UD60x18 averagePrice = VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper);
+
+      // We expect -baseTokens * liquidityIndex[current] * (1 + fixedRate[ofSpecifiedTicks] * timeInYearsTillMaturity)
+      //         = 9e30        * mockLiquidityIndex      * (1 + expectedAveragePrice        * 1)         
+      //         = 9e30        * 2      * (1 + averagePrice)         
+      assertAlmostExactlyEqual(convert(trackedValue), convert(-baseAmount * int256(mockLiquidityIndex)).mul(VAMMBase.sd59x18(ONE.add(averagePrice))));
+    }
+
+    function testFuzz_TrackFixedTokens_VaryTerm(uint256 secondsToMaturity) public {
+      int256 baseAmount = -123e20;
+      int24 tickLower = -1;
+      int24 tickUpper = 1;
+      uint256 mockLiquidityIndex = 8;
+      uint256 SECONDS_IN_YEAR = convert(FixedAndVariableMath.SECONDS_IN_YEAR);
+
+      // Bound term between 0 and one hundred years
+      secondsToMaturity = bound(secondsToMaturity,  0, SECONDS_IN_YEAR * 100);
+      uint256 termEndTimestamp = block.timestamp + secondsToMaturity;
+      UD60x18 timeInYearsTillMaturity = convert(secondsToMaturity).div(FixedAndVariableMath.SECONDS_IN_YEAR);
+ 
+      UD60x18 currentLiquidityIndex = convert(mockLiquidityIndex);
+      vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(currentLiquidityIndex));
+
+      (int256 trackedValue) = vamm._trackFixedTokens(baseAmount, tickLower, tickUpper, termEndTimestamp);
+      assertAlmostExactlyEqual(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), ONE);
+
+      // We expect -baseTokens * liquidityIndex[current] * (1 + fixedRate[ofSpecifiedTicks] * timeInYearsTillMaturity)
+      //         = 123e20        * mockLiquidityIndex      * (1 + ~1                          * timeInYearsTillMaturity)         
+      //         = 123e20        * 2      * (1 + ~timeInYearsTillMaturity)         
+      assertAlmostExactlyEqual(convert(trackedValue), convert(-baseAmount * int256(mockLiquidityIndex)).mul(VAMMBase.sd59x18(timeInYearsTillMaturity.add(ONE))));
+    }
+
+    function test_NewPositionTracking() public {
+        uint128 accountId = 1;
+        int24 tickLower = 2;
+        int24 tickUpper = 3;
+        (uint256 positionId, DatedIrsVamm.LPPosition memory p) = openPosition(accountId,tickLower,tickUpper);
+
+        // Position just opened so no filled balances
+        (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(accountId);
+        assertEq(baseBalancePool, 0);
+        assertEq(quoteBalancePool, 0);
     
-    //     // Position just opened so no unfilled balances
-    //     UD60x18 currentLiquidityIndex = ud60x18(100e18);
-    //     vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(currentLiquidityIndex));
-    //     (int256 unfilledBaseLong, int256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
-    //     assertEq(unfilledBaseLong, 0);
-    //     assertEq(unfilledBaseShort, 0);
-    // }
+        // Position just opened so no unfilled balances
+        UD60x18 currentLiquidityIndex = ud60x18(100e18);
+        vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(currentLiquidityIndex));
+        (int256 unfilledBaseLong, int256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
+        assertEq(unfilledBaseLong, 0);
+        assertEq(unfilledBaseShort, 0);
+    }
 
     // function test_Mint() public {
     //     uint128 accountId = 1;
