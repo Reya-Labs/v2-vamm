@@ -309,10 +309,10 @@ contract VammTest is VoltzAssertions {
         assertEq(p.tickLower, tickLower);
         assertEq(p.tickUpper, tickUpper);
         assertEq(p.baseAmount, 0);
-        assertEq(p.tracker0UpdatedGrowth, 0);
-        assertEq(p.tracker1UpdatedGrowth, 0);
-        assertEq(p.tracker0Accumulated, 0);
-        assertEq(p.tracker1Accumulated, 0);
+        assertEq(p.trackerVariableTokenUpdatedGrowth, 0);
+        assertEq(p.trackerBaseTokenUpdatedGrowth, 0);
+        assertEq(p.trackerVariableTokenAccumulated, 0);
+        assertEq(p.trackerBaseTokenAccumulated, 0);
         vamm.getRawPosition(positionId);
     }
 

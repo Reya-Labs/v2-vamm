@@ -21,8 +21,8 @@ library Tick {
         int128 liquidityNet;
         /// @dev growth per unit of liquidity on the _other_ side of this tick (relative to the current tick)
         /// @dev only has relative meaning, not absolute — the value depends on when the tick is initialized
-        int256 tracker0GrowthOutsideX128;
-        int256 tracker1GrowthOutsideX128;
+        int256 trackerVariableTokenGrowthOutsideX128;
+        int256 trackerBaseTokenGrowthOutsideX128;
         /// @dev true iff the tick is initialized, i.e. the value is exactly equivalent to the expression liquidityGross != 0
         /// @dev these 8 bits are set to prevent fresh sstores when crossing newly initialized ticks
         bool initialized;
@@ -112,8 +112,8 @@ library Tick {
             params.tickUpper,
             params.tickCurrent,
             params.variableTokenGrowthGlobalX128,
-            lower.tracker1GrowthOutsideX128,
-            upper.tracker1GrowthOutsideX128
+            lower.trackerBaseTokenGrowthOutsideX128,
+            upper.trackerBaseTokenGrowthOutsideX128
         );
     }
 
@@ -137,8 +137,8 @@ library Tick {
             params.tickUpper,
             params.tickCurrent,
             params.fixedTokenGrowthGlobalX128,
-            lower.tracker0GrowthOutsideX128,
-            upper.tracker0GrowthOutsideX128
+            lower.trackerVariableTokenGrowthOutsideX128,
+            upper.trackerVariableTokenGrowthOutsideX128
         );
     }
 
@@ -182,10 +182,10 @@ library Tick {
             // by convention, we assume that all growth before a tick was initialized happened _below_ the tick
             if (tick <= tickCurrent) {
 
-                info.tracker0GrowthOutsideX128 = fixedTokenGrowthGlobalX128;
+                info.trackerVariableTokenGrowthOutsideX128 = fixedTokenGrowthGlobalX128;
 
                 info
-                    .tracker1GrowthOutsideX128 = variableTokenGrowthGlobalX128;
+                    .trackerBaseTokenGrowthOutsideX128 = variableTokenGrowthGlobalX128;
             }
 
             info.initialized = true;
@@ -225,13 +225,13 @@ library Tick {
     ) internal returns (int128 liquidityNet) {
         Tick.Info storage info = self[tick];
 
-        info.tracker0GrowthOutsideX128 =
+        info.trackerVariableTokenGrowthOutsideX128 =
             fixedTokenGrowthGlobalX128 -
-            info.tracker0GrowthOutsideX128;
+            info.trackerVariableTokenGrowthOutsideX128;
 
-        info.tracker1GrowthOutsideX128 =
+        info.trackerBaseTokenGrowthOutsideX128 =
             variableTokenGrowthGlobalX128 -
-            info.tracker1GrowthOutsideX128;
+            info.trackerBaseTokenGrowthOutsideX128;
 
         liquidityNet = info.liquidityNet;
     }

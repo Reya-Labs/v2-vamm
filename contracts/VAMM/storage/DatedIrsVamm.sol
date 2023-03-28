@@ -74,23 +74,23 @@ library DatedIrsVamm {
         /** 
         * @dev fixed token growth per unit of liquidity as of the last update to liquidity or fixed/variable token balance
         */
-        int256 tracker0UpdatedGrowth;
+        int256 trackerVariableTokenUpdatedGrowth;
         /** 
         * @dev variable token growth per unit of liquidity as of the last update to liquidity or fixed/variable token balance
         */
-        int256 tracker1UpdatedGrowth;
+        int256 trackerBaseTokenUpdatedGrowth;
         /** 
         * @dev current Fixed Token balance of the position, 1 fixed token can be redeemed for 1% APY * (annualised amm term) at the maturity of the amm
         * assuming 1 token worth of notional "deposited" in the underlying pool at the inception of the amm
         * can be negative/positive/zero
         */
-        int256 tracker0Accumulated;
+        int256 trackerVariableTokenAccumulated;
         /** 
         * @dev current Variable Token Balance of the position, 1 variable token can be redeemed for underlyingPoolAPY*(annualised amm term) at the maturity of the amm
         * assuming 1 token worth of notional "deposited" in the underlying pool at the inception of the amm
         * can be negative/positive/zero
         */
-        int256 tracker1Accumulated;
+        int256 trackerBaseTokenAccumulated;
     }
 
     /// @dev Mutable (or maybe one day mutable, perahps through governance) Config for this VAMM
@@ -130,8 +130,8 @@ library DatedIrsVamm {
         int24 _tickSpacing;
         Config config;
         uint128 _accumulator;
-        int256 _tracker0GrowthGlobalX128;
-        int256 _tracker1GrowthGlobalX128;
+        int256 _trackerVariableTokenGrowthGlobalX128;
+        int256 _trackerBaseTokenGrowthGlobalX128;
         mapping(int24 => Tick.Info) _ticks;
         mapping(int16 => uint256) _tickBitmap;
 
@@ -424,13 +424,13 @@ library DatedIrsVamm {
 
         LPPosition memory position = self.positions[positionId];
 
-        (int256 tracker0GlobalGrowth, int256 tracker1GlobalGrowth) = 
+        (int256 trackerVariableTokenGlobalGrowth, int256 trackerBaseTokenGlobalGrowth) = 
             growthBetweenTicks(self, position.tickLower, position.tickUpper);
 
-        int256 tracket0DeltaGrowth =
-                tracker0GlobalGrowth - position.tracker0UpdatedGrowth;
-        int256 tracket1DeltaGrowth =
-                tracker1GlobalGrowth - position.tracker1UpdatedGrowth;
+        int256 trackerVariableTokenDeltaGrowth =
+                trackerVariableTokenGlobalGrowth - position.trackerVariableTokenUpdatedGrowth;
+        int256 trackerBaseTokenDeltaGrowth =
+                trackerBaseTokenGlobalGrowth - position.trackerBaseTokenUpdatedGrowth;
 
         int256 averageBase = VAMMBase.basePerTick(
             position.tickLower,
@@ -438,10 +438,10 @@ library DatedIrsVamm {
             position.baseAmount
         );
 
-        self.positions[positionId].tracker0UpdatedGrowth = tracker0GlobalGrowth;
-        self.positions[positionId].tracker1UpdatedGrowth = tracker1GlobalGrowth;
-        self.positions[positionId].tracker0Accumulated += tracket0DeltaGrowth * averageBase;
-        self.positions[positionId].tracker1Accumulated += tracket1DeltaGrowth * averageBase;
+        self.positions[positionId].trackerVariableTokenUpdatedGrowth = trackerVariableTokenGlobalGrowth;
+        self.positions[positionId].trackerBaseTokenUpdatedGrowth = trackerBaseTokenGlobalGrowth;
+        self.positions[positionId].trackerVariableTokenAccumulated += trackerVariableTokenDeltaGrowth * averageBase;
+        self.positions[positionId].trackerBaseTokenAccumulated += trackerBaseTokenDeltaGrowth * averageBase;
     }
 
     /**
@@ -555,8 +555,8 @@ library DatedIrsVamm {
                 self._ticks,
                 self._tickBitmap,
                 self._vammVars,
-                self._tracker0GrowthGlobalX128,
-                self._tracker1GrowthGlobalX128,
+                self._trackerVariableTokenGrowthGlobalX128,
+                self._trackerBaseTokenGrowthGlobalX128,
                 self._maxLiquidityPerTick,
                 self._tickSpacing
             );
@@ -596,7 +596,7 @@ library DatedIrsVamm {
         IVAMMBase.SwapParams memory params
     )
         internal
-        returns (int256 tracker0Delta, int256 tracker1Delta)
+        returns (int256 trackerFixedTokenDelta, int256 trackerBaseTokenDelta)
     {
         VAMMBase.checkCurrentTimestampTermEndTimestampDelta(self.termEndTimestamp);
 
@@ -616,10 +616,10 @@ library DatedIrsVamm {
             sqrtPriceX96: vammVarsStart.sqrtPriceX96,
             tick: vammVarsStart.tick,
             accumulator: accumulatorStart,
-            tracker0GrowthGlobalX128: self._tracker0GrowthGlobalX128,
-            tracker1GrowthGlobalX128: self._tracker1GrowthGlobalX128,
-            tracker0DeltaCumulative: 0, // for Trader (user invoking the swap)
-            tracker1DeltaCumulative: 0 // for Trader (user invoking the swap)
+            trackerFixedTokenGrowthGlobalX128: self._trackerVariableTokenGrowthGlobalX128,
+            trackerBaseTokenGrowthGlobalX128: self._trackerBaseTokenGrowthGlobalX128,
+            trackerFixedTokenDeltaCumulative: 0, // for Trader (user invoking the swap)
+            trackerBaseTokenDeltaCumulative: 0 // for Trader (user invoking the swap)
         });
 
         // continue swapping as long as we haven't used the entire input/output and haven't reached the price (implied fixed rate) limit
@@ -685,19 +685,19 @@ library DatedIrsVamm {
             if(advanceRight) {
                 step.baseInStep -= step.amountIn.toInt256();
                 // LP is a Variable Taker
-                step.tracker1Delta = (step.amountIn).toInt256();
+                step.trackerBaseTokenDelta = (step.amountIn).toInt256();
             } else {
                 step.baseInStep += step.amountOut.toInt256();
                 // LP is a Fixed Taker
-                step.tracker1Delta -= step.amountOut.toInt256();
+                step.trackerBaseTokenDelta -= step.amountOut.toInt256();
             }
             state.amountSpecifiedRemaining += step.baseInStep;
 
             if (state.accumulator > 0) {
                 (
-                    state.tracker1GrowthGlobalX128,
-                    state.tracker0GrowthGlobalX128,
-                    step.tracker0Delta // fixedTokens
+                    state.trackerBaseTokenGrowthGlobalX128,
+                    state.trackerFixedTokenGrowthGlobalX128,
+                    step.trackerFixedTokenDelta // fixedTokens
                 ) = calculateUpdatedGlobalTrackerValues( 
                     self,
                     state,
@@ -705,8 +705,8 @@ library DatedIrsVamm {
                     self.termEndTimestamp
                 );
 
-                state.tracker0DeltaCumulative -= step.tracker0Delta; // fixedTokens; opposite sign from that of the LP's
-                state.tracker1DeltaCumulative -= step.tracker1Delta; // opposite sign from that of the LP's
+                state.trackerFixedTokenDeltaCumulative -= step.trackerFixedTokenDelta; // fixedTokens; opposite sign from that of the LP's
+                state.trackerBaseTokenDeltaCumulative -= step.trackerBaseTokenDelta; // opposite sign from that of the LP's
             }
 
             ///// UPDATE TICK AFTER SWAP STEP /////
@@ -717,8 +717,8 @@ library DatedIrsVamm {
                 if (step.initialized) {
                     int128 accumulatorNet = self._ticks.cross(
                         step.tickNext,
-                        state.tracker0GrowthGlobalX128,
-                        state.tracker1GrowthGlobalX128
+                        state.trackerFixedTokenGrowthGlobalX128,
+                        state.trackerBaseTokenGrowthGlobalX128
                     );
 
                     state.accumulator = LiquidityMath.addDelta(
@@ -760,11 +760,11 @@ library DatedIrsVamm {
         // update liquidity if it changed
         if (accumulatorStart != state.accumulator) self._accumulator = state.accumulator;
 
-        self._tracker1GrowthGlobalX128 = state.tracker1GrowthGlobalX128;
-        self._tracker0GrowthGlobalX128 = state.tracker0GrowthGlobalX128;
+        self._trackerBaseTokenGrowthGlobalX128 = state.trackerBaseTokenGrowthGlobalX128;
+        self._trackerVariableTokenGrowthGlobalX128 = state.trackerFixedTokenGrowthGlobalX128;
 
-        tracker0Delta = state.tracker0DeltaCumulative;
-        tracker1Delta = state.tracker1DeltaCumulative;
+        trackerFixedTokenDelta = state.trackerFixedTokenDeltaCumulative;
+        trackerBaseTokenDelta = state.trackerBaseTokenDeltaCumulative;
 
         emit VAMMBase.VAMMPriceChange(self._vammVars.tick);
 
@@ -774,8 +774,8 @@ library DatedIrsVamm {
             params.tickUpper,
             params.baseAmountSpecified,
             params.sqrtPriceLimitX96,
-            tracker0Delta,
-            tracker1Delta
+            trackerFixedTokenDelta,
+            trackerBaseTokenDelta
         );
 
         self._vammVars.unlocked.unlock();
@@ -793,7 +793,7 @@ library DatedIrsVamm {
         returns (
             int256 stateVariableTokenGrowthGlobalX128,
             int256 stateFixedTokenGrowthGlobalX128,
-            int256 fixedTokenDelta// for LP
+            int256 fixedTokenDelta
         )
     {
         // Get the numder of fixed tokens for the current section of our swap's tick range
@@ -808,8 +808,8 @@ library DatedIrsVamm {
         );
 
         // update global trackers
-        stateVariableTokenGrowthGlobalX128 = state.tracker1GrowthGlobalX128 + FullMath.mulDivSigned(step.tracker1Delta, FixedPoint128.Q128, state.accumulator);
-        stateFixedTokenGrowthGlobalX128 = state.tracker0GrowthGlobalX128 + FullMath.mulDivSigned(fixedTokenDelta, FixedPoint128.Q128, state.accumulator);
+        stateVariableTokenGrowthGlobalX128 = state.trackerBaseTokenGrowthGlobalX128 + FullMath.mulDivSigned(step.trackerBaseTokenDelta, FixedPoint128.Q128, state.accumulator);
+        stateFixedTokenGrowthGlobalX128 = state.trackerFixedTokenGrowthGlobalX128 + FullMath.mulDivSigned(fixedTokenDelta, FixedPoint128.Q128, state.accumulator);
     }
 
     /// @dev 
@@ -819,8 +819,8 @@ library DatedIrsVamm {
         int24 tickLower,
         int24 tickUpper
     ) internal view returns(
-        int256 tracker0GrowthOutside,
-        int256 tracker1GrowthOutside
+        int256 trackerVariableTokenGrowthOutside,
+        int256 trackerBaseTokenGrowthOutside
     ) {
         if (tickLower == tickUpper) {
             return (0, 0);
@@ -848,8 +848,8 @@ library DatedIrsVamm {
 
         int256 base = VAMMBase.baseBetweenTicks(tickLower, tickUpper, basePerTick);
 
-        tracker0GrowthOutside = _trackFixedTokens(self, base, tickLower, tickUpper, self.termEndTimestamp);
-        tracker1GrowthOutside = base;
+        trackerVariableTokenGrowthOutside = _trackFixedTokens(self, base, tickLower, tickUpper, self.termEndTimestamp);
+        trackerBaseTokenGrowthOutside = base;
     }
 
     // @dev For a given LP posiiton, how much of it is available to trade imn each direction?
@@ -900,8 +900,8 @@ library DatedIrsVamm {
         for (uint256 i = 0; i < numPositions; i++) {
             LPPosition memory position = getRawPosition(self, self.positionsInAccount[accountId][i]); 
 
-            baseBalancePool += position.tracker0Accumulated;
-            quoteBalancePool += position.tracker1Accumulated;
+            baseBalancePool += position.trackerVariableTokenAccumulated;
+            quoteBalancePool += position.trackerBaseTokenAccumulated;
         }
 
     }
@@ -912,10 +912,10 @@ library DatedIrsVamm {
         int24 tickUpper,
         int128 baseAmount
     ) internal view returns(
-        int256 tracker0GrowthOutsideLeft,
-        int256 tracker1GrowthOutsideLeft,
-        int256 tracker0GrowthOutsideRight,
-        int256 tracker1GrowthOutsideRight
+        int256 trackerVariableTokenGrowthOutsideLeft,
+        int256 trackerBaseTokenGrowthOutsideLeft,
+        int256 trackerVariableTokenGrowthOutsideRight,
+        int256 trackerBaseTokenGrowthOutsideRight
     ) {
         if (tickLower == tickUpper) {
             return (0, 0, 0, 0);
@@ -924,17 +924,17 @@ library DatedIrsVamm {
         int128 averageBase = VAMMBase.basePerTick(tickLower, tickUpper, baseAmount);
 
         // Compute unfilled tokens to the left
-        (int256 tracker0GrowthOutsideLeft_, int256 tracker1GrowthOutsideLeft_) = trackValuesBetweenTicksOutside(
+        (int256 trackerVariableTokenGrowthOutsideLeft_, int256 trackerBaseTokenGrowthOutsideLeft_) = trackValuesBetweenTicksOutside(
             self,
             averageBase,
             tickLower < self._vammVars.tick ? tickLower : self._vammVars.tick, // min(tickLower, currentTick)
             tickUpper < self._vammVars.tick ? tickUpper : self._vammVars.tick  // min(tickUpper, currentTick)
         );
-        tracker0GrowthOutsideLeft = -tracker0GrowthOutsideLeft_;
-        tracker1GrowthOutsideLeft = -tracker1GrowthOutsideLeft_;
+        trackerVariableTokenGrowthOutsideLeft = -trackerVariableTokenGrowthOutsideLeft_;
+        trackerBaseTokenGrowthOutsideLeft = -trackerBaseTokenGrowthOutsideLeft_;
 
         // Compute unfilled tokens to the right
-        (tracker0GrowthOutsideRight, tracker1GrowthOutsideRight) = trackValuesBetweenTicksOutside(
+        (trackerVariableTokenGrowthOutsideRight, trackerBaseTokenGrowthOutsideRight) = trackValuesBetweenTicksOutside(
             self,
             averageBase,
             tickLower > self._vammVars.tick ? tickLower : self._vammVars.tick, // max(tickLower, currentTick)
@@ -947,40 +947,40 @@ library DatedIrsVamm {
         int24 tickLower,
         int24 tickUpper
     ) internal view returns (
-        int256 tracker0GrowthBetween,
-        int256 tracker1GrowthBetween
+        int256 trackerVariableTokenGrowthBetween,
+        int256 trackerBaseTokenGrowthBetween
     )
     {
         Tick.checkTicks(tickLower, tickUpper);
 
-        int256 tracker0BelowLowerTick;
-        int256 tracker1BelowLowerTick;
+        int256 trackerVariableTokenBelowLowerTick;
+        int256 trackerBaseTokenBelowLowerTick;
 
         if (tickLower <= self._vammVars.tick) {
-            tracker0BelowLowerTick = self._ticks[tickLower].tracker0GrowthOutsideX128;
-            tracker1BelowLowerTick = self._ticks[tickLower].tracker1GrowthOutsideX128;
+            trackerVariableTokenBelowLowerTick = self._ticks[tickLower].trackerVariableTokenGrowthOutsideX128;
+            trackerBaseTokenBelowLowerTick = self._ticks[tickLower].trackerBaseTokenGrowthOutsideX128;
         } else {
-            tracker0BelowLowerTick = self._tracker0GrowthGlobalX128 -
-                self._ticks[tickLower].tracker0GrowthOutsideX128;
-            tracker1BelowLowerTick = self._tracker1GrowthGlobalX128 -
-                self._ticks[tickLower].tracker1GrowthOutsideX128;
+            trackerVariableTokenBelowLowerTick = self._trackerVariableTokenGrowthGlobalX128 -
+                self._ticks[tickLower].trackerVariableTokenGrowthOutsideX128;
+            trackerBaseTokenBelowLowerTick = self._trackerBaseTokenGrowthGlobalX128 -
+                self._ticks[tickLower].trackerBaseTokenGrowthOutsideX128;
         }
 
-        int256 tracker0AboveUpperTick;
-        int256 tracker1AboveUpperTick;
+        int256 trackerVariableTokenAboveUpperTick;
+        int256 trackerBaseTokenAboveUpperTick;
 
         if (tickUpper > self._vammVars.tick) {
-            tracker0AboveUpperTick = self._ticks[tickUpper].tracker0GrowthOutsideX128;
-            tracker1AboveUpperTick = self._ticks[tickUpper].tracker1GrowthOutsideX128;
+            trackerVariableTokenAboveUpperTick = self._ticks[tickUpper].trackerVariableTokenGrowthOutsideX128;
+            trackerBaseTokenAboveUpperTick = self._ticks[tickUpper].trackerBaseTokenGrowthOutsideX128;
         } else {
-            tracker0AboveUpperTick = self._tracker0GrowthGlobalX128 -
-                self._ticks[tickUpper].tracker0GrowthOutsideX128;
-            tracker1AboveUpperTick = self._tracker1GrowthGlobalX128 -
-                self._ticks[tickUpper].tracker1GrowthOutsideX128;
+            trackerVariableTokenAboveUpperTick = self._trackerVariableTokenGrowthGlobalX128 -
+                self._ticks[tickUpper].trackerVariableTokenGrowthOutsideX128;
+            trackerBaseTokenAboveUpperTick = self._trackerBaseTokenGrowthGlobalX128 -
+                self._ticks[tickUpper].trackerBaseTokenGrowthOutsideX128;
         }
 
-        tracker0GrowthBetween = self._tracker0GrowthGlobalX128 - tracker0BelowLowerTick - tracker0AboveUpperTick;
-        tracker1GrowthBetween = self._tracker1GrowthGlobalX128 - tracker1BelowLowerTick - tracker1AboveUpperTick;
+        trackerVariableTokenGrowthBetween = self._trackerVariableTokenGrowthGlobalX128 - trackerVariableTokenBelowLowerTick - trackerVariableTokenAboveUpperTick;
+        trackerBaseTokenGrowthBetween = self._trackerBaseTokenGrowthGlobalX128 - trackerBaseTokenBelowLowerTick - trackerBaseTokenAboveUpperTick;
 
     }
 }

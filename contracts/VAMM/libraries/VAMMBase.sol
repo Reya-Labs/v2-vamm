@@ -41,8 +41,8 @@ library VAMMBase {
         int24 indexed tickUpper,
         int256 desiredBaseAmount,
         uint160 sqrtPriceLimitX96,
-        int256 tracker0Delta,
-        int256 tracker1Delta
+        int256 trackerFixedTokenDelta,
+        int256 trackerBaseTokenDelta
     );
 
     /// @dev emitted after a given vamm is successfully initialized
@@ -70,15 +70,15 @@ library VAMMBase {
         /// @dev the tick associated with the current price
         int24 tick;
         /// @dev the global fixed token growth
-        int256 tracker0GrowthGlobalX128;
+        int256 trackerFixedTokenGrowthGlobalX128;
         /// @dev the global variable token growth
-        int256 tracker1GrowthGlobalX128;
+        int256 trackerBaseTokenGrowthGlobalX128;
         /// @dev the current liquidity in range
         uint128 accumulator;
-        /// @dev tracker0Delta that will be applied to the fixed token balance of the position executing the swap (recipient)
-        int256 tracker0DeltaCumulative;
-        /// @dev tracker1Delta that will be applied to the variable token balance of the position executing the swap (recipient)
-        int256 tracker1DeltaCumulative;
+        /// @dev trackerFixedTokenDelta that will be applied to the fixed token balance of the position executing the swap (recipient)
+        int256 trackerFixedTokenDeltaCumulative;
+        /// @dev trackerBaseTokenDelta that will be applied to the variable token balance of the position executing the swap (recipient)
+        int256 trackerBaseTokenDeltaCumulative;
     }
 
     struct StepComputations {
@@ -95,9 +95,9 @@ library VAMMBase {
         /// @dev how much is being swapped out
         uint256 amountOut;
         /// @dev ...
-        int256 tracker0Delta; // for LP
+        int256 trackerFixedTokenDelta; // for LP
         /// @dev ...
-        int256 tracker1Delta; // for LP
+        int256 trackerBaseTokenDelta; // for LP
         /// @dev the amount swapped out/in of the output/input asset during swap step
         int256 baseInStep;
     }
@@ -168,8 +168,8 @@ library VAMMBase {
         mapping(int24 => Tick.Info) storage _ticks,
         mapping(int16 => uint256) storage _tickBitmap,
         IVAMMBase.VAMMVars memory _vammVars,
-        int256 _tracker0GrowthGlobalX128,
-        int256 _tracker1GrowthGlobalX128,
+        int256 _trackerVariableTokenGrowthGlobalX128,
+        int256 _trackerBaseTokenGrowthGlobalX128,
         uint128 _maxLiquidityPerTick,
         int24 _tickSpacing
     )
@@ -186,8 +186,8 @@ library VAMMBase {
             params.tickLower,
             _vammVars.tick,
             params.accumulatorDelta,
-            _tracker0GrowthGlobalX128,
-            _tracker1GrowthGlobalX128,
+            _trackerVariableTokenGrowthGlobalX128,
+            _trackerBaseTokenGrowthGlobalX128,
             false,
             _maxLiquidityPerTick
         );
@@ -197,8 +197,8 @@ library VAMMBase {
             params.tickUpper,
             _vammVars.tick,
             params.accumulatorDelta,
-            _tracker0GrowthGlobalX128,
-            _tracker1GrowthGlobalX128,
+            _trackerVariableTokenGrowthGlobalX128,
+            _trackerBaseTokenGrowthGlobalX128,
             true,
             _maxLiquidityPerTick
         );
