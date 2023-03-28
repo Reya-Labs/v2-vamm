@@ -134,7 +134,7 @@ library VAMMBase {
         return UD60x18.wrap(FullMath.mulDiv(priceX96, 1e18, FixedPoint96.Q96));
     }
 
-    // @dev The sum of 1.0001^x for x=0,...,n is 1.0001^(n+1) / (1-1.0001)
+    // @dev Returns the sum of `1.0001^x` for `x`=0,...,`tick`, using the the fact that this equals `1.0001^(n+1) / (1-1.0001)`
     function sumOfAllPricesUpTo(int24 tick) public pure returns(UD60x18 price) {
         // Tick might be negative and UD60x18 does not support `.pow(x)` for x < 0, so we must use SD59x18
         SD59x18 numeratorSigned = PRICE_EXPONENT_BASE.pow(convert_sd(int256(tick + 1)));
@@ -144,24 +144,14 @@ library VAMMBase {
         return numerator.div(PRICE_EXPONENT_BASE_MINUS_ONE);
     }
 
-    /// @dev Computes the average price of a trade, assuming uniform distribution of the trade across the specified tick range
+    /// @dev Computes the average price of a trade, assuming uniform distribution of the trade across the specified tick range.
+    /// This assumption makes it unsuitable for determining the average price of a whole trade that crosses tick boundaries where liquidity changes.
     function averagePriceBetweenTicks(
         int24 _tickLower,
         int24 _tickUpper
     ) internal pure returns(UD60x18) {
-         // TODO: this is a good estimate across small numbers of tick boundaries, but is fundamentally not exact for nonlinear ticks. Is it good enough?
-        // return convert(uint256(int256(1 + _tickUpper - _tickLower)));
         return sumOfAllPricesUpTo(_tickUpper).sub(sumOfAllPricesUpTo(_tickLower - 1)).div(convert(uint256(int256(1 + _tickUpper - _tickLower))));
     }
-
-    /// @dev Computes the average price of a trade, assuming uniform distribution of the trade across the specified tick range
-    // function OLD_averagePriceBetweenTicks(
-    //     int24 _tickLower,
-    //     int24 _tickUpper
-    // ) internal pure returns(UD60x18) {
-    //      // TODO: this is a good estimate across small numbers of tick boundaries, but is fundamentally not exact for nonlinear ticks. Is it good enough?
-    //     return getPriceFromTick(_tickUpper).add(getPriceFromTick(_tickLower)).div(convert(uint256(2)));
-    // }
 
     /// @dev Safely casts a `UD60x18` to a `SD59x18`. Reverts on overflow.
     function sd59x18(UD60x18 ud) internal pure returns (SD59x18 sd) {
