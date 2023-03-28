@@ -309,9 +309,10 @@ contract VammTest is VoltzAssertions {
       int256 baseAmount = 5e10;
       int24 tickLower = -1;
       int24 tickUpper = 1;
+      uint256 mockLiquidityIndex = 2;
       uint256 termEndTimestamp = block.timestamp + convert(FixedAndVariableMath.SECONDS_IN_YEAR);
  
-      UD60x18 currentLiquidityIndex = ud60x18(2e18); // Mock liquidity index as 2.0 (as a UD60x18)
+      UD60x18 currentLiquidityIndex = convert(mockLiquidityIndex);
       vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(currentLiquidityIndex));
 
       (int256 trackedValue) = vamm._trackFixedTokens(baseAmount, tickLower, tickUpper, termEndTimestamp);
@@ -320,9 +321,10 @@ contract VammTest is VoltzAssertions {
       assertAlmostEqual(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), ONE);
 
       // We expect -baseTokens * liquidityIndex[current] * (1 + fixedRate[ofSpecifiedTicks] * timeInYearsTillMaturity)
-      //         = -5e10       * 2                       * (1 + ~1        * 1)         
+      //         = -5e10       * mockLiquidityIndex      * (1 + expectedAveragePrice        * 1)         
+      //         = -5e10       * mockLiquidityIndex      * (1 + ~1)         
       //         = ~-20e10
-      assertAlmostEqual(trackedValue, -20e10);
+      assertAlmostEqual(trackedValue, baseAmount * -2 * int256(mockLiquidityIndex));
     }
 
     // function test_NewPositionTracking() public {

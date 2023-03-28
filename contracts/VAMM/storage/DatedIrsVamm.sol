@@ -368,7 +368,7 @@ library DatedIrsVamm {
 
         require(position.baseAmount + requestedBaseAmount >= 0, "Burning too much"); // TODO: CustomError
 
-        vammMint(self, accountId, tickLower, tickUpper, requestedBaseAmount);
+        _vammMint(self, accountId, tickLower, tickUpper, requestedBaseAmount);
 
         self.positions[positionId].baseAmount += requestedBaseAmount;
        
@@ -475,9 +475,11 @@ library DatedIrsVamm {
     ///   Cashflow = notional * (variableAPY - fixedAPY) * timeFactor
 
     /// GETTERS & TRACKERS
-    /// @dev Internal. Returns the fixed token balance using the formula:
-    ///  fixed token balance = -notional                               * expectedMagnitudeOfFixedRateCashflowBetweenNowAndMaturity
+    /// @dev Private but labelled internal for testability. Returns the fixed token balance using the formula:
+    ///    fixedTokenBalance = -notional                               * expectedMagnitudeOfFixedRateCashflowBetweenNowAndMaturity
     ///                      = -(baseTokens * liquidityIndex[current]) * (1 + fixedRate * timeInYearsTillMaturity)
+    /// The result relies on the average price between `tickLower` and `tickUpper`, and as such is only valid for cases where the
+    /// trade/position is uniformly distributed (same value per tick) between these ticks.
     function _trackFixedTokens(
       Data storage self,
       int256 baseAmount,
@@ -504,24 +506,18 @@ library DatedIrsVamm {
         // - fixed token balance = - (base*index[now])(1 + fixedRate*timeFactor) // TODO: intuitively, why is fixed token balance of a trade not zero if the fixedRate is zero? Why does changing the fixed rate from 1 to two not fouble the fixed tokens? Am I hung up on thinking of these tokens as having value when basically they do not?
 
         // TODO: cache time factor and rateNow outside this function and pass as param to avoid recalculations
-
-        
         UD60x18 averagePrice = VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper);
-        console2.log("averagePrice: %s", convert(averagePrice));
         UD60x18 timeDeltaUntilMaturity = FixedAndVariableMath.accrualFact(termEndTimestamp - block.timestamp); 
-        console2.log("timeDeltaUntilMaturity: %s", convert(timeDeltaUntilMaturity));
-                // currentOracleValue = rateNow
         SD59x18 currentOracleValue = VAMMBase.sd59x18(self.config.rateOracle.getCurrentIndex());
-        console2.log("currentOracleValue: %s", convert(currentOracleValue));
-        SD59x18 timeComponent = VAMMBase.sd59x18(ONE.add(averagePrice.mul(timeDeltaUntilMaturity))); // (1 + fixedRate*timeFactor)
-        console2.log("timeComponent: %s", convert(timeComponent));
+        SD59x18 timeComponent = VAMMBase.sd59x18(ONE.add(averagePrice.mul(timeDeltaUntilMaturity))); // (1 + fixedRate * timeInYearsTillMaturity)
         SD59x18 trackedValueDecimal = convert(int256(-baseAmount)).mul(currentOracleValue.mul(timeComponent));
-        console2.log("trackedValueDecimal: %s", convert(trackedValueDecimal));
         trackedValue = convert(trackedValueDecimal);
     }
 
     // TODO: return data
-    function vammMint( // TODO: unlike internal functions that we expect to call from DatedIrsVammPool, this function should not be called from outside. Maybe prefix such functions with _?
+    /// @dev Private but labelled internal for testability. Consumers of the library should use `executeDatedMakerOrder()`.
+    /// Mints `baseAmount` of liquidity for the specified `accountId`, uniformly (same amount per-tick) between the specified ticks.
+    function _vammMint(
         Data storage self,
         uint128 accountId,
         int24 tickLower,
@@ -917,42 +913,23 @@ library DatedIrsVamm {
 
         int128 averageBase = VAMMBase.basePerTick(tickLower, tickUpper, baseAmount);
 
-        // Python
-        // # compute unfilled tokens to left
-        // tmp_left = self.tracked_values_between_ticks_outside(
-        //     average_base=average_base,
-        //     tick_lower=min(tick_lower, self._current_tick),
-        //     tick_upper=min(tick_upper, self._current_tick),
-        // )
-        // tmp_left = list(map(lambda x: -x, tmp_left))
-
-        // # compute unfilled tokens to right
-        // tmp_right = self.tracked_values_between_ticks_outside(
-        //     average_base=average_base,
-        //     tick_lower=max(tick_lower, self._current_tick),
-        //     tick_upper=max(tick_upper, self._current_tick),
-        // )
-
-        // return tmp_left, tmp_right
-
-        // TODO: change code below to correspond to python
-
+        // Compute unfilled tokens to the left
         (int256 tracker0GrowthOutsideLeft_, int256 tracker1GrowthOutsideLeft_) = trackValuesBetweenTicksOutside(
             self,
             averageBase,
-            tickLower < self._vammVars.tick ? tickLower : self._vammVars.tick,
-            tickUpper < self._vammVars.tick ? tickUpper : self._vammVars.tick
+            tickLower < self._vammVars.tick ? tickLower : self._vammVars.tick, // min(tickLower, currentTick)
+            tickUpper < self._vammVars.tick ? tickUpper : self._vammVars.tick  // min(tickUpper, currentTick)
         );
         tracker0GrowthOutsideLeft = -tracker0GrowthOutsideLeft_;
         tracker1GrowthOutsideLeft = -tracker1GrowthOutsideLeft_;
 
+        // Compute unfilled tokens to the right
         (tracker0GrowthOutsideRight, tracker1GrowthOutsideRight) = trackValuesBetweenTicksOutside(
             self,
             averageBase,
-            tickLower > self._vammVars.tick ? tickLower : self._vammVars.tick,
-            tickUpper < self._vammVars.tick ? tickUpper : self._vammVars.tick
+            tickLower > self._vammVars.tick ? tickLower : self._vammVars.tick, // max(tickLower, currentTick)
+            tickUpper > self._vammVars.tick ? tickUpper : self._vammVars.tick  // max(tickUpper, currentTick)
         );
-
     }
 
     function growthBetweenTicks(
