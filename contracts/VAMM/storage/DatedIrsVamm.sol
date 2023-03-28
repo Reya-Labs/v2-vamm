@@ -793,13 +793,13 @@ library DatedIrsVamm {
         returns (
             int256 stateVariableTokenGrowthGlobalX128,
             int256 stateFixedTokenGrowthGlobalX128,
-            int256 tracker0Delta// for LP
+            int256 fixedTokenDelta// for LP
         )
     {
         // Get the numder of fixed tokens for the current section of our swap's tick range
         // This calculation assumes that the trade is uniformly distributed within the given tick range, which is only
         // true because there are no changes in liquidity between `state.tick` and `step.tickNext`.
-        tracker0Delta = _trackFixedTokens(
+        fixedTokenDelta = _trackFixedTokens(
             self,
             step.baseInStep,
             state.tick,
@@ -809,7 +809,7 @@ library DatedIrsVamm {
 
         // update global trackers
         stateVariableTokenGrowthGlobalX128 = state.tracker1GrowthGlobalX128 + FullMath.mulDivSigned(step.tracker1Delta, FixedPoint128.Q128, state.accumulator);
-        stateFixedTokenGrowthGlobalX128 = state.tracker0GrowthGlobalX128 + FullMath.mulDivSigned(tracker0Delta, FixedPoint128.Q128, state.accumulator);
+        stateFixedTokenGrowthGlobalX128 = state.tracker0GrowthGlobalX128 + FullMath.mulDivSigned(fixedTokenDelta, FixedPoint128.Q128, state.accumulator);
     }
 
     /// @dev 
