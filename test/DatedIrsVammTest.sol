@@ -2,14 +2,17 @@ pragma solidity >=0.8.13;
 
 import "forge-std/Test.sol";
  import "forge-std/console2.sol";
+ import "../contracts/utils/SafeCastUni.sol";
 import "../contracts/VAMM/storage/DatedIrsVAMM.sol";
 import "../contracts/utils/CustomErrors.sol";
 import { UD60x18, convert, ud60x18, uMAX_UD60x18, uUNIT } from "@prb/math/src/UD60x18.sol";
-import { SD59x18 } from "@prb/math/src/SD59x18.sol";
+import { SD59x18, sd59x18 } from "@prb/math/src/SD59x18.sol";
 
 // Asserts - TODO: move into own source file
 
 contract VoltzAssertions is Test {
+
+    using SafeCastUni for int256;
 
     function assertEq(UD60x18 a, UD60x18 b) internal {
         assertEq(UD60x18.unwrap(a), UD60x18.unwrap(b));
@@ -19,6 +22,17 @@ contract VoltzAssertions is Test {
     }
     function assertLt(UD60x18 a, UD60x18 b) internal {
         assertLt(UD60x18.unwrap(a), UD60x18.unwrap(b));
+    }
+    function assertAlmostEqual(SD59x18 a, SD59x18 b, SD59x18 deltaAsFractionOfA) internal {
+        SD59x18 upperBound = SD59x18.unwrap(a) >= 0 ? a.add(deltaAsFractionOfA.mul(a)) : a.sub(deltaAsFractionOfA.mul(a));
+        SD59x18 lowerBound = SD59x18.unwrap(a) >= 0 ? a.sub(deltaAsFractionOfA.mul(a)) : a.add(deltaAsFractionOfA.mul(a));
+        if (b.gt(upperBound) || b.lt(lowerBound)) {
+            console2.log("Expected the following two values to be almost equal:");
+            console2.logInt(SD59x18.unwrap(a));
+            console2.logInt(SD59x18.unwrap(b));
+        }
+        assertGe(SD59x18.unwrap(b), SD59x18.unwrap(lowerBound) );
+        assertLe(SD59x18.unwrap(b), SD59x18.unwrap(upperBound) );
     }
     function assertAlmostEqual(UD60x18 a, UD60x18 b, UD60x18 deltaAsFractionOfA) internal {
         UD60x18 upperBound = a.add(deltaAsFractionOfA.mul(a));
@@ -32,6 +46,13 @@ contract VoltzAssertions is Test {
     function assertAlmostEqual(UD60x18 a, UD60x18 b) internal {
         UD60x18 deltaAsFractionOfA = ud60x18(1e14); // 0.01%
         assertAlmostEqual(a, b, deltaAsFractionOfA);
+    }
+    function assertAlmostEqual(SD59x18 a, SD59x18 b) internal {
+        SD59x18 deltaAsFractionOfA = sd59x18(1e14); // 0.01%
+        assertAlmostEqual(a, b, deltaAsFractionOfA);
+    }
+    function assertAlmostEqual(int256 a, int256 b) internal {
+        assertAlmostEqual(SD59x18.wrap(a), SD59x18.wrap(b));
     }
     function assertEq(UD60x18 a, UD60x18 b, string memory err) internal {
         assertEq(UD60x18.unwrap(a), UD60x18.unwrap(b), err);
@@ -285,16 +306,23 @@ contract VammTest is VoltzAssertions {
     }
 
     function test_TrackFixedTokens() public {
-      int256 baseAmount = 99;
-      int24 tickLower = 2;
-      int24 tickUpper = 3;
-      uint256 termEndTimestamp = block.timestamp + 100;
+      int256 baseAmount = 5e10;
+      int24 tickLower = -1;
+      int24 tickUpper = 1;
+      uint256 termEndTimestamp = block.timestamp + convert(FixedAndVariableMath.SECONDS_IN_YEAR);
  
-      UD60x18 currentLiquidityIndex = ud60x18(2e18);
+      UD60x18 currentLiquidityIndex = ud60x18(2e18); // Mock liquidity index as 2.0 (as a UD60x18)
       vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(currentLiquidityIndex));
 
       (int256 trackedValue) = vamm._trackFixedTokens(baseAmount, tickLower, tickUpper, termEndTimestamp);
-    //   assertEq(trackedValue, 0); // TODO: validate result
+
+      UD60x18 expectedAveragePrice = averagePriceBetweenTicksUsingLoop(tickLower, tickUpper);
+      assertAlmostEqual(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), ONE);
+
+      // We expect -baseTokens * liquidityIndex[current] * (1 + fixedRate[ofSpecifiedTicks] * timeInYearsTillMaturity)
+      //         = -5e10       * 2                       * (1 + ~1        * 1)         
+      //         = ~-20e10
+      assertAlmostEqual(trackedValue, -20e10);
     }
 
     // function test_NewPositionTracking() public {

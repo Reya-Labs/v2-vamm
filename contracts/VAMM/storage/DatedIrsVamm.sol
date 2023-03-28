@@ -19,6 +19,7 @@ import "../interfaces/IVAMM.sol";
 import "../../utils/CustomErrors.sol";
 import "../libraries/Oracle.sol";
 import "../../interfaces/IRateOracle.sol";
+import "forge-std/console2.sol";
 
 /**
  * @title Connects external contracts that implement the `IVAMM` interface to the protocol.
@@ -491,24 +492,31 @@ library DatedIrsVamm {
         )
     {
         // Settlement = base * liq index(settlement) + quote
-        // cashflow = notional * (variableAPY - fixed Rate) * timeFactor
-        // variableAPY * timeFactor = (rate(settlment) / rate(now)) - 1
-        // cashflow = notional * (rate(settlment) / rate(now) - 1 - fixedRate*timeFactor)
-        // base = notional / rateNow
-        // cashflow = notional * (rate(settlment) / rate(now)) - notional(1 + fixedRate*timeFactor)
-        // cashflow = base*rate(settlment) - (base*RateNow)(1 + fixedRate*timeFactor)
+        // cashflow = notional * (variableAPY - fixedRate) * timeFactor
+        // cashflow = notional * ((variableAPY * timeFactor) - (fixedRate * timeFactor))
+        // variableAPY * timeFactor = (index(settlment) / index(now)) - 1
+        // cashflow = notional * (index(settlment) / index(now) - 1 - fixedRate*timeFactor)
+        // base = notional / index(now)
+        // cashflow = notional * (index(settlment) / index(now)) - notional(1 + fixedRate*timeFactor)
+        // cashflow = base*index(settlment) - (base*index(now))(1 + fixedRate*timeFactor)
         // These terms are tracked:
         // - base token balance = base
-        // - fixed token balance = - (base*RateNow)(1 + fixedRate*timeFactor)
+        // - fixed token balance = - (base*index[now])(1 + fixedRate*timeFactor) // TODO: intuitively, why is fixed token balance of a trade not zero if the fixedRate is zero? Why does changing the fixed rate from 1 to two not fouble the fixed tokens? Am I hung up on thinking of these tokens as having value when basically they do not?
 
         // TODO: cache time factor and rateNow outside this function and pass as param to avoid recalculations
+
         
         UD60x18 averagePrice = VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper);
+        console2.log("averagePrice: %s", convert(averagePrice));
         UD60x18 timeDeltaUntilMaturity = FixedAndVariableMath.accrualFact(termEndTimestamp - block.timestamp); 
+        console2.log("timeDeltaUntilMaturity: %s", convert(timeDeltaUntilMaturity));
                 // currentOracleValue = rateNow
         SD59x18 currentOracleValue = VAMMBase.sd59x18(self.config.rateOracle.getCurrentIndex());
+        console2.log("currentOracleValue: %s", convert(currentOracleValue));
         SD59x18 timeComponent = VAMMBase.sd59x18(ONE.add(averagePrice.mul(timeDeltaUntilMaturity))); // (1 + fixedRate*timeFactor)
+        console2.log("timeComponent: %s", convert(timeComponent));
         SD59x18 trackedValueDecimal = convert(int256(-baseAmount)).mul(currentOracleValue.mul(timeComponent));
+        console2.log("trackedValueDecimal: %s", convert(trackedValueDecimal));
         trackedValue = convert(trackedValueDecimal);
     }
 
