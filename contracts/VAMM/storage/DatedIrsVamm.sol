@@ -468,18 +468,38 @@ library DatedIrsVamm {
         self.config = _config;
     }
 
-    /// @dev Settlment cash flow from first principles. We define baseTokens to be the tokens at some past
-    // timestamp `x` when the liquidity index was 1.
-    ///   Settlement = baseTokens * liquidityIndex[maturityTimestamp] + quoteTokens
-    /// At any given time, cashflow can then be calcuated as:
-    ///   Cashflow = notional * (variableAPY - fixedAPY) * timeFactor
-
-    /// GETTERS & TRACKERS
-    /// @dev Private but labelled internal for testability. Returns the fixed token balance using the formula:
-    ///    fixedTokenBalance = -notional                               * expectedMagnitudeOfFixedRateCashflowBetweenNowAndMaturity
-    ///                      = -(baseTokens * liquidityIndex[current]) * (1 + fixedRate * timeInYearsTillMaturity)
-    /// The result relies on the average price between `tickLower` and `tickUpper`, and as such is only valid for cases where the
-    /// trade/position is uniformly distributed (same value per tick) between these ticks.
+    /// @dev Private but labelled internal for testability.
+    ///
+    /// @dev Calculate `fixedTokens` for (some tick range that has uniform liquidity within) a trade. The calculation relies
+    /// on the trade being uniformly distributed across the specified tick range in order to calculate the average price (the fixedAPY), so this
+    /// assumption must hold or the math will break. As such, the function can only really be useed to calculate `fixedTokens` for a subset of a trade,
+    ///
+    /// Thinking about cashflows from first principles, the cashflow of an IRS at time `x` (`x < maturityTimestamp`) is:
+    ///  (1)  `cashflow[x] = notional * (variableAPYBetween[tradeDate, x] - fixedAPY) * timeInYearsBetween[tradeDate, x]`   
+    /// We use liquidity indices to track variable rates, such that
+    ///  (2)  `variableAPYBetween[tradeDate, x] * timeInYearsBetween[tradeDate, x] = (liquidityIndex[x] / liquidityIndex[tradeDate]) - 1     
+    /// We can therefore rearrange (1) as:
+    ///       `cashflow[x] = notional * ((variableAPYBetween[tradeDate, x]*timeInYearsBetween[tradeDate, x]) - (fixedAPY*timeInYearsBetween[tradeDate, x]))`   
+    ///       `cashflow[x] = notional * ((liquidityIndex[x] / liquidityIndex[tradeDate]) - 1 - (fixedAPY*timeInYearsBetween[tradeDate, x]))`   
+    ///   (3) `cashflow[x] = notional*(liquidityIndex[x] / liquidityIndex[tradeDate]) - notional*(1 + fixedAPY*timeInYearsBetween[tradeDate, x])`
+    /// Now if we define:
+    ///   `baseTokens:= notional / liquidityIndex[tradeDate]`
+    /// then we can further rearrange (3) as:
+    ///       `cashflow[x] = baseTokens*liquidityIndex[x] - baseTokens*liquidityIndex[tradeDate]*(1 + fixedAPY*timeInYearsBetween[tradeDate, x])`
+    /// And now if we define:
+    ///   `fixedTokens:= -baseTokens*liquidityIndex[tradeDate]*(1 + fixedAPY*timeInYearsBetween[tradeDate, maturityTimestamp])
+    /// Then we will have simply:
+    ///   (4) `cashflow[maturity] = baseTokens*liquidityIndex[maturity] + fixedTokens`
+    /// 
+    /// In Voltz, `baseTokens` is calculated off-chain based on the desired notional, and is one of the inputs that the smart contracts see when a trade is made.
+    ///
+    /// The following function helps with the calculation of `fixedTokens`.
+    ///
+    /// Pluggin in a fixed Rate or 0 and we see that
+    ///   `cashflow[x] = baseTokens*liquidityIndex[x] - baseTokens*liquidityIndex[tradeDate]*(1 + fixedAPY*timeInYearsBetween[tradeDate, x])`
+    /// now simplifies to:
+    ///   `cashflow[x] = baseTokens*liquidityIndex[x] - baseTokens*liquidityIndex[tradeDate]`
+    /// which is what we want.
     function _trackFixedTokens(
       Data storage self,
       int256 baseAmount,
@@ -493,18 +513,6 @@ library DatedIrsVamm {
             int256 trackedValue
         )
     {
-        // Settlement = base * liq index(settlement) + quote
-        // cashflow = notional * (variableAPY - fixedRate) * timeFactor
-        // cashflow = notional * ((variableAPY * timeFactor) - (fixedRate * timeFactor))
-        // variableAPY * timeFactor = (index(settlment) / index(now)) - 1
-        // cashflow = notional * (index(settlment) / index(now) - 1 - fixedRate*timeFactor)
-        // base = notional / index(now)
-        // cashflow = notional * (index(settlment) / index(now)) - notional(1 + fixedRate*timeFactor)
-        // cashflow = base*index(settlment) - (base*index(now))(1 + fixedRate*timeFactor)
-        // These terms are tracked:
-        // - base token balance = base
-        // - fixed token balance = - (base*index[now])(1 + fixedRate*timeFactor) // TODO: intuitively, why is fixed token balance of a trade not zero if the fixedRate is zero? Why does changing the fixed rate from 1 to two not fouble the fixed tokens? Am I hung up on thinking of these tokens as having value when basically they do not?
-
         // TODO: cache time factor and rateNow outside this function and pass as param to avoid recalculations
         UD60x18 averagePrice = VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper);
         UD60x18 timeDeltaUntilMaturity = FixedAndVariableMath.accrualFact(termEndTimestamp - block.timestamp); 
@@ -689,7 +697,7 @@ library DatedIrsVamm {
                 (
                     state.tracker1GrowthGlobalX128,
                     state.tracker0GrowthGlobalX128,
-                    step.tracker0Delta // for LP
+                    step.tracker0Delta // fixedTokens
                 ) = calculateUpdatedGlobalTrackerValues( 
                     self,
                     state,
@@ -697,7 +705,7 @@ library DatedIrsVamm {
                     self.termEndTimestamp
                 );
 
-                state.tracker0DeltaCumulative -= step.tracker0Delta; // opposite sign from that of the LP's
+                state.tracker0DeltaCumulative -= step.tracker0Delta; // fixedTokens; opposite sign from that of the LP's
                 state.tracker1DeltaCumulative -= step.tracker1Delta; // opposite sign from that of the LP's
             }
 
@@ -788,6 +796,9 @@ library DatedIrsVamm {
             int256 tracker0Delta// for LP
         )
     {
+        // Get the numder of fixed tokens for the current section of our swap's tick range
+        // This calculation assumes that the trade is uniformly distributed within the given tick range, which is only
+        // true because there are no changes in liquidity between `state.tick` and `step.tickNext`.
         tracker0Delta = _trackFixedTokens(
             self,
             step.baseInStep,
@@ -798,7 +809,6 @@ library DatedIrsVamm {
 
         // update global trackers
         stateVariableTokenGrowthGlobalX128 = state.tracker1GrowthGlobalX128 + FullMath.mulDivSigned(step.tracker1Delta, FixedPoint128.Q128, state.accumulator);
-
         stateFixedTokenGrowthGlobalX128 = state.tracker0GrowthGlobalX128 + FullMath.mulDivSigned(tracker0Delta, FixedPoint128.Q128, state.accumulator);
     }
 
