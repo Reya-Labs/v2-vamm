@@ -11,7 +11,7 @@ interface IVAMMBase is IVAMM {
 
     /// @dev Internal, frequently-updated state of the VAMM, which is comp[ressed into one storage slot.
     struct VAMMVars {
-        /// @dev The current price of the pool as a sqrt(tracker1/tracker0) Q64.96 value
+        /// @dev The current price of the pool as a sqrt(trackerBaseToken/trackerVariableToken) Q64.96 value
         uint160 sqrtPriceX96;
         /// @dev The current tick of the vamm, i.e. according to the last tick transition that was run.
         int24 tick;
@@ -67,11 +67,11 @@ interface IVAMMBase is IVAMM {
 
     /// @notice The fixed token growth accumulated per unit of liquidity for the entire life of the vamm
     /// @dev This value can overflow the uint256
-    function tracker0GrowthGlobalX128() external view returns (int256);
+    function trackerFixedTokenGrowthGlobalX128() external view returns (int256);
 
     /// @notice The variable token growth accumulated per unit of liquidity for the entire life of the vamm
     /// @dev This value can overflow the uint256
-    function tracker1GrowthGlobalX128() external view returns (int256);
+    function trackerBaseTokenGrowthGlobalX128() external view returns (int256);
 
     /// @notice The currently in range liquidity available to the vamm
     function accumulator() external view returns (uint128);
@@ -95,14 +95,14 @@ interface IVAMMBase is IVAMM {
 
     /// @notice Initiate an Interest Rate Swap
     /// @param params SwapParams necessary to initiate an Interest Rate Swap
-    /// @return tracker0Delta Fixed Token Delta
-    /// @return tracker1Delta Variable Token Delta
+    /// @return trackerFixedTokenDelta Fixed Token Delta
+    /// @return trackerBaseTokenDelta Variable Token Delta
     /// @return cumulativeFeeIncurred Cumulative Fee Incurred
     function swap(SwapParams memory params)
         external
         returns (
-            int256 tracker0Delta,
-            int256 tracker1Delta,
+            int256 trackerFixedTokenDelta,
+            int256 trackerBaseTokenDelta,
             uint256 cumulativeFeeIncurred
         );
 
@@ -119,13 +119,13 @@ interface IVAMMBase is IVAMM {
     /// @notice Computes the current fixed and variable token growth inside a given tick range given the current tick in the vamm
     /// @param tickLower The lower tick of the position
     /// @param tickUpper The upper tick of the position
-    /// @return tracker0GrowthInsideX128 Fixed Token Growth inside the given tick range
-    /// @return tracker1GrowthInsideX128 Variable Token Growth inside the given tick rangee
+    /// @return trackerVariableTokenGrowthInsideX128 Fixed Token Growth inside the given tick range
+    /// @return trackerBaseTokenGrowthInsideX128 Variable Token Growth inside the given tick rangee
     function computeGrowthInside(int24 tickLower, int24 tickUpper)
         external
         view
         returns (
-            int256 tracker0GrowthInsideX128,
-            int256 tracker1GrowthInsideX128
+            int256 trackerVariableTokenGrowthInsideX128,
+            int256 trackerBaseTokenGrowthInsideX128
         );
 }
