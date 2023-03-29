@@ -381,6 +381,12 @@ contract VammTest is VoltzAssertions {
       assertAlmostExactlyEqual(convert(trackedValue), convert(-baseAmount * int256(mockLiquidityIndex)).mul(VAMMBase.sd59x18(timeInYearsTillMaturity.add(ONE))));
     }
 
+    // TODO: test that the weighted average of two average prices, using intervals (a,b) and (b,c) is the same as that of interval (a,c)
+    // This assumption may be implicit in the behaviour of `_trackValuesBetweenTicks()`, so we should check it.
+
+    // TODO: `_trackFixedTokens()` will return a different value when the underlying liquidity index changes. This makes sense when deciding fixed tokens for a new position.
+    // Does this time sensitivity cause problems in any of the other contexts that `_trackFixedTokens()` is (inderectly) used?
+
     function test_NewPositionTracking() public {
         uint128 accountId = 1;
         int24 tickLower = 2;
