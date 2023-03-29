@@ -372,8 +372,8 @@ library DatedIrsVamm {
         internal
         returns (int256 executedBaseAmount){
         
-        int24 tickLower = TickMath.getTickAtSqrtRatio(fixedRateUpper);
-        int24 tickUpper = TickMath.getTickAtSqrtRatio(fixedRateLower);
+        int24 tickLower = TickMath.getTickAtSqrtRatio(fixedRateLower);
+        int24 tickUpper = TickMath.getTickAtSqrtRatio(fixedRateUpper);
 
         uint256 positionId = _ensurePositionOpened(self, accountId, tickLower, tickUpper);
 
