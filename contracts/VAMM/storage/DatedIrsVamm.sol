@@ -219,6 +219,21 @@ library DatedIrsVamm {
         configure(self, _config);
     }
 
+    /// @dev Mutually exclusive reentrancy protection into the pool to/from a method. This method also prevents entrance
+    /// to a function before the pool is initialized. The reentrancy guard is required throughout the contract because
+    /// we use balance checks to determine the payment status of interactions such as mint, swap and flash.
+    modifier lock(Data storage self) {
+        if (!self._vammVars.unlocked) {
+            revert CustomErrors.CanOnlyTradeIfUnlocked();
+        }
+        self._vammVars.unlocked = false;
+        _;
+        if (self._vammVars.unlocked) {
+            revert CustomErrors.CanOnlyUnlockIfLocked();
+        }
+        self._vammVars.unlocked = true;
+    }
+
     /// @notice Calculates time-weighted geometric mean price based on the past `secondsAgo` seconds
     /// @param secondsAgo Number of seconds in the past from which to calculate the time-weighted means
     /// @param orderSize The order size to use when adjusting the price for price impact or spread. Must not be zero if either of the boolean params is true because it used to indicate the direction of the trade and therefore the direction of the adjustment. Function will revert if `abs(orderSize)` overflows when cast to a `U60x18`
@@ -325,8 +340,8 @@ library DatedIrsVamm {
     /// @param observationCardinalityNext The desired minimum number of observations for the pool to store
     function increaseObservationCardinalityNext(Data storage self, uint16 observationCardinalityNext)
         internal
+        lock(self)
     {
-        self._vammVars.unlocked.lock();
         uint16 observationCardinalityNextOld =  self._vammVars.observationCardinalityNext; // for the event
         uint16 observationCardinalityNextNew =  self.observations.grow(
             observationCardinalityNextOld,
@@ -335,8 +350,6 @@ library DatedIrsVamm {
          self._vammVars.observationCardinalityNext = observationCardinalityNextNew;
         if (observationCardinalityNextOld != observationCardinalityNextNew)
             emit IncreaseObservationCardinalityNext(observationCardinalityNextOld, observationCardinalityNextNew);
-                self._vammVars.unlocked.unlock();
-
     }
 
     /**
@@ -533,9 +546,10 @@ library DatedIrsVamm {
         int24 tickLower,
         int24 tickUpper,
         int128 baseAmount
-    ) internal {
+    ) internal
+      lock(self)
+    {
         VAMMBase.checkCurrentTimestampTermEndTimestampDelta(self.termEndTimestamp);
-        self._vammVars.unlocked.lock();
 
         console2.log("_vammMint: ticks = (%s, %s)", uint256(int256(tickLower)), uint256(int256(tickUpper)));
         Tick.checkTicks(tickLower, tickUpper);
@@ -590,8 +604,6 @@ library DatedIrsVamm {
             }
         }
 
-        self._vammVars.unlocked.unlock();
-
         emit VAMMBase.Mint(msg.sender, accountId, tickLower, tickUpper, baseAmount);
     }
 
@@ -600,6 +612,7 @@ library DatedIrsVamm {
         IVAMMBase.SwapParams memory params
     )
         internal
+        lock(self)
         returns (int256 trackerFixedTokenDelta, int256 trackerBaseTokenDelta)
     {
         VAMMBase.checkCurrentTimestampTermEndTimestampDelta(self.termEndTimestamp);
@@ -610,9 +623,6 @@ library DatedIrsVamm {
         IVAMMBase.VAMMVars memory vammVarsStart = self._vammVars;
 
         VAMMBase.checksBeforeSwap(params, vammVarsStart, params.baseAmountSpecified > 0);
-
-        /// @dev lock the vamm while the swap is taking place
-        self._vammVars.unlocked.lock();
 
         uint128 accumulatorStart = self._accumulator;
 
@@ -782,8 +792,6 @@ library DatedIrsVamm {
             trackerFixedTokenDelta,
             trackerBaseTokenDelta
         );
-
-        self._vammVars.unlocked.unlock();
     }
 
 
