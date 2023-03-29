@@ -822,36 +822,15 @@ library DatedIrsVamm {
         int24 tickLower,
         int24 tickUpper
     ) internal view returns(
-        int256 trackerVariableTokenGrowthOutside,
+        int256 trackerFixedTokenGrowthOutside,
         int256 trackerBaseTokenGrowthOutside
     ) {
         if (tickLower == tickUpper) {
             return (0, 0);
         }
 
-        // Example
-        // User 1 mints 1,000 notional between 2-4%
-        // Assume 1% - 1 tick for simplicity
-        // averageBase[user_1] = 500
-        // averageBasePerTick[2%] += 500
-        // averageBasePerTick[4%] -= 500
-        // User 2
-        // mints 1,000 notional between 2-6%
-        // averageBase[user_2] = 250
-        // averageBasePerTick[2%] += 250
-        // averageBasePerTick[6%] -= 250
-        // averageBase @ 3% = 750
-        // averageBase @ 5% = 250
-
-        // current tick = 3%
-        // at 1%, outside values = (-infinity, 1%)
-        // at 5%, outside values = (5%, infinity)
-        // outside values for tick x don't need to change until current price passes x
-        // when current prices passes x, outside value "flips" to aggregateGlobalValue - outside value
-
         int256 base = VAMMBase.baseBetweenTicks(tickLower, tickUpper, basePerTick);
-
-        trackerVariableTokenGrowthOutside = _trackFixedTokens(self, base, tickLower, tickUpper, self.termEndTimestamp);
+        trackerFixedTokenGrowthOutside = _trackFixedTokens(self, base, tickLower, tickUpper, self.termEndTimestamp);
         trackerBaseTokenGrowthOutside = base;
     }
 
@@ -868,10 +847,8 @@ library DatedIrsVamm {
             for (uint256 i = 0; i < numPositions; i++) {
                 LPPosition memory position = getRawPosition(self, self.positionsInAccount[accountId][i]);
 
-                // Get how liquidity is currently arranged
-                // LP has 1000 base liquidity between 2% and 4% (500 per tick)
-                // Qn: how much of that liquidity is avail to traders in each direction
-                (int256 unfilledLongBase,, int256 unfilledShortBase,) = trackValuesBetweenTicks(
+                // Get how liquidity is currently arranged. In particular, how much of the liquidity is avail to traders in each direction?
+                (int256 unfilledLongBase,, int256 unfilledShortBase,) = trackValuesBetweenTicks( // TODO: this is actually getting fixed tokens!?
                     self,
                     position.tickLower,
                     position.tickUpper,
@@ -912,17 +889,17 @@ library DatedIrsVamm {
     /// @dev Private but labelled internal for testability.
     ///
     /// Gets the number of "unfilled" (still available as liquidity) base tokens and fixed tokens between the specified tick range,
-    /// looking both left of the current tick ()
+    /// looking both left of the current tick.
     function trackValuesBetweenTicks(
         Data storage self,
         int24 tickLower,
         int24 tickUpper,
         int128 baseAmount
     ) internal view returns(
-        int256 trackerVariableTokenGrowthOutsideLeft,
-        int256 trackerBaseTokenGrowthOutsideLeft,
-        int256 trackerVariableTokenGrowthOutsideRight,
-        int256 trackerBaseTokenGrowthOutsideRight
+        int256 unfilledFixedTokensLeft,
+        int256 unfilledBaseTokensLeft,
+        int256 unfilledFixedTokensRight,
+        int256 unfilledBaseTokensRight
     ) {
         if (tickLower == tickUpper) {
             return (0, 0, 0, 0);
@@ -931,17 +908,17 @@ library DatedIrsVamm {
         int128 averageBase = VAMMBase.basePerTick(tickLower, tickUpper, baseAmount);
 
         // Compute unfilled tokens in our range and to the left of the current tick
-        (int256 trackerVariableTokenGrowthOutsideLeft_, int256 trackerBaseTokenGrowthOutsideLeft_) = _trackValuesBetweenTicksOutside(
+        (int256 unfilledFixedTokensLeft_, int256 unfilledBaseTokensLeft_) = _trackValuesBetweenTicksOutside(
             self,
             averageBase,
             tickLower < self._vammVars.tick ? tickLower : self._vammVars.tick, // min(tickLower, currentTick)
             tickUpper < self._vammVars.tick ? tickUpper : self._vammVars.tick  // min(tickUpper, currentTick)
         );
-        trackerVariableTokenGrowthOutsideLeft = -trackerVariableTokenGrowthOutsideLeft_;
-        trackerBaseTokenGrowthOutsideLeft = -trackerBaseTokenGrowthOutsideLeft_;
+        unfilledFixedTokensLeft = -unfilledFixedTokensLeft_;
+        unfilledBaseTokensLeft = -unfilledBaseTokensLeft_;
 
         // Compute unfilled tokens in our range and to the right of the current tick
-        (trackerVariableTokenGrowthOutsideRight, trackerBaseTokenGrowthOutsideRight) = _trackValuesBetweenTicksOutside(
+        (unfilledFixedTokensRight, unfilledBaseTokensRight) = _trackValuesBetweenTicksOutside(
             self,
             averageBase,
             tickLower > self._vammVars.tick ? tickLower : self._vammVars.tick, // max(tickLower, currentTick)
