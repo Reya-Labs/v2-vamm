@@ -370,7 +370,7 @@ library DatedIrsVamm {
         int128 requestedBaseAmount
     )
         internal
-        returns (int256 executedBaseAmount){
+        returns (int256 executedBaseAmount){ // TODO: always returns full amount but I'm not sure that's right? E.g. if per-tick amount is rounded down is the executed amount actually equal to the sum of all tick amounts? There may be other reasons why input and output can differ?
         
         int24 tickLower = TickMath.getTickAtSqrtRatio(fixedRateLower);
         int24 tickUpper = TickMath.getTickAtSqrtRatio(fixedRateUpper);
@@ -859,6 +859,7 @@ library DatedIrsVamm {
                 console2.log("getAccountUnfilledBases: position ID %s", uint256(self.positionsInAccount[accountId][i]));
                 LPPosition memory position = getRawPosition(self, self.positionsInAccount[accountId][i]);
                 console2.log("getAccountUnfilledBases: ticks = (%s, %s)", uint256(int256(position.tickLower)), uint256(int256(position.tickUpper)));
+                console2.log("getAccountUnfilledBases: baseAmount = %s", uint256(int256(position.baseAmount)));
 
                 // Get how liquidity is currently arranged. In particular, how much of the liquidity is avail to traders in each direction?
                 (,int256 unfilledLongBase,, int256 unfilledShortBase) = _trackValuesBetweenTicks(
@@ -914,7 +915,7 @@ library DatedIrsVamm {
         }
 
         int128 averageBase = VAMMBase.basePerTick(tickLower, tickUpper, baseAmount);
-
+        console2.log("_trackValuesBetweenTicks: averageBase = %s", uint256(int256(averageBase))); // TODO: how does rounding work here? If we round down to zero has all liquidity vanished? What checks should be in place?
         // Compute unfilled tokens in our range and to the left of the current tick
         (int256 unfilledFixedTokensLeft_, int256 unfilledBaseTokensLeft_) = _trackValuesBetweenTicksOutside(
             self,
@@ -925,6 +926,9 @@ library DatedIrsVamm {
         unfilledFixedTokensLeft = -unfilledFixedTokensLeft_;
         unfilledBaseTokensLeft = -unfilledBaseTokensLeft_;
 
+        console2.log("unfilledTokensLeft: (%s, %s)", uint256(unfilledFixedTokensLeft), uint256(unfilledBaseTokensLeft));
+
+
         // Compute unfilled tokens in our range and to the right of the current tick
         (unfilledFixedTokensRight, unfilledBaseTokensRight) = _trackValuesBetweenTicksOutside(
             self,
@@ -932,6 +936,7 @@ library DatedIrsVamm {
             tickLower > self._vammVars.tick ? tickLower : self._vammVars.tick, // max(tickLower, currentTick)
             tickUpper > self._vammVars.tick ? tickUpper : self._vammVars.tick  // max(tickUpper, currentTick)
         );
+        console2.log("unfilledTokensRight: (%s, %s)", uint256(unfilledFixedTokensRight), uint256(unfilledBaseTokensRight));
     }
 
     function growthBetweenTicks(

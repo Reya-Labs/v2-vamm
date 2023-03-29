@@ -106,7 +106,7 @@ contract VammTest is VoltzAssertions {
     // Initial VAMM state
     uint160 initSqrtPriceX96 = uint160(2 * FixedPoint96.Q96 / 10); // 0.2 => price ~= 0.04 = 4%
     uint128 initMarketId = 1;
-    int24 initTickSpacing = 1000;
+    int24 initTickSpacing = 1; // TODO: test with different tick spacing; need to adapt boundTicks()
     DatedIrsVamm.Config internal config = DatedIrsVamm.Config({
         priceImpactPhi: ud60x18(1e17), // 0.1
         priceImpactBeta: ud60x18(125e15), // 0.125
@@ -295,11 +295,11 @@ contract VammTest is VoltzAssertions {
     internal
     returns (uint256 positionId, DatedIrsVamm.LPPosition memory position)
     {
-        positionId = vamm.openPosition(accountId,tickLower,tickUpper);
+        positionId = vamm._ensurePositionOpened(accountId,tickLower,tickUpper);
         position = vamm.positions[positionId];
     }
 
-    function testFuzz_OpenPosition(uint128 accountId, int24 tickLower, int24 tickUpper) public {
+    function testFuzz_EnsurePositionOpened(uint128 accountId, int24 tickLower, int24 tickUpper) public {
         vm.assume(accountId != 0);
         (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
 
@@ -404,20 +404,42 @@ contract VammTest is VoltzAssertions {
         (int256 unfilledBaseLong, int256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
         assertEq(unfilledBaseLong, 0);
         assertEq(unfilledBaseShort, 0);
+
+
     }
 
-    // function test_Mint() public {
-    //     uint128 accountId = 1;
-    //     int24 tickLower = 2;
-    //     int24 tickUpper = 3;
-    //     int128 baseAmount = 100;
-    //     (uint256 positionId, DatedIrsVamm.LPPosition memory p) = openPosition(accountId,tickLower,tickUpper);
+    // function testFuzz_GetAccountUnfilledBases(uint128 accountId, int24 tickLower, int24 tickUpper) public { // TODO: fuzz all inputs once passing
+    function test_GetAccountUnfilledBases() public {
 
-    //     // Pre-mint checks
+        // vm.assume(accountId != 0);
+        uint128 accountId = 1;
+        // (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
+        uint160 sqrtLowerPriceX96 = uint160(1 * FixedPoint96.Q96 / 10); // 0.1 => price ~= 0.01 = 1%
+        uint160 sqrtUpperPriceX96 = uint160(22 * FixedPoint96.Q96 / 100); // 0.22 => price ~= 0.0484 = ~5%
+        // uint160 sqrtLowerPriceX96 = TickMath.getSqrtRatioAtTick(tickLower); // TODO: use fuzz input
+        // uint160 sqrtUpperPriceX96 = TickMath.getSqrtRatioAtTick(tickUpper);
+        uint256 _mockLiquidityIndex = 2;
+        UD60x18 mockLiquidityIndex = convert(_mockLiquidityIndex);
+        int128 requestedBaseAmount = 50000000000;
 
-    //     // Mint
-    //     vamm.vammMint(accountId, tickLower, tickUpper, baseAmount);
+        int256 executedBaseAmount = vamm.executeDatedMakerOrder(accountId,sqrtLowerPriceX96,sqrtUpperPriceX96, requestedBaseAmount);
+        console2.log("executedBaseAmount = %s", executedBaseAmount);
+        assertEq(executedBaseAmount, requestedBaseAmount);
+
+        // Position just opened so no filled balances
+        (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(accountId);
+        assertEq(baseBalancePool, 0);
+        assertEq(quoteBalancePool, 0);
     
-    //     // Post-mint checks
-    // }
+        // TODO: liquidity index only required for fixed tokens; mocking should not be required if we only want base token values
+        vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
+
+        // We expect the full base amount is unfilled cos there have been no trades
+        (int256 unfilledBaseLong, int256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
+        console2.log("unfilledBaseLong", unfilledBaseLong);
+        console2.log("unfilledBaseShort", unfilledBaseShort);
+        assertAlmostEqual(unfilledBaseShort - unfilledBaseLong, requestedBaseAmount);
+
+        // TODO: expect short > long or vice versa depending on chosen tick range and current tick. (Need to count in ticks not price)
+    }
 }
