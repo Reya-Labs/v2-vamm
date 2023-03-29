@@ -501,7 +501,7 @@ library DatedIrsVamm {
     /// now simplifies to:
     ///   `cashflow[x] = baseTokens*liquidityIndex[x] - baseTokens*liquidityIndex[tradeDate]`
     /// which is what we want.
-    function _trackFixedTokens(
+    function _trackFixedTokens( // TODO: rename fixedTokensInHomogeneousTickWindow or similar? 
       Data storage self,
       int256 baseAmount,
       int24 tickLower,
@@ -818,9 +818,9 @@ library DatedIrsVamm {
     /// @dev Private but labelled internal for testability.
     ///
     /// Gets the number of base tokens and fixed tokens between the specified ticks, assuming `basePerTick` base tokens per tick.
-    function _trackValuesBetweenTicksOutside(
+    function _trackValuesBetweenTicksOutside( // TODO: rename _tokenValuesBetweenTicks
         Data storage self,
-        int128 basePerTick, // base per tick (after spreading notional across all ticks)
+        int128 basePerTick,
         int24 tickLower,
         int24 tickUpper
     ) internal view returns(
@@ -886,7 +886,8 @@ library DatedIrsVamm {
     ///
     /// Gets the number of "unfilled" (still available as liquidity) base tokens and fixed tokens between the specified tick range,
     /// looking both left of the current tick.
-    function _trackValuesBetweenTicks(
+    function _trackValuesBetweenTicks( // TODO: rename as getUnfilledTokenValues?
+    // TODO: remove calculations of fixed token values (from here and from _trackValuesBetweenTicksOutside) if these remain unused by any consumer of this function.
         Data storage self,
         int24 tickLower,
         int24 tickUpper,
