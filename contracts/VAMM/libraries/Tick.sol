@@ -4,6 +4,7 @@ pragma solidity >=0.8.13;
 import "./LiquidityMath.sol";
 import "../../utils/TickMath.sol";
 import "../../utils/SafeCastUni.sol";
+import "forge-std/console2.sol"; // TODO: remove
 
 /// @title Tick
 /// @notice Contains functions for managing tick processes and relevant calculations
@@ -45,7 +46,9 @@ library Tick {
     }
 
     /// @dev Common checks for valid tick inputs.
-    function checkTicks(int24 tickLower, int24 tickUpper) internal pure {
+    //function checkTicks(int24 tickLower, int24 tickUpper) internal pure { // TODO: restore pure
+    function checkTicks(int24 tickLower, int24 tickUpper) internal view {
+        console2.log("checkTicks: ticks = (%s, %s)", uint256(int256(tickLower)), uint256(int256(tickUpper)));
         require(tickLower < tickUpper, "TLU");
         require(tickLower >= TickMath.MIN_TICK, "TLM");
         require(tickUpper <= TickMath.MAX_TICK, "TUM");

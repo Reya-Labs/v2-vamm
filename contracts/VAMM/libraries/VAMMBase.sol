@@ -16,6 +16,8 @@ import { SD59x18, convert as convert_sd } from "@prb/math/src/SD59x18.sol";
 import "../libraries/FixedAndVariableMath.sol";
 import "../../utils/FixedPoint128.sol";
 import "../interfaces/IVAMMBase.sol";
+import "forge-std/console2.sol"; // TODO: remove
+
 
 /// @title Tick
 /// @notice Contains functions for managing tick processes and relevant calculations
@@ -179,6 +181,7 @@ library VAMMBase {
             bool flippedUpper
         )
     {
+        console2.log("flipTicks: ticks = (%s, %s)", uint256(int256(params.tickLower)), uint256(int256(params.tickUpper)));
         Tick.checkTicks(params.tickLower, params.tickUpper);
 
         /// @dev isUpper = false

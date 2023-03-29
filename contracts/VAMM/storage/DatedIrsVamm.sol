@@ -19,7 +19,7 @@ import "../interfaces/IVAMM.sol";
 import "../../utils/CustomErrors.sol";
 import "../libraries/Oracle.sol";
 import "../../interfaces/IRateOracle.sol";
-import "forge-std/console2.sol";
+import "forge-std/console2.sol"; // TODO: remove
 
 /**
  * @title Connects external contracts that implement the `IVAMM` interface to the protocol.
@@ -422,7 +422,7 @@ library DatedIrsVamm {
         uint256 positionId
     )
         internal {
-
+        console2.log("_propagatePosition");
         LPPosition memory position = self.positions[positionId];
 
         (int256 trackerVariableTokenGlobalGrowth, int256 trackerBaseTokenGlobalGrowth) = 
@@ -537,7 +537,9 @@ library DatedIrsVamm {
         VAMMBase.checkCurrentTimestampTermEndTimestampDelta(self.termEndTimestamp);
         self._vammVars.unlocked.lock();
 
+        console2.log("_vammMint: ticks = (%s, %s)", uint256(int256(tickLower)), uint256(int256(tickUpper)));
         Tick.checkTicks(tickLower, tickUpper);
+
 
         IVAMMBase.VAMMVars memory lvammVars = self._vammVars; // SLOAD for gas optimization
 
@@ -551,7 +553,7 @@ library DatedIrsVamm {
 
             VAMMBase.FlipTicksParams memory params;
             params.tickLower = tickLower;
-            params.tickLower = tickLower;
+            params.tickUpper = tickUpper;
             params.accumulatorDelta = averageBase;
             (flippedLower, flippedUpper) = params.flipTicks(
                 self._ticks,
@@ -602,6 +604,7 @@ library DatedIrsVamm {
     {
         VAMMBase.checkCurrentTimestampTermEndTimestampDelta(self.termEndTimestamp);
 
+        console2.log("Checking ticks in vammSwap");
         Tick.checkTicks(params.tickLower, params.tickUpper);
 
         IVAMMBase.VAMMVars memory vammVarsStart = self._vammVars;
@@ -836,7 +839,7 @@ library DatedIrsVamm {
         trackerBaseTokenGrowthOutside = base;
     }
 
-    // @dev For a given LP posiiton, how much of it is available to trade imn each direction?
+    // @dev For a given LP posiiton, how much of it is available to trade in each direction?
     function getAccountUnfilledBases(
         Data storage self,
         uint128 accountId
@@ -847,10 +850,12 @@ library DatedIrsVamm {
         uint256 numPositions = self.positionsInAccount[accountId].length;
         if (numPositions != 0) {
             for (uint256 i = 0; i < numPositions; i++) {
+                console2.log("getAccountUnfilledBases: position ID %s", uint256(self.positionsInAccount[accountId][i]));
                 LPPosition memory position = getRawPosition(self, self.positionsInAccount[accountId][i]);
+                console2.log("getAccountUnfilledBases: ticks = (%s, %s)", uint256(int256(position.tickLower)), uint256(int256(position.tickUpper)));
 
                 // Get how liquidity is currently arranged. In particular, how much of the liquidity is avail to traders in each direction?
-                (int256 unfilledLongBase,, int256 unfilledShortBase,) = _trackValuesBetweenTicks( // TODO: this is actually getting fixed tokens!?
+                (,int256 unfilledLongBase,, int256 unfilledShortBase) = _trackValuesBetweenTicks(
                     self,
                     position.tickLower,
                     position.tickUpper,
@@ -932,6 +937,7 @@ library DatedIrsVamm {
         int256 trackerBaseTokenGrowthBetween
     )
     {
+        console2.log("Checking ticks in growthBetweenTicks");
         Tick.checkTicks(tickLower, tickUpper);
 
         int256 trackerVariableTokenBelowLowerTick;
