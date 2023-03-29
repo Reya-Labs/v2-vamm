@@ -508,6 +508,7 @@ library DatedIrsVamm {
       int24 tickUpper,
       uint256 termEndTimestamp
     )
+
         internal
         view
         returns (
@@ -698,8 +699,8 @@ library DatedIrsVamm {
                 (
                     state.trackerBaseTokenGrowthGlobalX128,
                     state.trackerFixedTokenGrowthGlobalX128,
-                    step.trackerFixedTokenDelta // fixedTokens
-                ) = calculateUpdatedGlobalTrackerValues( 
+                    step.trackerFixedTokenDelta
+                ) = _calculateUpdatedGlobalTrackerValues( 
                     self,
                     state,
                     step,
@@ -783,7 +784,8 @@ library DatedIrsVamm {
     }
 
 
-    function calculateUpdatedGlobalTrackerValues( // TODO: flag really-internal somehow, e.g. prefix with underscore
+    /// @dev Private but labelled internal for testability.
+    function _calculateUpdatedGlobalTrackerValues(
         Data storage self,
         VAMMBase.SwapState memory state,
         VAMMBase.StepComputations memory step,
@@ -860,12 +862,6 @@ library DatedIrsVamm {
             }
         }
     }
-
-    // getAccountUnfilledBases
-    // -> trackValuesBetweenTicks
-    //    -> trackValuesBetweenTicksOutside
-    //       -> trackFixedTokens 
-    //       -> VAMMBase.baseBetweenTicks 
 
     // @dev For a given LP posiiton, how much of it is already traded and what are base and quote tokens representing those exiting trades?
     function getAccountFilledBalances(
