@@ -848,7 +848,7 @@ library DatedIrsVamm {
                 LPPosition memory position = getRawPosition(self, self.positionsInAccount[accountId][i]);
 
                 // Get how liquidity is currently arranged. In particular, how much of the liquidity is avail to traders in each direction?
-                (int256 unfilledLongBase,, int256 unfilledShortBase,) = trackValuesBetweenTicks( // TODO: this is actually getting fixed tokens!?
+                (int256 unfilledLongBase,, int256 unfilledShortBase,) = _trackValuesBetweenTicks( // TODO: this is actually getting fixed tokens!?
                     self,
                     position.tickLower,
                     position.tickUpper,
@@ -890,7 +890,7 @@ library DatedIrsVamm {
     ///
     /// Gets the number of "unfilled" (still available as liquidity) base tokens and fixed tokens between the specified tick range,
     /// looking both left of the current tick.
-    function trackValuesBetweenTicks(
+    function _trackValuesBetweenTicks(
         Data storage self,
         int24 tickLower,
         int24 tickUpper,
