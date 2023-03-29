@@ -412,11 +412,12 @@ library DatedIrsVamm {
         // Account zero is not a valid account. (See `Account.create()`)
         require(self.positions[positionId].accountId != 0, "Missing position"); // TODO: custom error
         
-        propagatePosition(self, positionId);
+        _propagatePosition(self, positionId);
         return self.positions[positionId];
     }
 
-    function propagatePosition(
+    /// @dev Private but labelled internal for testability.
+    function _propagatePosition(
         Data storage self,
         uint256 positionId
     )
@@ -812,8 +813,10 @@ library DatedIrsVamm {
         stateFixedTokenGrowthGlobalX128 = state.trackerFixedTokenGrowthGlobalX128 + FullMath.mulDivSigned(fixedTokenDelta, FixedPoint128.Q128, state.accumulator);
     }
 
-    /// @dev 
-    function trackValuesBetweenTicksOutside(
+    /// @dev Private but labelled internal for testability.
+    ///
+    /// Gets the number of base tokens and fixed tokens between the specified ticks, assuming `basePerTick` base tokens per tick.
+    function _trackValuesBetweenTicksOutside(
         Data storage self,
         int128 basePerTick, // base per tick (after spreading notional across all ticks)
         int24 tickLower,
@@ -866,7 +869,7 @@ library DatedIrsVamm {
                 LPPosition memory position = getRawPosition(self, self.positionsInAccount[accountId][i]);
 
                 // Get how liquidity is currently arranged
-                //  LP has 1000 base liquidity between 2% and 4% (500 per tick)
+                // LP has 1000 base liquidity between 2% and 4% (500 per tick)
                 // Qn: how much of that liquidity is avail to traders in each direction
                 (int256 unfilledLongBase,, int256 unfilledShortBase,) = trackValuesBetweenTicks(
                     self,
@@ -906,6 +909,10 @@ library DatedIrsVamm {
 
     }
 
+    /// @dev Private but labelled internal for testability.
+    ///
+    /// Gets the number of "unfilled" (still available as liquidity) base tokens and fixed tokens between the specified tick range,
+    /// looking both left of the current tick ()
     function trackValuesBetweenTicks(
         Data storage self,
         int24 tickLower,
@@ -923,8 +930,8 @@ library DatedIrsVamm {
 
         int128 averageBase = VAMMBase.basePerTick(tickLower, tickUpper, baseAmount);
 
-        // Compute unfilled tokens to the left
-        (int256 trackerVariableTokenGrowthOutsideLeft_, int256 trackerBaseTokenGrowthOutsideLeft_) = trackValuesBetweenTicksOutside(
+        // Compute unfilled tokens in our range and to the left of the current tick
+        (int256 trackerVariableTokenGrowthOutsideLeft_, int256 trackerBaseTokenGrowthOutsideLeft_) = _trackValuesBetweenTicksOutside(
             self,
             averageBase,
             tickLower < self._vammVars.tick ? tickLower : self._vammVars.tick, // min(tickLower, currentTick)
@@ -933,8 +940,8 @@ library DatedIrsVamm {
         trackerVariableTokenGrowthOutsideLeft = -trackerVariableTokenGrowthOutsideLeft_;
         trackerBaseTokenGrowthOutsideLeft = -trackerBaseTokenGrowthOutsideLeft_;
 
-        // Compute unfilled tokens to the right
-        (trackerVariableTokenGrowthOutsideRight, trackerBaseTokenGrowthOutsideRight) = trackValuesBetweenTicksOutside(
+        // Compute unfilled tokens in our range and to the right of the current tick
+        (trackerVariableTokenGrowthOutsideRight, trackerBaseTokenGrowthOutsideRight) = _trackValuesBetweenTicksOutside(
             self,
             averageBase,
             tickLower > self._vammVars.tick ? tickLower : self._vammVars.tick, // max(tickLower, currentTick)
