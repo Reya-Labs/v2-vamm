@@ -375,7 +375,7 @@ library DatedIrsVamm {
         int24 tickLower = TickMath.getTickAtSqrtRatio(fixedRateUpper);
         int24 tickUpper = TickMath.getTickAtSqrtRatio(fixedRateLower);
 
-        uint256 positionId = openPosition(self, accountId, tickLower, tickUpper);
+        uint256 positionId = _ensurePositionOpened(self, accountId, tickLower, tickUpper);
 
         LPPosition memory position = getRawPosition(self, positionId);
 
@@ -388,10 +388,8 @@ library DatedIrsVamm {
         return requestedBaseAmount;
     }
 
-    /**
-     * @notice It opens a position and returns positionId
-     */
-    function openPosition(
+    /// @dev Private but labelled internal for testability.
+    function _ensurePositionOpened(
         Data storage self,
         uint128 accountId,
         int24 tickLower,
