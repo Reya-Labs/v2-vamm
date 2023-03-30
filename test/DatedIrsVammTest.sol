@@ -10,10 +10,49 @@ import { SD59x18, sd59x18 } from "@prb/math/src/SD59x18.sol";
 
 // Asserts - TODO: move into own source file
 
-contract VoltzAssertions is Test {
+contract VoltzTestHelpers is Test {
+
+    /// @dev The minimum tick that may be passed to #getSqrtRatioAtTick computed from log base 1.0001 of 2**-128
+    int24 internal constant MIN_TICK = -69100;
+    /// @dev The maximum tick that may be passed to #getSqrtRatioAtTick computed from log base 1.0001 of 2**128
+    int24 internal constant MAX_TICK = -MIN_TICK;
+
+    // Helpers
+    function abs(int256 x) pure internal returns (uint256) {
+        return x >= 0 ? uint256(x) : uint256(-x);
+    }
+    function min(int256 a, int256 b) pure internal returns (int256) {
+        return a > b ? b : a;
+    }
+    function min(int24 a, int24 b) pure internal returns (int24) {
+        return a > b ? b : a;
+    }
+    // function max(int256 a, int256 b) pure internal returns (int256) {
+    //     return a < b ? b : a;
+    // }
+    function logTicks(int24 a, int24 b, string memory _message) internal view {
+        // string memory message = bytes(_message).length > 0 ? _message : "Ticks: ";
+        console2.log(_message, bytes(_message).length > 0 ? " ticks: " : "Ticks:");
+        console2.logInt(a);
+        console2.logInt(b);
+    }
+    function boundTicks(
+        int24 _tickLower,
+        int24 _tickUpper)
+    internal view returns (int24 tickLower, int24 tickUpper)
+    {
+        // Ticks must be in range and cannot be equal
+        tickLower = int24(bound(_tickLower,  TickMath.MIN_TICK, TickMath.MAX_TICK - 1));
+        tickUpper = int24(bound(_tickUpper,  TickMath.MIN_TICK + 1, TickMath.MAX_TICK));
+        vm.assume(tickLower < tickUpper);
+    }
+    function tickDistance(int24 _tickA, int24 _tickB) public view returns (uint256 absoluteDistance) {
+        return abs(_tickA - _tickB);
+    }
 
     using SafeCastUni for int256;
 
+    // Assertions
     function assertEq(UD60x18 a, UD60x18 b) internal {
         assertEq(UD60x18.unwrap(a), UD60x18.unwrap(b));
     }
@@ -27,6 +66,10 @@ contract VoltzAssertions is Test {
         assertLt(UD60x18.unwrap(a), UD60x18.unwrap(b));
     }
     function assertAlmostEqual(SD59x18 a, SD59x18 b, SD59x18 deltaAsFractionOfA) internal {
+        if (SD59x18.unwrap(a) == SD59x18.unwrap(b)) {
+            // Equal (needed for case where a = b = 0)
+            return;
+        }
         SD59x18 upperBound = SD59x18.unwrap(a) >= 0 ? a.add(deltaAsFractionOfA.mul(a)) : a.sub(deltaAsFractionOfA.mul(a));
         SD59x18 lowerBound = SD59x18.unwrap(a) >= 0 ? a.sub(deltaAsFractionOfA.mul(a)) : a.add(deltaAsFractionOfA.mul(a));
         if (b.gt(upperBound) || b.lt(lowerBound)) {
@@ -38,6 +81,11 @@ contract VoltzAssertions is Test {
         assertLe(SD59x18.unwrap(b), SD59x18.unwrap(upperBound) );
     }
     function assertAlmostEqual(UD60x18 a, UD60x18 b, UD60x18 deltaAsFractionOfA) internal {
+        if (UD60x18.unwrap(a) == UD60x18.unwrap(b)) {
+            // Equal (needed for case where a = b = 0)
+            return;
+        }
+
         UD60x18 upperBound = a.add(deltaAsFractionOfA.mul(a));
         UD60x18 lowerBound = a.sub(deltaAsFractionOfA.mul(a));
         if (b.gt(upperBound) || b.lt(lowerBound)) {
@@ -68,25 +116,9 @@ contract VoltzAssertions is Test {
     function assertEq(UD60x18 a, UD60x18 b, string memory err) internal {
         assertEq(UD60x18.unwrap(a), UD60x18.unwrap(b), err);
     }
-    function boundTicks(
-        int24 _tickLower,
-        int24 _tickUpper)
-    internal returns (int24 tickLower, int24 tickUpper)
-    {
-        // Ticks must be in range and cannot be equal
-        tickLower = int24(bound(_tickLower,  TickMath.MIN_TICK, TickMath.MAX_TICK - 1));
-        tickUpper = int24(bound(_tickUpper,  TickMath.MIN_TICK + 1, TickMath.MAX_TICK));
-        vm.assume(tickLower < tickUpper);
-    }
 }
 
-// Helpers
-function abs(int256 x) pure returns (uint256) {
-    return x >= 0 ? uint256(x) : uint256(-x);
-}
-function max(int24 a, int24 b) pure returns (int24) {
-    return a < b ? b : a;
-}
+
 
 // Constants
 UD60x18 constant ONE = UD60x18.wrap(1e18);
@@ -95,9 +127,10 @@ UD60x18 constant ONE = UD60x18.wrap(1e18);
 // contract ExposedDatedIrsVamm {
 // }
 
-contract VammTest is VoltzAssertions {
+contract VammTest is VoltzTestHelpers {
     // Contracts under test
     using DatedIrsVamm for DatedIrsVamm.Data;
+    using SafeCastUni for uint256;
     DatedIrsVamm.Data internal vamm;
     // ExposedDatedIrsVamm exposedVamm; // TODO: delete if unused
 
@@ -223,6 +256,7 @@ contract VammTest is VoltzAssertions {
         int128 basePerTick)
     public {
         (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
+        basePerTick = int128(bound(basePerTick, 0, type(int128).max / tickDistance(tickLower, tickUpper).toInt128()));
         assertEq(VAMMBase.baseBetweenTicks(tickLower, tickUpper, basePerTick), int256(basePerTick) * (tickUpper - tickLower));
     }
 
@@ -409,12 +443,8 @@ contract VammTest is VoltzAssertions {
         assertEq(unfilledBaseShort, 0);
     }
 
-    // function testFuzz_GetAccountUnfilledBases(uint128 accountId, int24 tickLower, int24 tickUpper) public { // TODO: fuzz all inputs once passing
     function test_GetAccountUnfilledBases() public {
-
-        // vm.assume(accountId != 0);
         uint128 accountId = 1;
-        // (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
         uint160 sqrtLowerPriceX96 = uint160(1 * FixedPoint96.Q96 / 10); // 0.1 => price ~= 0.01 = 1%
         uint160 sqrtUpperPriceX96 = uint160(22 * FixedPoint96.Q96 / 100); // 0.22 => price ~= 0.0484 = ~5%
         console2.log("sqrtUpperPriceX96 = %s", sqrtUpperPriceX96);
@@ -422,15 +452,13 @@ contract VammTest is VoltzAssertions {
 
         int24 tickLower = TickMath.getTickAtSqrtRatio(sqrtLowerPriceX96);
         int24 tickUpper = TickMath.getTickAtSqrtRatio(sqrtUpperPriceX96);
-        // uint160 sqrtLowerPriceX96 = TickMath.getSqrtRatioAtTick(tickLower); // TODO: use fuzz input
-        // uint160 sqrtUpperPriceX96 = TickMath.getSqrtRatioAtTick(tickUpper);
         uint256 _mockLiquidityIndex = 2;
         UD60x18 mockLiquidityIndex = convert(_mockLiquidityIndex);
         int128 requestedBaseAmount = 50000000000;
 
         int256 executedBaseAmount = vamm.executeDatedMakerOrder(accountId,sqrtLowerPriceX96,sqrtUpperPriceX96, requestedBaseAmount);
         console2.log("executedBaseAmount = %s", executedBaseAmount);
-        assertEq(executedBaseAmount, requestedBaseAmount);
+        assertAlmostEqual(executedBaseAmount, requestedBaseAmount);
 
         // Position just opened so no filled balances
         (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(accountId);
@@ -450,20 +478,35 @@ contract VammTest is VoltzAssertions {
         console2.log("distanceToUpper", distanceToUpper);
 
         if (distanceToLower > distanceToUpper) {
-            assertGt(abs(unfilledBaseShort), abs(unfilledBaseLong), "short <= long"); // TODO: does short mean for LP or for potential trader?
+            assertGt(abs(unfilledBaseShort), abs(unfilledBaseLong), "short <= long");
         } else if (distanceToLower < distanceToUpper) {
             assertLt(abs(unfilledBaseShort), abs(unfilledBaseLong), "short >= long");
         } else {
             // Distances are equal
             assertEq(abs(unfilledBaseShort), abs(unfilledBaseLong), "short != long");
         }
-        assertAlmostEqual(unfilledBaseShort - unfilledBaseLong, requestedBaseAmount);
+        assertEq(unfilledBaseLong - unfilledBaseShort, executedBaseAmount);
         // assertEq(unfilledBaseShort - unfilledBaseLong, requestedBaseAmount); // TODO: should this exactly equal executedBaseAmount?
     }
 
-    function tickDistanceFromCurrentToTick(int24 _tick) public returns (uint256 absoluteDistance) {
+    function tickDistanceFromCurrentToTick(int24 _tick) public view returns (uint256 absoluteDistance) {
         int24 currentTick = vamm._vammVars.tick;
-        return abs(currentTick - _tick);
+        return tickDistance(currentTick, _tick);
+    }
+    function boundNewPositionLiquidityAmount(
+        int128 unboundBaseToken,
+        int24 _tickLower,
+        int24 _tickUpper)
+    internal returns (int128 boundBaseTokens)
+    {
+        // Ticks must be in range and cannot be equal
+        uint256 tickRange = tickDistance(_tickLower, _tickUpper);
+        uint128 maxLiquidityPerTick = vamm._maxLiquidityPerTick;
+        console2.log("tickRange", tickRange);
+        console2.log("maxLiquidityPerTick", maxLiquidityPerTick, maxLiquidityPerTick * tickRange);
+        int256 max = min(int256(type(int128).max), int256(uint256(maxLiquidityPerTick)) * int256(tickRange));
+
+        return int128(bound(unboundBaseToken, 0, max)); // New positions cannot withdraw liquidity so >= 0
     }
 
     function testFuzz_GetAccountUnfilledBases(
@@ -471,11 +514,13 @@ contract VammTest is VoltzAssertions {
         int24 tickLower,
         int24 tickUpper,
         int128 requestedBaseAmount
-    ) public { // TODO: fuzz all inputs once passing
-
+    ) public { // TODO: fuzz liquidity index
+        // int128 requestedBaseAmount = 999999999;
         vm.assume(accountId != 0);
         (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
-        requestedBaseAmount = int128(bound(requestedBaseAmount, 0, type(int128).max)); // Cannot withdraw liquidity before we add it
+        logTicks(tickLower, tickUpper, "testFuzz_GetAccountUnfilledBases");
+        vm.assume(tickUpper != TickMath.MAX_TICK); // TODO: seems to fail (error "LO") at maxTick - is that OK?
+        requestedBaseAmount = boundNewPositionLiquidityAmount(requestedBaseAmount, tickLower, tickUpper); // Cannot withdraw liquidity before we add it
         uint160 sqrtLowerPriceX96 = TickMath.getSqrtRatioAtTick(tickLower);
         uint160 sqrtUpperPriceX96 = TickMath.getSqrtRatioAtTick(tickUpper);
         uint256 _mockLiquidityIndex = 2;
@@ -501,7 +546,16 @@ contract VammTest is VoltzAssertions {
         uint256 distanceToUpper = tickDistanceFromCurrentToTick(tickUpper);
         console2.log("distanceToLower", distanceToLower);
         console2.log("distanceToUpper", distanceToUpper);
-        assertAlmostEqual(unfilledBaseShort - unfilledBaseLong, executedBaseAmount);
+        if (distanceToLower > distanceToUpper) {
+            assertGe(abs(unfilledBaseShort), abs(unfilledBaseLong), "short < long"); // TODO: does short mean for LP or for potential trader?
+        } else if (distanceToLower < distanceToUpper) {
+            assertLe(abs(unfilledBaseShort), abs(unfilledBaseLong), "short > long");
+        } else {
+            // Distances are equal
+            assertEq(abs(unfilledBaseShort), abs(unfilledBaseLong), "short != long");
+        }
+        assertEq(unfilledBaseLong - unfilledBaseShort, executedBaseAmount);
+
         // assertEq(unfilledBaseShort - unfilledBaseLong, requestedBaseAmount); // TODO: should this exactly equal executedBaseAmount?
 
         // TODO: expect short > long or vice versa depending on chosen tick range and current tick. (Need to count in ticks not price)

@@ -176,6 +176,7 @@ library Tick {
             liquidityGrossBefore,
             liquidityDelta
         );
+        console2.log("update", liquidityGrossAfter, maxLiquidity);
 
         require(liquidityGrossAfter <= maxLiquidity, "LO");
 
