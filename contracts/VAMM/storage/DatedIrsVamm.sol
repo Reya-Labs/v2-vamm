@@ -381,7 +381,7 @@ library DatedIrsVamm {
 
         require(position.baseAmount + requestedBaseAmount >= 0, "Burning too much"); // TODO: CustomError
 
-        _vammMint(self, accountId, tickLower, tickUpper, requestedBaseAmount);
+        executedBaseAmount = _vammMint(self, accountId, tickLower, tickUpper, requestedBaseAmount);
 
         self.positions[positionId].baseAmount += requestedBaseAmount;
        
@@ -543,30 +543,30 @@ library DatedIrsVamm {
         uint128 accountId,
         int24 tickLower,
         int24 tickUpper,
-        int128 baseAmount
+        int128 requesetedBaseAmount
     ) internal
       lock(self)
+      returns (int128 executedBaseAmount)
     {
         VAMMBase.checkCurrentTimestampTermEndTimestampDelta(self.termEndTimestamp);
 
         console2.log("_vammMint: ticks = (%s, %s)", uint256(int256(tickLower)), uint256(int256(tickUpper)));
         Tick.checkTicks(tickLower, tickUpper);
 
-
         IVAMMBase.VAMMVars memory lvammVars = self._vammVars; // SLOAD for gas optimization
 
         bool flippedLower;
         bool flippedUpper;
 
-        int128 averageBase = VAMMBase.basePerTick(tickLower, tickUpper, baseAmount);
+        int128 basePerTick = VAMMBase.basePerTick(tickLower, tickUpper, requesetedBaseAmount);
 
         /// @dev update the ticks if necessary
-        if (averageBase != 0) {
+        if (basePerTick != 0) {
 
             VAMMBase.FlipTicksParams memory params;
             params.tickLower = tickLower;
             params.tickUpper = tickUpper;
-            params.accumulatorDelta = averageBase;
+            params.accumulatorDelta = basePerTick;
             (flippedLower, flippedUpper) = params.flipTicks(
                 self._ticks,
                 self._tickBitmap,
@@ -579,7 +579,7 @@ library DatedIrsVamm {
         }
 
         // clear any tick data that is no longer needed
-        if (averageBase < 0) {
+        if (basePerTick < 0) {
             if (flippedLower) {
                 self._ticks.clear(tickLower);
             }
@@ -588,7 +588,7 @@ library DatedIrsVamm {
             }
         }
 
-        if (averageBase != 0) {
+        if (basePerTick != 0) {
             if (
                 (lvammVars.tick >= tickLower) && (lvammVars.tick < tickUpper)
             ) {
@@ -597,12 +597,14 @@ library DatedIrsVamm {
 
                 self._accumulator = LiquidityMath.addDelta(
                     accumulatorBefore,
-                    averageBase
+                    basePerTick
                 );
             }
         }
 
-        emit VAMMBase.Mint(msg.sender, accountId, tickLower, tickUpper, baseAmount);
+        executedBaseAmount = VAMMBase.baseBetweenTicks(tickLower, tickUpper, basePerTick);
+
+        emit VAMMBase.Mint(msg.sender, accountId, tickLower, tickUpper, requesetedBaseAmount, executedBaseAmount);
     }
 
     function vammSwap(
@@ -840,7 +842,7 @@ library DatedIrsVamm {
             return (0, 0);
         }
 
-        int256 base = VAMMBase.baseBetweenTicks(tickLower, tickUpper, basePerTick);
+        int128 base = VAMMBase.baseBetweenTicks(tickLower, tickUpper, basePerTick);
         trackerFixedTokenGrowthOutside = _trackFixedTokens(self, base, tickLower, tickUpper, self.termEndTimestamp);
         trackerBaseTokenGrowthOutside = base;
     }
@@ -851,7 +853,7 @@ library DatedIrsVamm {
         uint128 accountId
     )
         internal
-        returns (int256 unfilledBaseLong, int256 unfilledBaseShort)
+        returns (int256 unfilledBaseLong, int256 unfilledBaseShort) // TODO: clarify: is long/short seems to be from pov of LP ratehr than from traders who could trade with LP; check that this is expected
     {
         uint256 numPositions = self.positionsInAccount[accountId].length;
         if (numPositions != 0) {
