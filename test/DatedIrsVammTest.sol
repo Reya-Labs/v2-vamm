@@ -8,8 +8,7 @@ import "../contracts/utils/CustomErrors.sol";
 import { UD60x18, convert, ud60x18, uMAX_UD60x18, uUNIT } from "@prb/math/src/UD60x18.sol";
 import { SD59x18, sd59x18 } from "@prb/math/src/SD59x18.sol";
 
-// Asserts - TODO: move into own source file
-
+// TODO: VoltzTestHelpers into own source file
 contract VoltzTestHelpers is Test {
 
     /// @dev The minimum tick that may be passed to #getSqrtRatioAtTick computed from log base 1.0001 of 2**-128
@@ -123,16 +122,12 @@ contract VoltzTestHelpers is Test {
 // Constants
 UD60x18 constant ONE = UD60x18.wrap(1e18);
 
-// TODO: delete if unused
-// contract ExposedDatedIrsVamm {
-// }
-
+// TODO: Break up this growing test contract into more multiple separate tests for increased readability
 contract VammTest is VoltzTestHelpers {
     // Contracts under test
     using DatedIrsVamm for DatedIrsVamm.Data;
     using SafeCastUni for uint256;
     DatedIrsVamm.Data internal vamm;
-    // ExposedDatedIrsVamm exposedVamm; // TODO: delete if unused
 
     address constant mockRateOracle = 0xAa73aA73Aa73Aa73AA73Aa73aA73AA73aa73aa73;
 
@@ -151,7 +146,6 @@ contract VammTest is VoltzTestHelpers {
     });
 
     function setUp() public {
-        // exposedVamm = new ExposedDatedIrsVamm(); // TODO: delete if unused
         vamm.initialize(initSqrtPriceX96, block.timestamp + convert(FixedAndVariableMath.SECONDS_IN_YEAR), initMarketId, initTickSpacing, config);
     }
 
@@ -420,10 +414,6 @@ contract VammTest is VoltzTestHelpers {
 
     // TODO: test that the weighted average of two average prices, using intervals (a,b) and (b,c) is the same as that of interval (a,c)
     // This assumption may be implicit in the behaviour of `_trackValuesBetweenTicks()`, so we should check it.
-
-    // TODO: `_trackFixedTokens()` will return a different value when the underlying liquidity index changes. This makes sense when deciding fixed tokens for a new position.
-    // Does this time sensitivity cause problems in any of the other contexts that `_trackFixedTokens()` is (inderectly) used?
-
     function test_NewPositionTracking() public {
         uint128 accountId = 1;
         int24 tickLower = 2;
@@ -486,7 +476,6 @@ contract VammTest is VoltzTestHelpers {
             assertEq(abs(unfilledBaseShort), abs(unfilledBaseLong), "short != long");
         }
         assertEq(unfilledBaseLong - unfilledBaseShort, executedBaseAmount);
-        // assertEq(unfilledBaseShort - unfilledBaseLong, requestedBaseAmount); // TODO: should this exactly equal executedBaseAmount?
     }
 
     function tickDistanceFromCurrentToTick(int24 _tick) public view returns (uint256 absoluteDistance) {
@@ -513,9 +502,9 @@ contract VammTest is VoltzTestHelpers {
         uint128 accountId,
         int24 tickLower,
         int24 tickUpper,
-        int128 requestedBaseAmount
-    ) public { // TODO: fuzz liquidity index
-        // int128 requestedBaseAmount = 999999999;
+        int128 requestedBaseAmount,
+        uint256 _mockLiquidityIndex
+    ) public {
         vm.assume(accountId != 0);
         (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
         logTicks(tickLower, tickUpper, "testFuzz_GetAccountUnfilledBases");
@@ -523,8 +512,9 @@ contract VammTest is VoltzTestHelpers {
         requestedBaseAmount = boundNewPositionLiquidityAmount(requestedBaseAmount, tickLower, tickUpper); // Cannot withdraw liquidity before we add it
         uint160 sqrtLowerPriceX96 = TickMath.getSqrtRatioAtTick(tickLower);
         uint160 sqrtUpperPriceX96 = TickMath.getSqrtRatioAtTick(tickUpper);
-        uint256 _mockLiquidityIndex = 2;
-        UD60x18 mockLiquidityIndex = convert(_mockLiquidityIndex);
+        _mockLiquidityIndex = bound(_mockLiquidityIndex, 1, 1000000e18); // TODO: push this higher - when does it break? Document limitations.
+        vm.assume(_mockLiquidityIndex != 0);
+        UD60x18 mockLiquidityIndex = ud60x18(_mockLiquidityIndex);
 
         int256 executedBaseAmount = vamm.executeDatedMakerOrder(accountId,sqrtLowerPriceX96,sqrtUpperPriceX96, requestedBaseAmount);
         // console2.log("executedBaseAmount = %s", executedBaseAmount); // TODO_delete_log
@@ -547,7 +537,7 @@ contract VammTest is VoltzTestHelpers {
         // console2.log("distanceToLower", distanceToLower); // TODO_delete_log
         // console2.log("distanceToUpper", distanceToUpper); // TODO_delete_log
         if (distanceToLower > distanceToUpper) {
-            assertGe(abs(unfilledBaseShort), abs(unfilledBaseLong), "short < long"); // TODO: does short mean for LP or for potential trader?
+            assertGe(abs(unfilledBaseShort), abs(unfilledBaseLong), "short < long");
         } else if (distanceToLower < distanceToUpper) {
             assertLe(abs(unfilledBaseShort), abs(unfilledBaseLong), "short > long");
         } else {
@@ -555,9 +545,5 @@ contract VammTest is VoltzTestHelpers {
             assertEq(abs(unfilledBaseShort), abs(unfilledBaseLong), "short != long");
         }
         assertEq(unfilledBaseLong - unfilledBaseShort, executedBaseAmount);
-
-        // assertEq(unfilledBaseShort - unfilledBaseLong, requestedBaseAmount); // TODO: should this exactly equal executedBaseAmount?
-
-        // TODO: expect short > long or vice versa depending on chosen tick range and current tick. (Need to count in ticks not price)
     }
 }
