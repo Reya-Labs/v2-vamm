@@ -113,7 +113,8 @@ library VAMMBase {
         int128 accumulatorDelta;
     }
 
-    /// @dev Computes the agregate amount of base between two ticks, given a tick range and the amount of base per tick. Reverts on overflow.
+    /// @dev Computes the agregate amount of base between two ticks, given a tick range and the amount of base per tick.
+    /// Tghe answer must be a valid `int128` because total liquidity is limited to `int128`. Reverts on overflow.
     function baseBetweenTicks(
         int24 _tickLower,
         int24 _tickUpper,

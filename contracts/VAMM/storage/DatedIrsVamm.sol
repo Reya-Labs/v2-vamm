@@ -385,7 +385,7 @@ library DatedIrsVamm {
 
         self.positions[positionId].baseAmount += requestedBaseAmount;
        
-        return requestedBaseAmount;
+        return executedBaseAmount;
     }
 
     /// @dev Private but labelled internal for testability.
@@ -526,7 +526,7 @@ library DatedIrsVamm {
             int256 trackedValue
         )
     {
-        // TODO: cache time factor and rateNow outside this function and pass as param to avoid recalculations
+        // TODO: calculate timeDeltaUntilMaturity and currentOracleValue outside _trackFixedTokens and pass as param to _trackFixedTokens, to avoid repeating the same work
         UD60x18 averagePrice = VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper);
         UD60x18 timeDeltaUntilMaturity = FixedAndVariableMath.accrualFact(termEndTimestamp - block.timestamp); 
         SD59x18 currentOracleValue = VAMMBase.sd59x18(self.config.rateOracle.getCurrentIndex());
@@ -558,6 +558,7 @@ library DatedIrsVamm {
         bool flippedLower;
         bool flippedUpper;
 
+        // TODO: this results in rounding per tick. How did that work in v1 / UniV3? Is there a simpler or more efficient solution?
         int128 basePerTick = VAMMBase.basePerTick(tickLower, tickUpper, requesetedBaseAmount);
 
         /// @dev update the ticks if necessary
@@ -847,13 +848,17 @@ library DatedIrsVamm {
         trackerBaseTokenGrowthOutside = base;
     }
 
-    // @dev For a given LP posiiton, how much of it is available to trade in each direction?
+    /// @notice For a given LP account, how much liquidity is available to trade in each direction.
+    /// 
+    /// @param accountId The LP account. All positions within the account will be considered.
+    /// @return unfilledBaseLong The base tokens available for a trader to take a long position against this LP (which will then become a short position for the LP) 
+    /// @return unfilledBaseShort The base tokens available for a trader to take a short position against this LP (which will then become a long position for the LP) 
     function getAccountUnfilledBases(
         Data storage self,
         uint128 accountId
     )
         internal
-        returns (int256 unfilledBaseLong, int256 unfilledBaseShort) // TODO: clarify: is long/short seems to be from pov of LP ratehr than from traders who could trade with LP; check that this is expected
+        returns (int256 unfilledBaseLong, int256 unfilledBaseShort) // TODO: clarify: long/short seems to be from pov of LP rather than from traders who could trade with LP; check that this is expected. Discussed with AB and this "long" here should be potential long from PoV of trader (so short for the LP)
     {
         uint256 numPositions = self.positionsInAccount[accountId].length;
         if (numPositions != 0) {
@@ -864,7 +869,7 @@ library DatedIrsVamm {
                 console2.log("getAccountUnfilledBases: baseAmount = %s", uint256(int256(position.baseAmount)));
 
                 // Get how liquidity is currently arranged. In particular, how much of the liquidity is avail to traders in each direction?
-                (,int256 unfilledLongBase,, int256 unfilledShortBase) = _trackValuesBetweenTicks(
+                (,int256 unfilledShortBase,, int256 unfilledLongBase) = _trackValuesBetweenTicks(
                     self,
                     position.tickLower,
                     position.tickUpper,
