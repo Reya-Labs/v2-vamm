@@ -369,9 +369,8 @@ library DatedIrsVamm {
         uint160 fixedRateUpper,
         int128 requestedBaseAmount
     )
-        internal
-        returns (int256 executedBaseAmount){ // TODO: always returns full amount but I'm not sure that's right? E.g. if per-tick amount is rounded down is the executed amount actually equal to the sum of all tick amounts? There may be other reasons why input and output can differ?
-        
+    internal
+    returns (int256 executedBaseAmount){        
         int24 tickLower = TickMath.getTickAtSqrtRatio(fixedRateLower);
         int24 tickUpper = TickMath.getTickAtSqrtRatio(fixedRateUpper);
 
@@ -535,7 +534,6 @@ library DatedIrsVamm {
         trackedValue = convert(trackedValueDecimal);
     }
 
-    // TODO: return data
     /// @dev Private but labelled internal for testability. Consumers of the library should use `executeDatedMakerOrder()`.
     /// Mints `baseAmount` of liquidity for the specified `accountId`, uniformly (same amount per-tick) between the specified ticks.
     function _vammMint(
@@ -858,7 +856,7 @@ library DatedIrsVamm {
         uint128 accountId
     )
         internal
-        returns (int256 unfilledBaseLong, int256 unfilledBaseShort) // TODO: clarify: long/short seems to be from pov of LP rather than from traders who could trade with LP; check that this is expected. Discussed with AB and this "long" here should be potential long from PoV of trader (so short for the LP)
+        returns (int256 unfilledBaseLong, int256 unfilledBaseShort)
     {
         uint256 numPositions = self.positionsInAccount[accountId].length;
         if (numPositions != 0) {
