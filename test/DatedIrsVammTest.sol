@@ -32,7 +32,7 @@ contract VoltzTestHelpers is Test {
     // }
     function logTicks(int24 a, int24 b, string memory _message) internal view {
         // string memory message = bytes(_message).length > 0 ? _message : "Ticks: ";
-        console2.log(_message, bytes(_message).length > 0 ? " ticks: " : "Ticks:");
+        // console2.log(_message, bytes(_message).length > 0 ? " ticks: " : "Ticks:"); // TODO_delete_log
         console2.logInt(a);
         console2.logInt(b);
     }
@@ -73,7 +73,7 @@ contract VoltzTestHelpers is Test {
         SD59x18 upperBound = SD59x18.unwrap(a) >= 0 ? a.add(deltaAsFractionOfA.mul(a)) : a.sub(deltaAsFractionOfA.mul(a));
         SD59x18 lowerBound = SD59x18.unwrap(a) >= 0 ? a.sub(deltaAsFractionOfA.mul(a)) : a.add(deltaAsFractionOfA.mul(a));
         if (b.gt(upperBound) || b.lt(lowerBound)) {
-            console2.log("Expected the following two values to be almost equal:");
+            // console2.log("Expected the following two values to be almost equal:"); // TODO_delete_log
             console2.logInt(SD59x18.unwrap(a));
             console2.logInt(SD59x18.unwrap(b));
         }
@@ -447,8 +447,8 @@ contract VammTest is VoltzTestHelpers {
         uint128 accountId = 1;
         uint160 sqrtLowerPriceX96 = uint160(1 * FixedPoint96.Q96 / 10); // 0.1 => price ~= 0.01 = 1%
         uint160 sqrtUpperPriceX96 = uint160(22 * FixedPoint96.Q96 / 100); // 0.22 => price ~= 0.0484 = ~5%
-        console2.log("sqrtUpperPriceX96 = %s", sqrtUpperPriceX96);
-        console2.log("maxSqrtRatio      = %s", uint256(2507794810551837817144115957740));
+        // console2.log("sqrtUpperPriceX96 = %s", sqrtUpperPriceX96); // TODO_delete_log
+        // console2.log("maxSqrtRatio      = %s", uint256(2507794810551837817144115957740)); // TODO_delete_log
 
         int24 tickLower = TickMath.getTickAtSqrtRatio(sqrtLowerPriceX96);
         int24 tickUpper = TickMath.getTickAtSqrtRatio(sqrtUpperPriceX96);
@@ -457,7 +457,7 @@ contract VammTest is VoltzTestHelpers {
         int128 requestedBaseAmount = 50000000000;
 
         int256 executedBaseAmount = vamm.executeDatedMakerOrder(accountId,sqrtLowerPriceX96,sqrtUpperPriceX96, requestedBaseAmount);
-        console2.log("executedBaseAmount = %s", executedBaseAmount);
+        // console2.log("executedBaseAmount = %s", executedBaseAmount); // TODO_delete_log
         assertAlmostEqual(executedBaseAmount, requestedBaseAmount);
 
         // Position just opened so no filled balances
@@ -470,12 +470,12 @@ contract VammTest is VoltzTestHelpers {
 
         // We expect the full base amount is unfilled cos there have been no trades
         (int256 unfilledBaseLong, int256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
-        console2.log("unfilledBaseLong", unfilledBaseLong);
-        console2.log("unfilledBaseShort", unfilledBaseShort);
+        // console2.log("unfilledBaseLong", unfilledBaseLong); // TODO_delete_log
+        // console2.log("unfilledBaseShort", unfilledBaseShort); // TODO_delete_log
         uint256 distanceToLower = tickDistanceFromCurrentToTick(tickLower);
         uint256 distanceToUpper = tickDistanceFromCurrentToTick(tickUpper);
-        console2.log("distanceToLower", distanceToLower);
-        console2.log("distanceToUpper", distanceToUpper);
+        // console2.log("distanceToLower", distanceToLower); // TODO_delete_log
+        // console2.log("distanceToUpper", distanceToUpper); // TODO_delete_log
 
         if (distanceToLower > distanceToUpper) {
             assertGt(abs(unfilledBaseShort), abs(unfilledBaseLong), "short <= long");
@@ -502,8 +502,8 @@ contract VammTest is VoltzTestHelpers {
         // Ticks must be in range and cannot be equal
         uint256 tickRange = tickDistance(_tickLower, _tickUpper);
         uint128 maxLiquidityPerTick = vamm._maxLiquidityPerTick;
-        console2.log("tickRange", tickRange);
-        console2.log("maxLiquidityPerTick", maxLiquidityPerTick, maxLiquidityPerTick * tickRange);
+        // console2.log("tickRange", tickRange); // TODO_delete_log
+        // console2.log("maxLiquidityPerTick", maxLiquidityPerTick, maxLiquidityPerTick * tickRange); // TODO_delete_log
         int256 max = min(int256(type(int128).max), int256(uint256(maxLiquidityPerTick)) * int256(tickRange));
 
         return int128(bound(unboundBaseToken, 0, max)); // New positions cannot withdraw liquidity so >= 0
@@ -527,7 +527,7 @@ contract VammTest is VoltzTestHelpers {
         UD60x18 mockLiquidityIndex = convert(_mockLiquidityIndex);
 
         int256 executedBaseAmount = vamm.executeDatedMakerOrder(accountId,sqrtLowerPriceX96,sqrtUpperPriceX96, requestedBaseAmount);
-        console2.log("executedBaseAmount = %s", executedBaseAmount);
+        // console2.log("executedBaseAmount = %s", executedBaseAmount); // TODO_delete_log
         assertLe(executedBaseAmount, requestedBaseAmount);
 
         // Position just opened so no filled balances
@@ -540,12 +540,12 @@ contract VammTest is VoltzTestHelpers {
 
         // We expect the full base amount is unfilled cos there have been no trades
         (int256 unfilledBaseLong, int256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
-        console2.log("unfilledBaseLong", unfilledBaseLong);
-        console2.log("unfilledBaseShort", unfilledBaseShort);
+        // console2.log("unfilledBaseLong", unfilledBaseLong); // TODO_delete_log
+        // console2.log("unfilledBaseShort", unfilledBaseShort); // TODO_delete_log
         uint256 distanceToLower = tickDistanceFromCurrentToTick(tickLower);
         uint256 distanceToUpper = tickDistanceFromCurrentToTick(tickUpper);
-        console2.log("distanceToLower", distanceToLower);
-        console2.log("distanceToUpper", distanceToUpper);
+        // console2.log("distanceToLower", distanceToLower); // TODO_delete_log
+        // console2.log("distanceToUpper", distanceToUpper); // TODO_delete_log
         if (distanceToLower > distanceToUpper) {
             assertGe(abs(unfilledBaseShort), abs(unfilledBaseLong), "short < long"); // TODO: does short mean for LP or for potential trader?
         } else if (distanceToLower < distanceToUpper) {

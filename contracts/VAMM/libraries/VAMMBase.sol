@@ -114,7 +114,7 @@ library VAMMBase {
     }
 
     /// @dev Computes the agregate amount of base between two ticks, given a tick range and the amount of base per tick.
-    /// Tghe answer must be a valid `int128` because total liquidity is limited to `int128`. Reverts on overflow.
+    /// The answer must be a valid `int128` (because total liquidity is limited to `int128`). Reverts on overflow.
     function baseBetweenTicks(
         int24 _tickLower,
         int24 _tickUpper,
@@ -183,7 +183,7 @@ library VAMMBase {
             bool flippedUpper
         )
     {
-        console2.log("flipTicks: ticks = (%s, %s)", uint256(int256(params.tickLower)), uint256(int256(params.tickUpper)));
+        // console2.log("flipTicks: ticks = (%s, %s)", uint256(int256(params.tickLower)), uint256(int256(params.tickUpper))); // TODO_delete_log
         Tick.checkTicks(params.tickLower, params.tickUpper);
 
         /// @dev isUpper = false

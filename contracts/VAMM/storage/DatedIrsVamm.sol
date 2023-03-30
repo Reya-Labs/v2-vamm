@@ -433,7 +433,7 @@ library DatedIrsVamm {
         uint256 positionId
     )
         internal {
-        console2.log("_propagatePosition");
+        // console2.log("_propagatePosition"); // TODO_delete_log
         LPPosition memory position = self.positions[positionId];
 
         (int256 trackerVariableTokenGlobalGrowth, int256 trackerBaseTokenGlobalGrowth) = 
@@ -550,7 +550,7 @@ library DatedIrsVamm {
     {
         VAMMBase.checkCurrentTimestampTermEndTimestampDelta(self.termEndTimestamp);
 
-        console2.log("_vammMint: ticks = (%s, %s)", uint256(int256(tickLower)), uint256(int256(tickUpper)));
+        // console2.log("_vammMint: ticks = (%s, %s)", uint256(int256(tickLower)), uint256(int256(tickUpper))); // TODO_delete_log
         Tick.checkTicks(tickLower, tickUpper);
 
         IVAMMBase.VAMMVars memory lvammVars = self._vammVars; // SLOAD for gas optimization
@@ -618,7 +618,7 @@ library DatedIrsVamm {
     {
         VAMMBase.checkCurrentTimestampTermEndTimestampDelta(self.termEndTimestamp);
 
-        console2.log("Checking ticks in vammSwap");
+        // console2.log("Checking ticks in vammSwap"); // TODO_delete_log
         Tick.checkTicks(params.tickLower, params.tickUpper);
 
         IVAMMBase.VAMMVars memory vammVarsStart = self._vammVars;
@@ -863,10 +863,10 @@ library DatedIrsVamm {
         uint256 numPositions = self.positionsInAccount[accountId].length;
         if (numPositions != 0) {
             for (uint256 i = 0; i < numPositions; i++) {
-                console2.log("getAccountUnfilledBases: position ID %s", uint256(self.positionsInAccount[accountId][i]));
+                // console2.log("getAccountUnfilledBases: position ID %s", uint256(self.positionsInAccount[accountId][i])); // TODO_delete_log
                 LPPosition memory position = getRawPosition(self, self.positionsInAccount[accountId][i]);
-                console2.log("getAccountUnfilledBases: ticks = (%s, %s)", uint256(int256(position.tickLower)), uint256(int256(position.tickUpper)));
-                console2.log("getAccountUnfilledBases: baseAmount = %s", uint256(int256(position.baseAmount)));
+                // console2.log("getAccountUnfilledBases: ticks = (%s, %s)", uint256(int256(position.tickLower)), uint256(int256(position.tickUpper))); // TODO_delete_log
+                // console2.log("getAccountUnfilledBases: baseAmount = %s", uint256(int256(position.baseAmount))); // TODO_delete_log
 
                 // Get how liquidity is currently arranged. In particular, how much of the liquidity is avail to traders in each direction?
                 (,int256 unfilledShortBase,, int256 unfilledLongBase) = _trackValuesBetweenTicks(
@@ -922,7 +922,7 @@ library DatedIrsVamm {
         }
 
         int128 averageBase = VAMMBase.basePerTick(tickLower, tickUpper, baseAmount);
-        console2.log("_trackValuesBetweenTicks: averageBase = %s", uint256(int256(averageBase))); // TODO: how does rounding work here? If we round down to zero has all liquidity vanished? What checks should be in place?
+        // console2.log("_trackValuesBetweenTicks: averageBase = %s", uint256(int256(averageBase))); // TODO_delete_log // TODO: how does rounding work here? If we round down to zero has all liquidity vanished? What checks should be in place?
         // Compute unfilled tokens in our range and to the left of the current tick
         (int256 unfilledFixedTokensLeft_, int256 unfilledBaseTokensLeft_) = _trackValuesBetweenTicksOutside(
             self,
@@ -933,7 +933,7 @@ library DatedIrsVamm {
         unfilledFixedTokensLeft = -unfilledFixedTokensLeft_;
         unfilledBaseTokensLeft = -unfilledBaseTokensLeft_;
 
-        console2.log("unfilledTokensLeft: (%s, %s)", uint256(unfilledFixedTokensLeft), uint256(unfilledBaseTokensLeft));
+        // console2.log("unfilledTokensLeft: (%s, %s)", uint256(unfilledFixedTokensLeft), uint256(unfilledBaseTokensLeft)); // TODO_delete_log
 
 
         // Compute unfilled tokens in our range and to the right of the current tick
@@ -943,7 +943,7 @@ library DatedIrsVamm {
             tickLower > self._vammVars.tick ? tickLower : self._vammVars.tick, // max(tickLower, currentTick)
             tickUpper > self._vammVars.tick ? tickUpper : self._vammVars.tick  // max(tickUpper, currentTick)
         );
-        console2.log("unfilledTokensRight: (%s, %s)", uint256(unfilledFixedTokensRight), uint256(unfilledBaseTokensRight));
+        // console2.log("unfilledTokensRight: (%s, %s)", uint256(unfilledFixedTokensRight), uint256(unfilledBaseTokensRight)); // TODO_delete_log
     }
 
     function growthBetweenTicks(
@@ -955,7 +955,7 @@ library DatedIrsVamm {
         int256 trackerBaseTokenGrowthBetween
     )
     {
-        console2.log("Checking ticks in growthBetweenTicks");
+        // console2.log("Checking ticks in growthBetweenTicks"); // TODO_delete_log
         Tick.checkTicks(tickLower, tickUpper);
 
         int256 trackerVariableTokenBelowLowerTick;
