@@ -439,6 +439,44 @@ contract VammTest is VoltzAssertions {
         console2.log("unfilledBaseLong", unfilledBaseLong);
         console2.log("unfilledBaseShort", unfilledBaseShort);
         assertAlmostEqual(unfilledBaseShort - unfilledBaseLong, requestedBaseAmount);
+        // assertEq(unfilledBaseShort - unfilledBaseLong, requestedBaseAmount); // TODO: should this exactly equal executedBaseAmount?
+
+        // TODO: expect short > long or vice versa depending on chosen tick range and current tick. (Need to count in ticks not price)
+    }
+
+    function testFuzz_GetAccountUnfilledBases(
+        uint128 accountId,
+        int24 tickLower,
+        int24 tickUpper,
+        int128 requestedBaseAmount
+    ) public { // TODO: fuzz all inputs once passing
+
+        vm.assume(accountId != 0);
+        (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
+        requestedBaseAmount = int128(bound(requestedBaseAmount, 0, type(int128).max)); // Cannot withdraw liquidity before we add it
+        uint160 sqrtLowerPriceX96 = TickMath.getSqrtRatioAtTick(tickLower);
+        uint160 sqrtUpperPriceX96 = TickMath.getSqrtRatioAtTick(tickUpper);
+        uint256 _mockLiquidityIndex = 2;
+        UD60x18 mockLiquidityIndex = convert(_mockLiquidityIndex);
+
+        int256 executedBaseAmount = vamm.executeDatedMakerOrder(accountId,sqrtLowerPriceX96,sqrtUpperPriceX96, requestedBaseAmount);
+        console2.log("executedBaseAmount = %s", executedBaseAmount);
+        assertEq(executedBaseAmount, requestedBaseAmount);
+
+        // Position just opened so no filled balances
+        (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(accountId);
+        assertEq(baseBalancePool, 0);
+        assertEq(quoteBalancePool, 0);
+    
+        // TODO: liquidity index only required for fixed tokens; mocking should not be required if we only want base token values
+        vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
+
+        // We expect the full base amount is unfilled cos there have been no trades
+        (int256 unfilledBaseLong, int256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
+        console2.log("unfilledBaseLong", unfilledBaseLong);
+        console2.log("unfilledBaseShort", unfilledBaseShort);
+        assertAlmostEqual(unfilledBaseShort - unfilledBaseLong, requestedBaseAmount);
+        // assertEq(unfilledBaseShort - unfilledBaseLong, requestedBaseAmount); // TODO: should this exactly equal executedBaseAmount?
 
         // TODO: expect short > long or vice versa depending on chosen tick range and current tick. (Need to count in ticks not price)
     }
