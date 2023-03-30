@@ -56,7 +56,8 @@ library VAMMBase {
         uint128 indexed accountId,
         int24 indexed tickLower,
         int24 indexed tickUpper,
-        int128 baseAmount
+        int128 requestedBaseAmount,
+        int128 executedBaseAmount
     );
 
     event VAMMPriceChange(int24 tick);
@@ -117,8 +118,8 @@ library VAMMBase {
         int24 _tickLower,
         int24 _tickUpper,
         int128 _basePerTick
-    ) internal pure returns(int256) {
-        return int256(_basePerTick) * (_tickUpper - _tickLower);
+    ) internal pure returns(int128) {
+        return _basePerTick * (_tickUpper - _tickLower);
     }
 
     /// @dev Computes the amount of base per tick, given a tick range and an aggregate base amount

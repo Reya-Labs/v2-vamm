@@ -84,6 +84,9 @@ contract VoltzAssertions is Test {
 function abs(int256 x) pure returns (uint256) {
     return x >= 0 ? uint256(x) : uint256(-x);
 }
+function max(int24 a, int24 b) pure returns (int24) {
+    return a < b ? b : a;
+}
 
 // Constants
 UD60x18 constant ONE = UD60x18.wrap(1e18);
@@ -404,8 +407,6 @@ contract VammTest is VoltzAssertions {
         (int256 unfilledBaseLong, int256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
         assertEq(unfilledBaseLong, 0);
         assertEq(unfilledBaseShort, 0);
-
-
     }
 
     // function testFuzz_GetAccountUnfilledBases(uint128 accountId, int24 tickLower, int24 tickUpper) public { // TODO: fuzz all inputs once passing
@@ -416,6 +417,11 @@ contract VammTest is VoltzAssertions {
         // (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
         uint160 sqrtLowerPriceX96 = uint160(1 * FixedPoint96.Q96 / 10); // 0.1 => price ~= 0.01 = 1%
         uint160 sqrtUpperPriceX96 = uint160(22 * FixedPoint96.Q96 / 100); // 0.22 => price ~= 0.0484 = ~5%
+        console2.log("sqrtUpperPriceX96 = %s", sqrtUpperPriceX96);
+        console2.log("maxSqrtRatio      = %s", uint256(2507794810551837817144115957740));
+
+        int24 tickLower = TickMath.getTickAtSqrtRatio(sqrtLowerPriceX96);
+        int24 tickUpper = TickMath.getTickAtSqrtRatio(sqrtUpperPriceX96);
         // uint160 sqrtLowerPriceX96 = TickMath.getSqrtRatioAtTick(tickLower); // TODO: use fuzz input
         // uint160 sqrtUpperPriceX96 = TickMath.getSqrtRatioAtTick(tickUpper);
         uint256 _mockLiquidityIndex = 2;
@@ -438,10 +444,26 @@ contract VammTest is VoltzAssertions {
         (int256 unfilledBaseLong, int256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
         console2.log("unfilledBaseLong", unfilledBaseLong);
         console2.log("unfilledBaseShort", unfilledBaseShort);
+        uint256 distanceToLower = tickDistanceFromCurrentToTick(tickLower);
+        uint256 distanceToUpper = tickDistanceFromCurrentToTick(tickUpper);
+        console2.log("distanceToLower", distanceToLower);
+        console2.log("distanceToUpper", distanceToUpper);
+
+        if (distanceToLower > distanceToUpper) {
+            assertGt(abs(unfilledBaseShort), abs(unfilledBaseLong), "short <= long"); // TODO: does short mean for LP or for potential trader?
+        } else if (distanceToLower < distanceToUpper) {
+            assertLt(abs(unfilledBaseShort), abs(unfilledBaseLong), "short >= long");
+        } else {
+            // Distances are equal
+            assertEq(abs(unfilledBaseShort), abs(unfilledBaseLong), "short != long");
+        }
         assertAlmostEqual(unfilledBaseShort - unfilledBaseLong, requestedBaseAmount);
         // assertEq(unfilledBaseShort - unfilledBaseLong, requestedBaseAmount); // TODO: should this exactly equal executedBaseAmount?
+    }
 
-        // TODO: expect short > long or vice versa depending on chosen tick range and current tick. (Need to count in ticks not price)
+    function tickDistanceFromCurrentToTick(int24 _tick) public returns (uint256 absoluteDistance) {
+        int24 currentTick = vamm._vammVars.tick;
+        return abs(currentTick - _tick);
     }
 
     function testFuzz_GetAccountUnfilledBases(
@@ -461,7 +483,7 @@ contract VammTest is VoltzAssertions {
 
         int256 executedBaseAmount = vamm.executeDatedMakerOrder(accountId,sqrtLowerPriceX96,sqrtUpperPriceX96, requestedBaseAmount);
         console2.log("executedBaseAmount = %s", executedBaseAmount);
-        assertEq(executedBaseAmount, requestedBaseAmount);
+        assertLe(executedBaseAmount, requestedBaseAmount);
 
         // Position just opened so no filled balances
         (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(accountId);
@@ -475,7 +497,11 @@ contract VammTest is VoltzAssertions {
         (int256 unfilledBaseLong, int256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
         console2.log("unfilledBaseLong", unfilledBaseLong);
         console2.log("unfilledBaseShort", unfilledBaseShort);
-        assertAlmostEqual(unfilledBaseShort - unfilledBaseLong, requestedBaseAmount);
+        uint256 distanceToLower = tickDistanceFromCurrentToTick(tickLower);
+        uint256 distanceToUpper = tickDistanceFromCurrentToTick(tickUpper);
+        console2.log("distanceToLower", distanceToLower);
+        console2.log("distanceToUpper", distanceToUpper);
+        assertAlmostEqual(unfilledBaseShort - unfilledBaseLong, executedBaseAmount);
         // assertEq(unfilledBaseShort - unfilledBaseLong, requestedBaseAmount); // TODO: should this exactly equal executedBaseAmount?
 
         // TODO: expect short > long or vice versa depending on chosen tick range and current tick. (Need to count in ticks not price)
