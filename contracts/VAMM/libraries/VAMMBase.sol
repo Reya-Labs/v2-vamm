@@ -13,6 +13,7 @@ import "../../utils/CustomErrors.sol";
 import "../libraries/SwapMath.sol";
 import { UD60x18 } from "@prb/math/src/UD60x18.sol";
 import { SD59x18, convert as convert_sd } from "@prb/math/src/SD59x18.sol";
+import { ud60x18 } from "../../utils/PrbMathHelper.sol";
 import "../libraries/FixedAndVariableMath.sol";
 import "../../utils/FixedPoint128.sol";
 import "../interfaces/IVAMMBase.sol";
@@ -155,16 +156,6 @@ library VAMMBase {
         int24 _tickUpper
     ) internal pure returns(UD60x18) {
         return sumOfAllPricesUpTo(_tickUpper).sub(sumOfAllPricesUpTo(_tickLower - 1)).div(convert(uint256(int256(1 + _tickUpper - _tickLower))));
-    }
-
-    /// @dev Safely casts a `UD60x18` to a `SD59x18`. Reverts on overflow.
-    function sd59x18(UD60x18 ud) internal pure returns (SD59x18 sd) {
-        return SD59x18.wrap(UD60x18.unwrap(ud).toInt256());
-    }
-
-    /// @dev Safely casts a `SD59x18` to a `UD60x18`. Reverts on overflow.
-    function ud60x18(SD59x18 sd) internal pure returns (UD60x18 ud) {
-        return UD60x18.wrap(SD59x18.unwrap(sd).toUint256());
     }
 
     function flipTicks(

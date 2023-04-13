@@ -10,7 +10,8 @@ import "../../utils/SafeCastUni.sol";
 import "../../utils/SqrtPriceMath.sol";
 import "../libraries/SwapMath.sol";
 import { UD60x18, convert } from "@prb/math/src/UD60x18.sol";
-import { SD59x18, convert } from "@prb/math/src/SD59x18.sol";
+import { SD59x18 } from "@prb/math/src/SD59x18.sol";
+import { mulUDxInt } from "../../utils/PrbMathHelper.sol";
 import "../libraries/FixedAndVariableMath.sol";
 import "../../utils/FixedPoint128.sol";
 import "../libraries/VAMMBase.sol";
@@ -18,6 +19,7 @@ import "../interfaces/IVAMMBase.sol";
 import "../interfaces/IVAMM.sol";
 import "../../utils/CustomErrors.sol";
 import "../libraries/Oracle.sol";
+import "./LPPosition.sol";
 import "../../interfaces/IRateOracle.sol";
 import "forge-std/console2.sol"; // TODO: remove
 
@@ -36,6 +38,7 @@ library DatedIrsVamm {
     using Tick for mapping(int24 => Tick.Info);
     using TickBitmap for mapping(int16 => uint256);
     using Oracle for Oracle.Observation[65535];
+    using LPPosition for LPPosition.Data;
 
      /// @dev Returns the block timestamp truncated to 32 bits, i.e. mod 2**32
     function _blockTimestamp() internal view returns (uint32) {
@@ -56,42 +59,6 @@ library DatedIrsVamm {
      * @dev Thrown when a specified vamm is not found.
      */
     error IRSVammNotFound(uint128 vammId);
-
-    struct LPPosition { // TODO: consider moving Position and the operations affecting Positions into a separate library for readbaility
-        uint128 accountId;
-        /** 
-        * @dev position notional amount
-        */
-        int128 baseAmount;
-        /** 
-        * @dev lower tick boundary of the position
-        */
-        int24 tickLower;
-        /** 
-        * @dev upper tick boundary of the position
-        */
-        int24 tickUpper;
-        /** 
-        * @dev fixed token growth per unit of liquidity as of the last update to liquidity or fixed/variable token balance
-        */
-        int256 trackerVariableTokenUpdatedGrowth;
-        /** 
-        * @dev variable token growth per unit of liquidity as of the last update to liquidity or fixed/variable token balance
-        */
-        int256 trackerBaseTokenUpdatedGrowth;
-        /** 
-        * @dev current Fixed Token balance of the position, 1 fixed token can be redeemed for 1% APY * (annualised amm term) at the maturity of the amm
-        * assuming 1 token worth of notional "deposited" in the underlying pool at the inception of the amm
-        * can be negative/positive/zero
-        */
-        int256 trackerVariableTokenAccumulated;
-        /** 
-        * @dev current Variable Token Balance of the position, 1 variable token can be redeemed for underlyingPoolAPY*(annualised amm term) at the maturity of the amm
-        * assuming 1 token worth of notional "deposited" in the underlying pool at the inception of the amm
-        * can be negative/positive/zero
-        */
-        int256 trackerBaseTokenAccumulated;
-    }
 
     /// @dev Mutable (or maybe one day mutable, perahps through governance) Config for this VAMM
     struct Config {
@@ -120,11 +87,10 @@ library DatedIrsVamm {
         /**
          * @dev Maps from position ID (see `getPositionId` to the properties of that position
          */
-        mapping(uint256 => LPPosition) positions;
         /**
          * @dev Maps from an account address to a list of the position IDs of positions associated with that account address. Use the `positions` mapping to see full details of any given `LPPosition`.
          */
-        mapping(uint128 => uint256[]) positionsInAccount;
+        mapping(uint128 => uint128[]) positionsInAccount;
         uint256 termEndTimestamp;
         uint128 _maxLiquidityPerTick;
         int24 _tickSpacing;
@@ -259,7 +225,9 @@ library DatedIrsVamm {
 
         if (adjustForPriceImpact) {
             require(orderSize != 0); // TODO: custom error
-            priceImpactAsFraction = self.config.priceImpactPhi.mul(convert(uint256(orderSize > 0 ? orderSize : -orderSize)).pow(self.config.priceImpactBeta));
+            priceImpactAsFraction = self.config.priceImpactPhi.mul(
+                convert(uint256(orderSize > 0 ? orderSize : -orderSize)).pow(self.config.priceImpactBeta)
+            );
         }
 
         // The projected price impact and spread of a trade will move the price up for buys, down for sells
@@ -374,100 +342,15 @@ library DatedIrsVamm {
         int24 tickLower = TickMath.getTickAtSqrtRatio(fixedRateLower);
         int24 tickUpper = TickMath.getTickAtSqrtRatio(fixedRateUpper);
 
-        uint256 positionId = _ensurePositionOpened(self, accountId, tickLower, tickUpper);
-
-        LPPosition memory position = getRawPosition(self, positionId);
+        LPPosition.Data storage position = LPPosition._ensurePositionOpened(accountId, tickLower, tickUpper);
+        self.positionsInAccount[accountId].push(position.positionId);
 
         require(position.baseAmount + requestedBaseAmount >= 0, "Burning too much"); // TODO: CustomError
 
         executedBaseAmount = _vammMint(self, accountId, tickLower, tickUpper, requestedBaseAmount);
-
-        self.positions[positionId].baseAmount += requestedBaseAmount;
+        position.updateBaseAmount(requestedBaseAmount);
        
         return executedBaseAmount;
-    }
-
-    /// @dev Private but labelled internal for testability.
-    function _ensurePositionOpened(
-        Data storage self,
-        uint128 accountId,
-        int24 tickLower,
-        int24 tickUpper
-    ) 
-        internal
-        returns (uint256){
-
-        uint256 positionId = getPositionId(accountId, tickLower, tickUpper);
-
-        if(self.positions[positionId].accountId != 0) {
-            return positionId;
-        }
-
-        self.positions[positionId].accountId = accountId;
-        self.positions[positionId].tickLower = tickLower;
-        self.positions[positionId].tickUpper = tickUpper;
-
-        self.positionsInAccount[accountId].push(positionId);
-
-        return positionId;
-    }
-
-    function getRawPosition(
-        Data storage self,
-        uint256 positionId
-    )
-        internal
-        returns (LPPosition memory) {
-
-        // Account zero is not a valid account. (See `Account.create()`)
-        require(self.positions[positionId].accountId != 0, "Missing position"); // TODO: custom error
-        
-        _propagatePosition(self, positionId);
-        return self.positions[positionId];
-    }
-
-    /// @dev Private but labelled internal for testability.
-    function _propagatePosition(
-        Data storage self,
-        uint256 positionId
-    )
-        internal {
-        // console2.log("_propagatePosition"); // TODO_delete_log
-        LPPosition memory position = self.positions[positionId];
-
-        (int256 trackerVariableTokenGlobalGrowth, int256 trackerBaseTokenGlobalGrowth) = 
-            growthBetweenTicks(self, position.tickLower, position.tickUpper);
-
-        int256 trackerVariableTokenDeltaGrowth =
-                trackerVariableTokenGlobalGrowth - position.trackerVariableTokenUpdatedGrowth;
-        int256 trackerBaseTokenDeltaGrowth =
-                trackerBaseTokenGlobalGrowth - position.trackerBaseTokenUpdatedGrowth;
-
-        int256 averageBase = VAMMBase.basePerTick(
-            position.tickLower,
-            position.tickUpper,
-            position.baseAmount
-        );
-
-        self.positions[positionId].trackerVariableTokenUpdatedGrowth = trackerVariableTokenGlobalGrowth;
-        self.positions[positionId].trackerBaseTokenUpdatedGrowth = trackerBaseTokenGlobalGrowth;
-        self.positions[positionId].trackerVariableTokenAccumulated += trackerVariableTokenDeltaGrowth * averageBase;
-        self.positions[positionId].trackerBaseTokenAccumulated += trackerBaseTokenDeltaGrowth * averageBase;
-    }
-
-    /**
-     * @notice Returns the positionId that such a position would have, shoudl it exist. Does not check for existence.
-     */
-    function getPositionId(
-        uint128 accountId,
-        int24 tickLower,
-        int24 tickUpper
-    )
-        public
-        pure
-        returns (uint256){
-
-        return uint256(keccak256(abi.encodePacked(accountId, tickLower, tickUpper)));
     }
 
     function configure(
@@ -518,7 +401,6 @@ library DatedIrsVamm {
       int24 tickUpper,
       uint256 termEndTimestamp
     )
-
         internal
         view
         returns (
@@ -528,10 +410,12 @@ library DatedIrsVamm {
         // TODO: calculate timeDeltaUntilMaturity and currentOracleValue outside _trackFixedTokens and pass as param to _trackFixedTokens, to avoid repeating the same work
         UD60x18 averagePrice = VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper);
         UD60x18 timeDeltaUntilMaturity = FixedAndVariableMath.accrualFact(termEndTimestamp - block.timestamp); 
-        SD59x18 currentOracleValue = VAMMBase.sd59x18(self.config.rateOracle.getCurrentIndex());
-        SD59x18 timeComponent = VAMMBase.sd59x18(ONE.add(averagePrice.mul(timeDeltaUntilMaturity))); // (1 + fixedRate * timeInYearsTillMaturity)
-        SD59x18 trackedValueDecimal = convert(int256(-baseAmount)).mul(currentOracleValue.mul(timeComponent));
-        trackedValue = convert(trackedValueDecimal);
+        UD60x18 currentOracleValue = self.config.rateOracle.getCurrentIndex();
+        UD60x18 timeComponent = ONE.add(averagePrice.mul(timeDeltaUntilMaturity)); // (1 + fixedRate * timeInYearsTillMaturity)
+        trackedValue = mulUDxInt(
+            currentOracleValue.mul(timeComponent),
+            -baseAmount
+        );
     }
 
     /// @dev Private but labelled internal for testability. Consumers of the library should use `executeDatedMakerOrder()`.
@@ -861,10 +745,7 @@ library DatedIrsVamm {
         uint256 numPositions = self.positionsInAccount[accountId].length;
         if (numPositions != 0) {
             for (uint256 i = 0; i < numPositions; i++) {
-                // console2.log("getAccountUnfilledBases: position ID %s", uint256(self.positionsInAccount[accountId][i])); // TODO_delete_log
-                LPPosition memory position = getRawPosition(self, self.positionsInAccount[accountId][i]);
-                // console2.log("getAccountUnfilledBases: ticks = (%s, %s)", uint256(int256(position.tickLower)), uint256(int256(position.tickUpper))); // TODO_delete_log
-                // console2.log("getAccountUnfilledBases: baseAmount = %s", uint256(int256(position.baseAmount))); // TODO_delete_log
+                LPPosition.Data storage position = LPPosition.load(self.positionsInAccount[accountId][i]);
 
                 // Get how liquidity is currently arranged. In particular, how much of the liquidity is avail to traders in each direction?
                 (,int256 unfilledShortBase,, int256 unfilledLongBase) = _trackValuesBetweenTicks(
@@ -891,10 +772,13 @@ library DatedIrsVamm {
         uint256 numPositions = self.positionsInAccount[accountId].length;
 
         for (uint256 i = 0; i < numPositions; i++) {
-            LPPosition memory position = getRawPosition(self, self.positionsInAccount[accountId][i]); 
+            LPPosition.Data storage position = LPPosition.load(self.positionsInAccount[accountId][i]);
+            (int256 trackerVariableTokenGlobalGrowth, int256 trackerBaseTokenGlobalGrowth) = 
+                growthBetweenTicks(self, position.tickLower, position.tickUpper);
+            (int256 trackerVariableTokenAccumulated, int256 trackerBaseTokenAccumulated) = position.getUpdatedPositionBalances(trackerVariableTokenGlobalGrowth, trackerBaseTokenGlobalGrowth); 
 
-            baseBalancePool += position.trackerVariableTokenAccumulated;
-            quoteBalancePool += position.trackerBaseTokenAccumulated;
+            baseBalancePool += trackerVariableTokenAccumulated;
+            quoteBalancePool += trackerBaseTokenAccumulated;
         }
 
     }
