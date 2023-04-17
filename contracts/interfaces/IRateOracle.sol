@@ -6,7 +6,7 @@ pragma solidity =0.8.17;
 import { UD60x18 } from "@prb/math/src/UD60x18.sol";
 
 /// @dev The RateOracle is used for two purposes on the Voltz Protocol
-/// @dev Settlement: in order to be able to settle IRS positions after the termEndTimestamp of a given AMM
+/// @dev Settlement: in order to be able to settle IRS positions after the maturityTimestamp of a given AMM
 /// @dev Margin Engine Computations: getApyFromTo is used by the MarginEngine
 /// @dev It is necessary to produce margin requirements for Trader and Liquidity Providers
 interface IRateOracle {

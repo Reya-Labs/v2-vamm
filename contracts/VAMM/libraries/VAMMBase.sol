@@ -7,6 +7,7 @@ import "../interfaces/IVAMMBase.sol";
 import "../libraries/Tick.sol";
 import "../libraries/Tick.sol";
 import "../libraries/TickBitmap.sol";
+import "./VammConfiguration.sol";
 import "../../utils/SafeCastUni.sol";
 import "../../utils/SqrtPriceMath.sol";
 import "../../utils/CustomErrors.sol";
@@ -162,7 +163,7 @@ library VAMMBase {
         FlipTicksParams memory params,
         mapping(int24 => Tick.Info) storage _ticks,
         mapping(int16 => uint256) storage _tickBitmap,
-        IVAMMBase.VAMMVars memory _vammVars,
+        VammConfiguration.VammState storage _vammVars,
         int256 _trackerVariableTokenGrowthGlobalX128,
         int256 _trackerBaseTokenGrowthGlobalX128,
         uint128 _maxLiquidityPerTick,
@@ -228,9 +229,9 @@ library VAMMBase {
 
     function checksBeforeSwap(
         IVAMMBase.SwapParams memory params,
-        IVAMMBase.VAMMVars memory vammVarsStart,
+        VammConfiguration.VammState storage vammVarsStart,
         bool isFT
-    ) internal pure {
+    ) internal view {
 
         if (params.baseAmountSpecified == 0) {
             revert CustomErrors.IRSNotionalAmountSpecifiedMustBeNonZero();
@@ -253,8 +254,8 @@ library VAMMBase {
 
     /// @dev Modifier that ensures new LP positions cannot be minted after one day before the maturity of the vamm
     /// @dev also ensures new swaps cannot be conducted after one day before maturity of the vamm
-    function checkCurrentTimestampTermEndTimestampDelta(uint256 termEndTimestamp) internal view {
-        if (Time.isCloseToMaturityOrBeyondMaturity(termEndTimestamp)) {
+    function checkCurrentTimestampMaturityTimestampDelta(uint256 maturityTimestamp) internal view {
+        if (Time.isCloseToMaturityOrBeyondMaturity(maturityTimestamp)) {
             revert("closeToOrBeyondMaturity");
         }
     }
