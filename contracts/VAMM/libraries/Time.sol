@@ -26,13 +26,13 @@ library Time {
         require((timestamp = uint32(_timestamp)) == _timestamp, "TSOFLOW");
     }
 
-    function isCloseToMaturityOrBeyondMaturity(uint256 termEndTimestamp)
+    function isCloseToMaturityOrBeyondMaturity(uint256 maturityTimestamp)
         internal
         view
         returns (bool vammInactive)
     {
         return
             block.timestamp + SECONDS_IN_A_DAY >=
-            termEndTimestamp;
+            maturityTimestamp;
     }
 }

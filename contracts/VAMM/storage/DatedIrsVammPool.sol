@@ -4,6 +4,7 @@ pragma solidity >=0.8.13;
 import "./DatedIrsVamm.sol";
 import "../libraries/VAMMBase.sol";
 import "../../ownership/OwnableStorage.sol";
+import "../libraries/VammConfiguration.sol";
 
 /// @title Interface a Pool needs to adhere.
 library DatedIrsVammPool {
@@ -40,35 +41,30 @@ library DatedIrsVammPool {
     }
 
     event VammCreated(
-        uint128 indexed marketId,
-        uint256 indexed maturityTimestamp,
         uint160 sqrtPriceX96,
-        int24 tickSpacing,
-        uint128 maxLiquidityPerTick,
         int24 tick,
-        DatedIrsVamm.Config _config);
+        VammConfiguration.VammConfig _config
+    );
 
-    function createVamm(uint128 _marketId, uint256 _maturityTimestamp,  uint160 _sqrtPriceX96, int24 _tickSpacing, DatedIrsVamm.Config calldata _config)
+    function createVamm(uint128 _marketId, uint256 _maturityTimestamp,  uint160 _sqrtPriceX96, int24 _tickSpacing, VammConfiguration.VammConfig calldata _config)
     external
     {
         OwnableStorage.onlyOwner();
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.create(_marketId, _maturityTimestamp, _sqrtPriceX96, _tickSpacing, _config);
         emit VammCreated(
-            _marketId,
-            _maturityTimestamp,
             _sqrtPriceX96,
-            _tickSpacing,
-            vamm._maxLiquidityPerTick,
-            vamm._vammVars.tick,
-            _config);
+            vamm.state.tick,
+            _config
+        );
     }
 
     event VammConfigUpdated(
         uint128 _marketId,
         uint256 _maturityTimestamp,
-        DatedIrsVamm.Config _config);
+        VammConfiguration.VammConfig _config
+    );
 
-    function configureVamm(uint128 _marketId, uint256 _maturityTimestamp, DatedIrsVamm.Config calldata _config)
+    function configureVamm(uint128 _marketId, uint256 _maturityTimestamp, VammConfiguration.VammConfig calldata _config)
     external
     {
         OwnableStorage.onlyOwner();
