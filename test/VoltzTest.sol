@@ -31,7 +31,7 @@ contract VoltzTest is Test {
     // }
     function logTicks(int24 a, int24 b, string memory _message) internal view {
         // string memory message = bytes(_message).length > 0 ? _message : "Ticks: ";
-        // console2.log(_message, bytes(_message).length > 0 ? " ticks: " : "Ticks:"); // TODO_delete_log
+        console2.log(_message, bytes(_message).length > 0 ? " ticks: " : "Ticks:"); // TODO_delete_log
         console2.logInt(a);
         console2.logInt(b);
     }
@@ -45,7 +45,7 @@ contract VoltzTest is Test {
         tickUpper = int24(bound(_tickUpper,  TickMath.MIN_TICK + 1, TickMath.MAX_TICK));
         vm.assume(tickLower < tickUpper);
     }
-    function tickDistance(int24 _tickA, int24 _tickB) public view returns (uint256 absoluteDistance) {
+    function tickDistance(int24 _tickA, int24 _tickB) public pure returns (uint256 absoluteDistance) {
         return abs(_tickA - _tickB);
     }
 

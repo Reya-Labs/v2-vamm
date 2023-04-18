@@ -141,6 +141,7 @@ library DatedIrsVammPool {
         uint128 accountId
     )
         external
+        view
         returns (int256 baseBalancePool, int256 quoteBalancePool) {
          // TODO: not a view function because it propagates a position. Hard to be sure that more state writes won't creep in, so as such should we authenticate?         
         
@@ -154,6 +155,7 @@ library DatedIrsVammPool {
         uint128 accountId
     )
         external
+        view
         returns (int256 unfilledBaseLong, int256 unfilledBaseShort)
     {
         // TODO: not a view function because it propagates a position. Hard to be sure that more state writes won't creep in, so as such should we authenticate?         

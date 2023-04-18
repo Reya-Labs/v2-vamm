@@ -705,6 +705,7 @@ library DatedIrsVamm {
         uint128 accountId
     )
         internal
+        view
         returns (int256 unfilledBaseLong, int256 unfilledBaseShort)
     {
         uint256 numPositions = self.vars.positionsInAccount[accountId].length;
@@ -731,6 +732,7 @@ library DatedIrsVamm {
         uint128 accountId
     )
         internal
+        view
         returns (int256 baseBalancePool, int256 quoteBalancePool) {
         
         uint256 numPositions = self.vars.positionsInAccount[accountId].length;

@@ -55,8 +55,9 @@ library VammConfiguration {
         Oracle.Observation[65535] observations;
         /// @dev Maps from an account address to a list of the position IDs of positions associated with that account address. Use the `positions` mapping to see full details of any given `LPPosition`.
         mapping(uint128 => uint128[]) positionsInAccount;
-        /// @dev total liquidity in VAMM
-        uint128 accumulator;
+        /// @notice The currently in range liquidity available to the pool
+        /// @dev This value has no relationship to the total liquidity across all ticks
+         uint128 accumulator;
         /// @dev total amount of variable tokens in vamm
         int256 trackerVariableTokenGrowthGlobalX128;
         /// @dev total amount of base tokens in vamm

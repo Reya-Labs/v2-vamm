@@ -2,7 +2,7 @@ pragma solidity >=0.8.13;
 
 import "forge-std/Test.sol";
  import "forge-std/console2.sol";
- import "./VoltzTest.sol";
+ import "./DatedIrsVammTest.sol";
  import "../contracts/utils/SafeCastUni.sol";
  import "../contracts/VAMM/storage/LPPosition.sol";
 import "../contracts/VAMM/storage/DatedIrsVAMM.sol";
@@ -16,30 +16,11 @@ import { SD59x18, sd59x18, convert } from "@prb/math/src/SD59x18.sol";
 UD60x18 constant ONE = UD60x18.wrap(1e18);
 
 // TODO: Break up this growing test contract into more multiple separate tests for increased readability
-contract VammTest_FreshVamm is VoltzTest {
-    // Contracts under test
+contract VammTest_FreshVamm is DatedIrsVammTest {
     using DatedIrsVamm for DatedIrsVamm.Data;
     using SafeCastUni for uint256;
-    uint256 internal vammId;
-    address constant mockRateOracle = 0xAa73aA73Aa73Aa73AA73Aa73aA73AA73aa73aa73;
-
-    // Initial VAMM state
-    uint160 initSqrtPriceX96 = uint160(2 * FixedPoint96.Q96 / 10); // 0.2 => price ~= 0.04 = 4%
-    uint128 initMarketId = 1;
-    int24 initTickSpacing = 1; // TODO: test with different tick spacing; need to adapt boundTicks()
-    uint256 initMaturityTimestamp = block.timestamp + convert(FixedAndVariableMath.SECONDS_IN_YEAR);
-    VammConfiguration.Mutable internal mutableConfig = VammConfiguration.Mutable({
-        priceImpactPhi: ud60x18(1e17), // 0.1
-        priceImpactBeta: ud60x18(125e15), // 0.125
-        spread: ud60x18(3e15), // 0.3%
-        rateOracle: IRateOracle(mockRateOracle)
-    });
-
-    VammConfiguration.Immutable internal immutableConfig = VammConfiguration.Immutable({
-        maturityTimestamp: initMaturityTimestamp,
-        _maxLiquidityPerTick: type(uint128).max,
-        _tickSpacing: initTickSpacing
-    });
+    using SafeCastUni for uint128;
+    using SafeCastUni for int256;
 
     function setUp() public {
         DatedIrsVamm.create(initMarketId, initSqrtPriceX96, immutableConfig, mutableConfig);
@@ -168,7 +149,7 @@ contract VammTest_FreshVamm is VoltzTest {
     function averagePriceBetweenTicksUsingLoop(
         int24 tickLower,
         int24 tickUpper)
-    internal returns (UD60x18)
+    internal pure returns (UD60x18)
     {
         UD60x18 sumOfPrices = VAMMBase.getPriceFromTick(tickLower);
         for (int24 i = tickLower + 1; i <= tickUpper; i++) {
@@ -399,7 +380,7 @@ contract VammTest_FreshVamm is VoltzTest {
         int24 tickUpper = TickMath.getTickAtSqrtRatio(sqrtUpperPriceX96);
         uint256 _mockLiquidityIndex = 2;
         UD60x18 mockLiquidityIndex = convert(_mockLiquidityIndex);
-        int128 requestedBaseAmount = 50000000000;
+        int128 requestedBaseAmount = 50_000_000_000;
 
         int256 executedBaseAmount = vamm.executeDatedMakerOrder(accountId,sqrtLowerPriceX96,sqrtUpperPriceX96, requestedBaseAmount);
         // console2.log("executedBaseAmount = %s", executedBaseAmount); // TODO_delete_log
@@ -430,30 +411,154 @@ contract VammTest_FreshVamm is VoltzTest {
             // Distances are equal
             assertEq(abs(unfilledBaseShort), abs(unfilledBaseLong), "short != long");
         }
+
+        // Absolute value of long and shorts should add up to executed amount
         assertEq(unfilledBaseLong - unfilledBaseShort, executedBaseAmount);
+
+        // The current price is within the tick range, so we expect the accumulator to equal basePerTick
+        int128 basePerTick = VAMMBase.basePerTick(tickLower, tickUpper, executedBaseAmount.toInt128());
+        assertEq(vamm.vars.accumulator.toInt128(), basePerTick);
+
+        // We also expect liquidityGross to equal basePerTick for both upper and lower ticks 
+        assertEq(vamm.vars._ticks[tickLower].liquidityGross.toInt128(), basePerTick);
+        assertEq(vamm.vars._ticks[tickUpper].liquidityGross.toInt128(), basePerTick);
+
+        // When moving left to right (right to left), basePerTick should be added (subtracted) at the lower tick and subtracted (added) at the upper tick 
+        assertEq(vamm.vars._ticks[tickLower].liquidityNet, basePerTick);
+        assertEq(vamm.vars._ticks[tickUpper].liquidityNet, -basePerTick);
     }
 
-    function tickDistanceFromCurrentToTick(int24 _tick) public view returns (uint256 absoluteDistance) {
+    // TODO: extend to 3 or more LPs and test TickInfo when multiple LPs start/end at same tick
+    function test_GetAccountUnfilledBases_TwoLPs() public {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
-        int24 currentTick = vamm.vars.tick;
-        return tickDistance(currentTick, _tick);
-    }
+        int24 lp1tickLower;
+        int24 lp1tickUpper;
+        int128 lp1basePerTick;
 
-    function boundNewPositionLiquidityAmount(
-        int128 unboundBaseToken,
-        int24 _tickLower,
-        int24 _tickUpper)
-    internal returns (int128 boundBaseTokens)
-    {
-        DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
-        // Ticks must be in range and cannot be equal
-        uint256 tickRange = tickDistance(_tickLower, _tickUpper);
-        uint128 maxLiquidityPerTick = vamm.immutableConfig._maxLiquidityPerTick;
-        // console2.log("tickRange", tickRange); // TODO_delete_log
-        // console2.log("maxLiquidityPerTick", maxLiquidityPerTick, maxLiquidityPerTick * tickRange); // TODO_delete_log
-        int256 max = min(int256(type(int128).max), int256(uint256(maxLiquidityPerTick)) * int256(tickRange));
+        // First LP
+        {
+            uint128 accountId = 1;
+            uint160 sqrtLowerPriceX96 = uint160(1 * FixedPoint96.Q96 / 10); // 0.1 => price = 0.01 = 1%
+            uint160 sqrtUpperPriceX96 = uint160(22 * FixedPoint96.Q96 / 100); // 0.22 => price = 0.0484 = 4.84%
+            // console2.log("sqrtUpperPriceX96 = %s", sqrtUpperPriceX96); // TODO_delete_log
+            // console2.log("maxSqrtRatio      = %s", uint256(2507794810551837817144115957740)); // TODO_delete_log
 
-        return int128(bound(unboundBaseToken, 0, max)); // New positions cannot withdraw liquidity so >= 0
+            int24 tickLower = TickMath.getTickAtSqrtRatio(sqrtLowerPriceX96);
+            int24 tickUpper = TickMath.getTickAtSqrtRatio(sqrtUpperPriceX96);
+            uint256 _mockLiquidityIndex = 2;
+            UD60x18 mockLiquidityIndex = convert(_mockLiquidityIndex);
+            int128 requestedBaseAmount = 50_000_000_000;
+
+            int256 executedBaseAmount = vamm.executeDatedMakerOrder(accountId,sqrtLowerPriceX96,sqrtUpperPriceX96, requestedBaseAmount);
+            // console2.log("executedBaseAmount = %s", executedBaseAmount); // TODO_delete_log
+            assertAlmostEqual(executedBaseAmount, requestedBaseAmount);
+
+            // Position just opened so no filled balances
+            (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(accountId);
+            assertEq(baseBalancePool, 0);
+            assertEq(quoteBalancePool, 0);
+
+            // TODO: liquidity index only required for fixed tokens; mocking should not be required if we only want base token values
+            vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
+
+            // We expect the full base amount is unfilled cos there have been no trades
+            (int256 unfilledBaseLong, int256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
+            // console2.log("unfilledBaseLong", unfilledBaseLong); // TODO_delete_log
+            // console2.log("unfilledBaseShort", unfilledBaseShort); // TODO_delete_log
+            uint256 distanceToLower = tickDistanceFromCurrentToTick(tickLower);
+            uint256 distanceToUpper = tickDistanceFromCurrentToTick(tickUpper);
+            // console2.log("distanceToLower", distanceToLower); // TODO_delete_log
+            // console2.log("distanceToUpper", distanceToUpper); // TODO_delete_log
+
+            if (distanceToLower > distanceToUpper) {
+                assertGt(abs(unfilledBaseShort), abs(unfilledBaseLong), "short <= long");
+            } else if (distanceToLower < distanceToUpper) {
+                assertLt(abs(unfilledBaseShort), abs(unfilledBaseLong), "short >= long");
+            } else {
+                // Distances are equal
+                assertEq(abs(unfilledBaseShort), abs(unfilledBaseLong), "short != long");
+            }
+
+            // Absolute value of long and shorts should add up to executed amount
+            assertEq(unfilledBaseLong - unfilledBaseShort, executedBaseAmount);
+
+            // The current price is within the tick range, so we expect the accumulator to equal basePerTick
+            int128 basePerTick = VAMMBase.basePerTick(tickLower, tickUpper, executedBaseAmount.toInt128());
+            assertEq(vamm.vars.accumulator.toInt128(), basePerTick);
+
+            // We also expect liquidityGross to equal basePerTick for both upper and lower ticks 
+            assertEq(vamm.vars._ticks[tickLower].liquidityGross.toInt128(), basePerTick);
+            assertEq(vamm.vars._ticks[tickUpper].liquidityGross.toInt128(), basePerTick);
+
+            // When moving left to right (right to left), basePerTick should be added (subtracted) at the lower tick and subtracted (added) at the upper tick 
+            assertEq(vamm.vars._ticks[tickLower].liquidityNet, basePerTick);
+            assertEq(vamm.vars._ticks[tickUpper].liquidityNet, -basePerTick);
+
+            // Save some values for additional testing after extra LPs
+            lp1tickLower = tickLower;
+            lp1tickUpper = tickUpper;
+            lp1basePerTick = basePerTick;
+        }
+
+        // Second LP
+        {
+            uint128 accountId = 2;
+            uint160 sqrtLowerPriceX96 = uint160(15 * FixedPoint96.Q96 / 100); // 0.15 => price = 0.0225 = 2.25%
+            uint160 sqrtUpperPriceX96 = uint160(25 * FixedPoint96.Q96 / 100); // 0.25 => price = 0.0625 = 6.25%
+            // console2.log("sqrtUpperPriceX96 = %s", sqrtUpperPriceX96); // TODO_delete_log
+            // console2.log("maxSqrtRatio      = %s", uint256(2507794810551837817144115957740)); // TODO_delete_log
+
+            int24 tickLower = TickMath.getTickAtSqrtRatio(sqrtLowerPriceX96);
+            int24 tickUpper = TickMath.getTickAtSqrtRatio(sqrtUpperPriceX96);
+            uint256 _mockLiquidityIndex = 2;
+            UD60x18 mockLiquidityIndex = convert(_mockLiquidityIndex);
+            int128 requestedBaseAmount = 50_000_000_000;
+
+            int256 executedBaseAmount = vamm.executeDatedMakerOrder(accountId,sqrtLowerPriceX96,sqrtUpperPriceX96, requestedBaseAmount);
+            // console2.log("executedBaseAmount = %s", executedBaseAmount); // TODO_delete_log
+            assertAlmostEqual(executedBaseAmount, requestedBaseAmount);
+
+            // Position just opened so no filled balances
+            (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(accountId);
+            assertEq(baseBalancePool, 0);
+            assertEq(quoteBalancePool, 0);
+
+            // TODO: liquidity index only required for fixed tokens; mocking should not be required if we only want base token values
+            vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
+
+            // We expect the full base amount is unfilled cos there have been no trades
+            (int256 unfilledBaseLong, int256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
+            // console2.log("unfilledBaseLong", unfilledBaseLong); // TODO_delete_log
+            // console2.log("unfilledBaseShort", unfilledBaseShort); // TODO_delete_log
+            uint256 distanceToLower = tickDistanceFromCurrentToTick(tickLower);
+            uint256 distanceToUpper = tickDistanceFromCurrentToTick(tickUpper);
+            // console2.log("distanceToLower", distanceToLower); // TODO_delete_log
+            // console2.log("distanceToUpper", distanceToUpper); // TODO_delete_log
+
+            if (distanceToLower > distanceToUpper) {
+                assertGt(abs(unfilledBaseShort), abs(unfilledBaseLong), "short <= long");
+            } else if (distanceToLower < distanceToUpper) {
+                assertLt(abs(unfilledBaseShort), abs(unfilledBaseLong), "short >= long");
+            } else {
+                // Distances are equal
+                assertEq(abs(unfilledBaseShort), abs(unfilledBaseLong), "short != long");
+            }
+
+            // Absolute value of long and shorts should add up to executed amount
+            assertEq(unfilledBaseLong - unfilledBaseShort, executedBaseAmount);
+
+            // The current price is within both tick ranges, so we expect the accumulator to equal the sum of two basePerTick values
+            int128 basePerTick = VAMMBase.basePerTick(tickLower, tickUpper, executedBaseAmount.toInt128());
+            assertEq(vamm.vars.accumulator.toInt128(), basePerTick + lp1basePerTick);
+
+            // We expect liquidityGross to equal basePerTick for both upper and lower ticks 
+            assertEq(vamm.vars._ticks[tickLower].liquidityGross.toInt128(), basePerTick);
+            assertEq(vamm.vars._ticks[tickUpper].liquidityGross.toInt128(), basePerTick);
+
+            // When moving left to right (right to left), basePerTick should be added (subtracted) at the lower tick and subtracted (added) at the upper tick 
+            assertEq(vamm.vars._ticks[tickLower].liquidityNet, basePerTick);
+            assertEq(vamm.vars._ticks[tickUpper].liquidityNet, -basePerTick);
+        }
     }
 
     function testFuzz_GetAccountUnfilledBases(

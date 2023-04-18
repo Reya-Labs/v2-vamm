@@ -135,7 +135,7 @@ library LPPosition {
         int256 trackerVariableTokenGlobalGrowth,
         int256 trackerBaseTokenGlobalGrowth
     )
-        internal view returns (int256, int256) {
+        internal pure returns (int256, int256) {
 
         require(self.accountId != 0, "Missing position"); // TODO: custom error
 
