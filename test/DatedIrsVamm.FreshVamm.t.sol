@@ -289,6 +289,42 @@ contract VammTest is VoltzTestHelpers {
         return sumOfPrices.div(convert(uint256(int256(1 + tickUpper - tickLower))));
     }
 
+    function test_SumOfAllPricesUpToPlus10k()
+    public {
+        // The greater the tick range, the more the real answer deviates from a naive average of the top and bottom price
+        // a range of ~500 is sufficient to illustrate a diversion, but note that larger ranges have much larger diversions
+        int24 tick = 1;
+
+        assertAlmostExactlyEqual(VAMMBase._sumOfAllPricesUpToPlus10k(tick), ud60x18(10000e18 + 20001e14));
+    }
+
+    function test_AveragePriceBetweenTicks_SingleTick0()
+    public {
+        // The greater the tick range, the more the real answer deviates from a naive average of the top and bottom price
+        // a range of ~500 is sufficient to illustrate a diversion, but note that larger ranges have much larger diversions
+        int24 tickLower = 0;
+        int24 tickUpper = 0;
+        assertEq(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), ud60x18(1e18));
+    }
+
+    function test_AveragePriceBetweenTicks_SingleTick1()
+    public {
+        // The greater the tick range, the more the real answer deviates from a naive average of the top and bottom price
+        // a range of ~500 is sufficient to illustrate a diversion, but note that larger ranges have much larger diversions
+        int24 tickLower = 1;
+        int24 tickUpper = 1;
+        assertAlmostExactlyEqual(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), ud60x18(10001e14));
+    }
+
+    function test_AveragePriceBetweenTicks_TwoTicks()
+    public {
+        // The greater the tick range, the more the real answer deviates from a naive average of the top and bottom price
+        // a range of ~500 is sufficient to illustrate a diversion, but note that larger ranges have much larger diversions
+        int24 tickLower = 0;
+        int24 tickUpper = 1;
+        assertAlmostExactlyEqual(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), ud60x18(100005e13));
+    }
+
     function test_AveragePriceBetweenTicks()
     public {
         // The greater the tick range, the more the real answer deviates from a naive average of the top and bottom price
@@ -296,7 +332,7 @@ contract VammTest is VoltzTestHelpers {
         int24 tickLower = 2;
         int24 tickUpper = 500;
         UD60x18 expected = averagePriceBetweenTicksUsingLoop(tickLower, tickUpper);
-        assertAlmostEqual(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), expected);
+        assertAlmostExactlyEqual(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), expected);
     }
 
     function test_AveragePriceBetweenTicks2()
@@ -305,7 +341,7 @@ contract VammTest is VoltzTestHelpers {
         int24 tickLower = -10;
         int24 tickUpper = 10;
         UD60x18 expected = averagePriceBetweenTicksUsingLoop(tickLower, tickUpper);
-        assertAlmostEqual(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), expected);
+        assertAlmostExactlyEqual(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), expected);
     }
 
     function testSlowFuzz_AveragePriceBetweenTicks(
