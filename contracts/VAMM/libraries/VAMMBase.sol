@@ -140,8 +140,15 @@ library VAMMBase {
         return UD60x18.wrap(FullMath.mulDiv(priceX96, 1e18, FixedPoint96.Q96));
     }
 
-    // @dev Returns the sum of `1.0001^x` for `x`=0,...,`tick`, using the the fact that this equals `1.0001^(n+1) / (1-1.0001)`
-    function sumOfAllPricesUpTo(int24 tick) public pure returns(UD60x18 price) {
+    /// @dev Private but labelled internal for testability.
+    /// 
+    /// @dev The sum of `1.0001^x` for `x`=0,...,`tick`, equals `(1.0001^(tick+1) - 1) / (1.0001-1)`. This can be positive or nagative.
+    /// The `- 1 / (1.0001-1)` part of that forumla equals `-10000`. If we skip this subtraction then:
+    /// (A) there is less math to do
+    /// (B) we can guarantee that the result is positive (because `1.0001^(n+1)` is positive) and return an unsigned value
+    ///
+    /// For those reasons, we return not the sum of `1.0001^x` for `x`=0,...,`n`, but that sum plus 10,000.
+    function _sumOfAllPricesUpToPlus10k(int24 tick) public pure returns(UD60x18 price) {
         // Tick might be negative and UD60x18 does not support `.pow(x)` for x < 0, so we must use SD59x18
         SD59x18 numeratorSigned = PRICE_EXPONENT_BASE.pow(convert_sd(int256(tick + 1)));
 
@@ -156,7 +163,8 @@ library VAMMBase {
         int24 _tickLower,
         int24 _tickUpper
     ) internal pure returns(UD60x18) {
-        return sumOfAllPricesUpTo(_tickUpper).sub(sumOfAllPricesUpTo(_tickLower - 1)).div(convert(uint256(int256(1 + _tickUpper - _tickLower))));
+        // As both of the below results are 10k too large, the difference between them will be correct
+        return _sumOfAllPricesUpToPlus10k(_tickUpper).sub(_sumOfAllPricesUpToPlus10k(_tickLower - 1)).div(convert(uint256(int256(1 + _tickUpper - _tickLower))));
     }
 
     function flipTicks(
