@@ -16,9 +16,9 @@ library Tick {
 
     // info stored for each initialized individual tick
     struct Info {
-        /// @dev the total position liquidity that references this tick (either as tick lower or tick upper)
+        /// @dev the total per-tick liquidity that references this tick (either as tick lower or tick upper)
         uint128 liquidityGross;
-        /// @dev amount of net liquidity added (subtracted) when tick is crossed from left to right (right to left),
+        /// @dev amount of per-tick liquidity added (subtracted) when tick is crossed from left to right (right to left),
         int128 liquidityNet;
         /// @dev growth per unit of liquidity on the _other_ side of this tick (relative to the current tick)
         /// @dev only has relative meaning, not absolute — the value depends on when the tick is initialized
@@ -47,7 +47,7 @@ library Tick {
 
     /// @dev Common checks for valid tick inputs.
     //function checkTicks(int24 tickLower, int24 tickUpper) internal pure { // TODO: restore pure
-    function checkTicks(int24 tickLower, int24 tickUpper) internal view {
+    function checkTicks(int24 tickLower, int24 tickUpper) internal pure {
         // console2.log("checkTicks: ticks = (%s, %s)", uint256(int256(tickLower)), uint256(int256(tickUpper))); // TODO_delete_log
         require(tickLower < tickUpper, "TLU");
         require(tickLower >= TickMath.MIN_TICK, "TLM");
