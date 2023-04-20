@@ -29,6 +29,7 @@
     "typescript": ">=4.5.0"
   },
   "dependencies": {
+    "@morenabarboni/sumo": "^1.0.0",
     "@prb/math": "^3.3.0"
   }
 }
