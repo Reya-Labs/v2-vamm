@@ -41,36 +41,37 @@ library DatedIrsVammPool {
     }
 
     event VammCreated(
-        uint160 sqrtPriceX96,
+        uint128 _marketId,
         int24 tick,
-        VammConfiguration.VammConfig _config
+        VammConfiguration.Immutable _config,
+        VammConfiguration.Mutable _mutableConfig
     );
 
-    function createVamm(uint128 _marketId, uint256 _maturityTimestamp,  uint160 _sqrtPriceX96, int24 _tickSpacing, VammConfiguration.VammConfig calldata _config)
+    function createVamm(uint128 _marketId,  uint160 _sqrtPriceX96, VammConfiguration.Immutable calldata _config, VammConfiguration.Mutable calldata _mutableConfig)
     external
     {
         OwnableStorage.onlyOwner();
-        DatedIrsVamm.Data storage vamm = DatedIrsVamm.create(_marketId, _maturityTimestamp, _sqrtPriceX96, _tickSpacing, _config);
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.create(_marketId, _sqrtPriceX96, _config, _mutableConfig);
         emit VammCreated(
-            _sqrtPriceX96,
-            vamm.state.tick,
-            _config
+            _marketId,
+            vamm.vars.tick,
+            _config,
+            _mutableConfig
         );
     }
 
     event VammConfigUpdated(
         uint128 _marketId,
-        uint256 _maturityTimestamp,
-        VammConfiguration.VammConfig _config
+        VammConfiguration.Mutable _config
     );
 
-    function configureVamm(uint128 _marketId, uint256 _maturityTimestamp, VammConfiguration.VammConfig calldata _config)
+    function configureVamm(uint128 _marketId, uint256 _maturityTimestamp, VammConfiguration.Mutable calldata _config)
     external
     {
         OwnableStorage.onlyOwner();
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(_marketId, _maturityTimestamp);
         vamm.configure(_config);
-        emit VammConfigUpdated(_marketId, _maturityTimestamp, _config);
+        emit VammConfigUpdated(_marketId, _config);
     }
 
     /// @dev note, a pool needs to have this interface to enable account closures initiated by products

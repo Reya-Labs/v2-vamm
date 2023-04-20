@@ -57,12 +57,12 @@ library DatedIrsVamm {
 
     /// @dev Internal, frequently-updated state of the VAMM, which is compressed into one storage slot.
     struct Data {
-        /// @dev Numeric identifier for the vamm. Must be unique, must not be 0.
-        uint256 vammId;
-        /// @dev vamm config set at initialization
-        VammConfiguration.VammConfig config;
+        /// @dev vamm config set at initialization, can't be modified after creation
+        VammConfiguration.Immutable immutableConfig;
+        /// @dev configurable vamm config
+        VammConfiguration.Mutable mutableConfig;
         /// @dev vamm state frequently-updated
-        VammConfiguration.VammState state;
+        VammConfiguration.State vars;
     }
 
     /**
@@ -83,7 +83,7 @@ library DatedIrsVamm {
     function loadByMaturityAndMarket(uint128 marketId, uint256 maturityTimestamp) internal view returns (Data storage irsVamm) {
         uint256 id = uint256(keccak256(abi.encodePacked(marketId, maturityTimestamp)));
         irsVamm = load(id);
-        if (irsVamm.config.maturityTimestamp == 0) {
+        if (irsVamm.immutableConfig.maturityTimestamp == 0) {
             revert CustomErrors.MarketAndMaturityCombinaitonNotSupported(marketId, maturityTimestamp);
         }
     }
@@ -94,69 +94,69 @@ library DatedIrsVamm {
      */
     function create(
         uint128 _marketId,
-        uint256 _maturityTimestamp, 
         uint160 _sqrtPriceX96,
-        int24 _tickSpacing,
-        VammConfiguration.VammConfig memory _config
+        VammConfiguration.Immutable memory _config,
+        VammConfiguration.Mutable memory _mutableConfig
     ) internal returns (Data storage irsVamm) {
-        uint256 id = uint256(keccak256(abi.encodePacked(_marketId, _maturityTimestamp)));
+        uint256 id = uint256(keccak256(abi.encodePacked(_marketId, _config.maturityTimestamp)));
         irsVamm = load(id);
 
-        if (irsVamm.vammId != 0) {
-            revert CustomErrors.MarketAndMaturityCombinaitonAlreadyExists(_marketId, _maturityTimestamp);
+        if (irsVamm.immutableConfig.maturityTimestamp != 0) {
+            revert CustomErrors.MarketAndMaturityCombinaitonAlreadyExists(_marketId, _config.maturityTimestamp);
         }
 
-        irsVamm.vammId = id;
-        irsVamm.config = _config;
+        if (_config.maturityTimestamp <= block.timestamp) {
+            revert CustomErrors.MaturityMustBeInFuture(block.timestamp, _config.maturityTimestamp);
+        }
 
-        initialize(irsVamm, _sqrtPriceX96, _maturityTimestamp, _marketId, _tickSpacing);
+        // tick spacing is capped at 16384 to prevent the situation where tickSpacing is so large that
+        // TickBitmap#nextInitializedTickWithinOneWord overflows int24 container from a valid tick
+        // 16384 ticks represents a >5x price change with ticks of 1 bips
+        require(_config._tickSpacing > 0 && _config._tickSpacing < Tick.MAXIMUM_TICK_SPACING, "TSOOB");
+
+        irsVamm.immutableConfig.maturityTimestamp = _config.maturityTimestamp;
+        irsVamm.immutableConfig._maxLiquidityPerTick = _config._maxLiquidityPerTick;
+        irsVamm.immutableConfig._tickSpacing = _config._tickSpacing;
+        
+        configure(irsVamm, _mutableConfig);
+
+        initialize(irsVamm, _sqrtPriceX96);
     }
 
     /// @dev not locked because it initializes unlocked
     function initialize(
         Data storage self,
-        uint160 sqrtPriceX96,
-        uint256 _maturityTimestamp,
-        uint128 _marketId,
-        int24 _tickSpacing
+        uint160 sqrtPriceX96
     ) internal {
-
         if (sqrtPriceX96 == 0) {
             revert CustomErrors.ExpectedNonZeroSqrtPriceForInit(sqrtPriceX96);
         }
-        if (self.state.sqrtPriceX96 != 0) {
-            revert CustomErrors.ExpectedSqrtPriceZeroBeforeInit(self.state.sqrtPriceX96);
+        if (self.vars.sqrtPriceX96 != 0) {
+            revert CustomErrors.ExpectedSqrtPriceZeroBeforeInit(self.vars.sqrtPriceX96);
         }
-        if (_maturityTimestamp <= block.timestamp) {
-            revert CustomErrors.MaturityMustBeInFuture(block.timestamp, _maturityTimestamp);
-        }
-        // tick spacing is capped at 16384 to prevent the situation where tickSpacing is so large that
-        // TickBitmap#nextInitializedTickWithinOneWord overflows int24 container from a valid tick
-        // 16384 ticks represents a >5x price change with ticks of 1 bips
-        require(_tickSpacing > 0 && _tickSpacing < Tick.MAXIMUM_TICK_SPACING, "TSOOB");
 
         int24 tick = TickMath.getTickAtSqrtRatio(sqrtPriceX96);
 
-        (self.state.observationCardinality, self.state.observationCardinalityNext) = self.state.observations.initialize(Time.blockTimestampTruncated());
-        self.state.observationIndex = 0;
-        self.state.unlocked = true;
-        self.state.tick = tick;
-        self.state.sqrtPriceX96 = sqrtPriceX96;
+        (self.vars.observationCardinality, self.vars.observationCardinalityNext) = self.vars.observations.initialize(Time.blockTimestampTruncated());
+        self.vars.observationIndex = 0;
+        self.vars.unlocked = true;
+        self.vars.tick = tick;
+        self.vars.sqrtPriceX96 = sqrtPriceX96;
     }
 
     /// @dev Mutually exclusive reentrancy protection into the pool to/from a method. This method also prevents entrance
     /// to a function before the pool is initialized. The reentrancy guard is required throughout the contract because
     /// we use balance checks to determine the payment status of interactions such as mint, swap and flash.
     modifier lock(Data storage self) {
-        if (!self.state.unlocked) {
+        if (!self.vars.unlocked) {
             revert CustomErrors.CanOnlyTradeIfUnlocked();
         }
-        self.state.unlocked = false;
+        self.vars.unlocked = false;
         _;
-        if (self.state.unlocked) {
+        if (self.vars.unlocked) {
             revert CustomErrors.CanOnlyUnlockIfLocked();
         }
-        self.state.unlocked = true;
+        self.vars.unlocked = true;
     }
 
     /// @notice Calculates time-weighted geometric mean price based on the past `secondsAgo` seconds
@@ -179,18 +179,22 @@ library DatedIrsVamm {
 
         if (adjustForSpread) {
             require(orderSize != 0); // TODO: custom error
-            spreadImpactDelta = self.config.priceConfig.spread;
+            console2.log("GM",UD60x18.unwrap(self.mutableConfig.spread));
+            spreadImpactDelta = self.mutableConfig.spread;
         }
 
         if (adjustForPriceImpact) {
             require(orderSize != 0); // TODO: custom error
-            priceImpactAsFraction = self.config.priceConfig.priceImpactPhi.mul(
-                convert(uint256(orderSize > 0 ? orderSize : -orderSize)).pow(self.config.priceConfig.priceImpactBeta)
+            priceImpactAsFraction = self.mutableConfig.priceImpactPhi.mul(
+                convert(uint256(orderSize > 0 ? orderSize : -orderSize)).pow(self.mutableConfig.priceImpactBeta)
             );
         }
 
         // The projected price impact and spread of a trade will move the price up for buys, down for sells
         if (orderSize > 0) {
+            console2.log("GM",UD60x18.unwrap(geometricMeanPrice));
+            console2.log("SID",UD60x18.unwrap(spreadImpactDelta));
+            console2.log("PIF",UD60x18.unwrap(priceImpactAsFraction));
             geometricMeanPrice = geometricMeanPrice.add(spreadImpactDelta).mul(ONE.add(priceImpactAsFraction));
         } else {
             if (spreadImpactDelta.gte(geometricMeanPrice)) {
@@ -201,6 +205,9 @@ library DatedIrsVamm {
                 // The model suggests that the price will drop below zero after price impact
                 return ZERO;
             }
+            console2.log("GM",UD60x18.unwrap(geometricMeanPrice));
+            console2.log("SID",UD60x18.unwrap(spreadImpactDelta));
+            console2.log("PIF",UD60x18.unwrap(priceImpactAsFraction));
             geometricMeanPrice = geometricMeanPrice.sub(spreadImpactDelta).mul(ONE.sub(priceImpactAsFraction));
         }
 
@@ -216,7 +223,7 @@ library DatedIrsVamm {
     {
         if (secondsAgo == 0) {
             // return the current tick if secondsAgo == 0
-            arithmeticMeanTick = self.state.tick;
+            arithmeticMeanTick = self.vars.tick;
         } else {
             uint32[] memory secondsAgos = new uint32[](2);
             secondsAgos[0] = secondsAgo;
@@ -251,13 +258,13 @@ library DatedIrsVamm {
         returns (int56[] memory tickCumulatives, uint160[] memory secondsPerLiquidityCumulativeX128s)
     {
         return
-            self.state.observations.observe(
+            self.vars.observations.observe(
                 Time.blockTimestampTruncated(),
                 secondsAgos,
-                self.state.tick,
-                self.state.observationIndex,
+                self.vars.tick,
+                self.vars.observationIndex,
                 0, // liquidity is untracked
-                self.state.observationCardinality
+                self.vars.observationCardinality
             );
     }
 
@@ -269,12 +276,12 @@ library DatedIrsVamm {
         internal
         lock(self)
     {
-        uint16 observationCardinalityNextOld =  self.state.observationCardinalityNext; // for the event
-        uint16 observationCardinalityNextNew =  self.state.observations.grow(
+        uint16 observationCardinalityNextOld =  self.vars.observationCardinalityNext; // for the event
+        uint16 observationCardinalityNextNew =  self.vars.observations.grow(
             observationCardinalityNextOld,
             observationCardinalityNext
         );
-         self.state.observationCardinalityNext = observationCardinalityNextNew;
+         self.vars.observationCardinalityNext = observationCardinalityNextNew;
         if (observationCardinalityNextOld != observationCardinalityNextNew)
             emit IncreaseObservationCardinalityNext(observationCardinalityNextOld, observationCardinalityNextNew);
     }
@@ -302,7 +309,7 @@ library DatedIrsVamm {
         int24 tickUpper = TickMath.getTickAtSqrtRatio(fixedRateUpper);
 
         LPPosition.Data storage position = LPPosition._ensurePositionOpened(accountId, tickLower, tickUpper);
-        self.state.positionsInAccount[accountId].push(position.positionId);
+        self.vars.positionsInAccount[accountId].push(LPPosition.getPositionId(accountId, tickLower, tickUpper));
 
         require(position.baseAmount + requestedBaseAmount >= 0, "Burning too much"); // TODO: CustomError
 
@@ -314,11 +321,14 @@ library DatedIrsVamm {
 
     function configure(
         Data storage self,
-        VammConfiguration.VammConfig memory _config) internal {
+        VammConfiguration.Mutable memory _config) internal {
 
         // TODO: sanity check config - e.g. price impact calculated must never be >= 1
 
-        self.config = _config;
+        self.mutableConfig.priceImpactPhi = _config.priceImpactPhi;
+        self.mutableConfig.priceImpactBeta = _config.priceImpactBeta;
+        self.mutableConfig.rateOracle = _config.rateOracle;
+        self.mutableConfig.spread = _config.spread;
     }
 
     /// @dev Private but labelled internal for testability.
@@ -369,7 +379,7 @@ library DatedIrsVamm {
         // TODO: calculate timeDeltaUntilMaturity and currentOracleValue outside _trackFixedTokens and pass as param to _trackFixedTokens, to avoid repeating the same work
         UD60x18 averagePrice = VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper);
         UD60x18 timeDeltaUntilMaturity = FixedAndVariableMath.accrualFact(maturityTimestamp - block.timestamp); 
-        UD60x18 currentOracleValue = self.config.rateOracle.getCurrentIndex();
+        UD60x18 currentOracleValue = self.mutableConfig.rateOracle.getCurrentIndex();
         UD60x18 timeComponent = ONE.add(averagePrice.mul(timeDeltaUntilMaturity)); // (1 + fixedRate * timeInYearsTillMaturity)
         trackedValue = mulUDxInt(
             currentOracleValue.mul(timeComponent),
@@ -389,7 +399,7 @@ library DatedIrsVamm {
       lock(self)
       returns (int128 executedBaseAmount)
     {
-        VAMMBase.checkCurrentTimestampMaturityTimestampDelta(self.config.maturityTimestamp);
+        VAMMBase.checkCurrentTimestampMaturityTimestampDelta(self.immutableConfig.maturityTimestamp);
 
         // console2.log("_vammMint: ticks = (%s, %s)", uint256(int256(tickLower)), uint256(int256(tickUpper))); // TODO_delete_log
         Tick.checkTicks(tickLower, tickUpper);
@@ -408,34 +418,34 @@ library DatedIrsVamm {
             params.tickUpper = tickUpper;
             params.accumulatorDelta = basePerTick;
             (flippedLower, flippedUpper) = params.flipTicks(
-                self.state._ticks,
-                self.state._tickBitmap,
-                self.state,
-                self.state.trackerVariableTokenGrowthGlobalX128,
-                self.state.trackerVariableTokenGrowthGlobalX128,
-                self.config._maxLiquidityPerTick,
-                self.config._tickSpacing
+                self.vars._ticks,
+                self.vars._tickBitmap,
+                self.vars,
+                self.vars.trackerVariableTokenGrowthGlobalX128,
+                self.vars.trackerVariableTokenGrowthGlobalX128,
+                self.immutableConfig._maxLiquidityPerTick,
+                self.immutableConfig._tickSpacing
             );
         }
 
         // clear any tick data that is no longer needed
         if (basePerTick < 0) {
             if (flippedLower) {
-                self.state._ticks.clear(tickLower);
+                self.vars._ticks.clear(tickLower);
             }
             if (flippedUpper) {
-                self.state._ticks.clear(tickUpper);
+                self.vars._ticks.clear(tickUpper);
             }
         }
 
         if (basePerTick != 0) {
             if (
-                (self.state.tick >= tickLower) && (self.state.tick < tickUpper)
+                (self.vars.tick >= tickLower) && (self.vars.tick < tickUpper)
             ) {
                 // current tick is inside the passed range
-                uint128 accumulatorBefore = self.state.accumulator; // SLOAD for gas optimization
+                uint128 accumulatorBefore = self.vars.accumulator; // SLOAD for gas optimization
 
-                self.state.accumulator = LiquidityMath.addDelta(
+                self.vars.accumulator = LiquidityMath.addDelta(
                     accumulatorBefore,
                     basePerTick
                 );
@@ -455,22 +465,22 @@ library DatedIrsVamm {
         lock(self)
         returns (int256 trackerFixedTokenDelta, int256 trackerBaseTokenDelta)
     {
-        VAMMBase.checkCurrentTimestampMaturityTimestampDelta(self.config.maturityTimestamp);
+        VAMMBase.checkCurrentTimestampMaturityTimestampDelta(self.immutableConfig.maturityTimestamp);
 
         // console2.log("Checking ticks in vammSwap"); // TODO_delete_log
         Tick.checkTicks(params.tickLower, params.tickUpper);
 
-        VAMMBase.checksBeforeSwap(params, self.state, params.baseAmountSpecified > 0);
+        VAMMBase.checksBeforeSwap(params, self.vars, params.baseAmountSpecified > 0);
 
-        uint128 accumulatorStart = self.state.accumulator;
+        uint128 accumulatorStart = self.vars.accumulator;
 
         VAMMBase.SwapState memory state = VAMMBase.SwapState({
             amountSpecifiedRemaining: params.baseAmountSpecified, // base ramaining
-            sqrtPriceX96: self.state.sqrtPriceX96,
-            tick: self.state.tick,
+            sqrtPriceX96: self.vars.sqrtPriceX96,
+            tick: self.vars.tick,
             accumulator: accumulatorStart,
-            trackerFixedTokenGrowthGlobalX128: self.state.trackerVariableTokenGrowthGlobalX128,
-            trackerBaseTokenGrowthGlobalX128: self.state.trackerVariableTokenGrowthGlobalX128,
+            trackerFixedTokenGrowthGlobalX128: self.vars.trackerVariableTokenGrowthGlobalX128,
+            trackerBaseTokenGrowthGlobalX128: self.vars.trackerVariableTokenGrowthGlobalX128,
             trackerFixedTokenDeltaCumulative: 0, // for Trader (user invoking the swap)
             trackerBaseTokenDeltaCumulative: 0 // for Trader (user invoking the swap)
         });
@@ -490,8 +500,8 @@ library DatedIrsVamm {
             /// @dev if isFT (fixed taker) (moving right to left), the nextInitializedTick should be more than or equal to the current tick
             /// @dev if !isFT (variable taker) (moving left to right), the nextInitializedTick should be less than or equal to the current tick
             /// add a test for the statement that checks for the above two conditions
-            (step.tickNext, step.initialized) = self.state._tickBitmap
-                .nextInitializedTickWithinOneWord(state.tick, self.config._tickSpacing, !advanceRight);
+            (step.tickNext, step.initialized) = self.vars._tickBitmap
+                .nextInitializedTickWithinOneWord(state.tick, self.immutableConfig._tickSpacing, !advanceRight);
 
             // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
             if (advanceRight && step.tickNext > TickMath.MAX_TICK) {
@@ -529,7 +539,7 @@ library DatedIrsVamm {
                     sqrtRatioTargetX96: sqrtRatioTargetX96,
                     liquidity: state.accumulator,
                     amountRemaining: state.amountSpecifiedRemaining,
-                    timeToMaturityInSeconds: self.config.maturityTimestamp - block.timestamp
+                    timeToMaturityInSeconds: self.immutableConfig.maturityTimestamp - block.timestamp
                 })
             );
 
@@ -555,7 +565,7 @@ library DatedIrsVamm {
                     self,
                     state,
                     step,
-                    self.config.maturityTimestamp
+                    self.immutableConfig.maturityTimestamp
                 );
 
                 state.trackerFixedTokenDeltaCumulative -= step.trackerFixedTokenDelta; // fixedTokens; opposite sign from that of the LP's
@@ -568,7 +578,7 @@ library DatedIrsVamm {
             if (state.sqrtPriceX96 == step.sqrtPriceNextX96) {
                 // if the tick is initialized, run the tick transition
                 if (step.initialized) {
-                    int128 accumulatorNet = self.state._ticks.cross(
+                    int128 accumulatorNet = self.vars._ticks.cross(
                         step.tickNext,
                         state.trackerFixedTokenGrowthGlobalX128,
                         state.trackerBaseTokenGrowthGlobalX128
@@ -589,17 +599,17 @@ library DatedIrsVamm {
         }
 
         ///// UPDATE VAMM VARS AFTER SWAP /////
-        if (state.tick != self.state.tick) {
+        if (state.tick != self.vars.tick) {
             // update the tick in case it changed
-            (uint16 observationIndex, uint16 observationCardinality) = self.state.observations.write(
-                self.state.observationIndex,
+            (uint16 observationIndex, uint16 observationCardinality) = self.vars.observations.write(
+                self.vars.observationIndex,
                 Time.blockTimestampTruncated(),
-                self.state.tick,
+                self.vars.tick,
                 0, // Liquidity not currently being tracked
-                self.state.observationCardinality,
-                self.state.observationCardinalityNext
+                self.vars.observationCardinality,
+                self.vars.observationCardinalityNext
             );
-            (self.state.sqrtPriceX96, self.state.tick, self.state.observationIndex, self.state.observationCardinality) = (
+            (self.vars.sqrtPriceX96, self.vars.tick, self.vars.observationIndex, self.vars.observationCardinality) = (
                 state.sqrtPriceX96,
                 state.tick,
                 observationIndex,
@@ -607,19 +617,19 @@ library DatedIrsVamm {
             );
         } else {
             // otherwise just update the price
-            self.state.sqrtPriceX96 = state.sqrtPriceX96;
+            self.vars.sqrtPriceX96 = state.sqrtPriceX96;
         }
 
         // update liquidity if it changed
-        if (accumulatorStart != state.accumulator) self.state.accumulator = state.accumulator;
+        if (accumulatorStart != state.accumulator) self.vars.accumulator = state.accumulator;
 
-        self.state.trackerVariableTokenGrowthGlobalX128 = state.trackerBaseTokenGrowthGlobalX128;
-        self.state.trackerVariableTokenGrowthGlobalX128 = state.trackerFixedTokenGrowthGlobalX128;
+        self.vars.trackerVariableTokenGrowthGlobalX128 = state.trackerBaseTokenGrowthGlobalX128;
+        self.vars.trackerVariableTokenGrowthGlobalX128 = state.trackerFixedTokenGrowthGlobalX128;
 
         trackerFixedTokenDelta = state.trackerFixedTokenDeltaCumulative;
         trackerBaseTokenDelta = state.trackerBaseTokenDeltaCumulative;
 
-        emit VAMMBase.VAMMPriceChange(self.state.tick);
+        emit VAMMBase.VAMMPriceChange(self.vars.tick);
 
         emit VAMMBase.Swap(
             msg.sender,
@@ -681,7 +691,7 @@ library DatedIrsVamm {
         }
 
         int128 base = VAMMBase.baseBetweenTicks(tickLower, tickUpper, basePerTick);
-        trackerFixedTokenGrowthOutside = _trackFixedTokens(self, base, tickLower, tickUpper, self.config.maturityTimestamp);
+        trackerFixedTokenGrowthOutside = _trackFixedTokens(self, base, tickLower, tickUpper, self.immutableConfig.maturityTimestamp);
         trackerBaseTokenGrowthOutside = base;
     }
 
@@ -697,11 +707,10 @@ library DatedIrsVamm {
         internal
         returns (int256 unfilledBaseLong, int256 unfilledBaseShort)
     {
-        uint256 numPositions = self.state.positionsInAccount[accountId].length;
+        uint256 numPositions = self.vars.positionsInAccount[accountId].length;
         if (numPositions != 0) {
             for (uint256 i = 0; i < numPositions; i++) {
-                LPPosition.Data storage position = LPPosition.load(self.state.positionsInAccount[accountId][i]);
-
+                LPPosition.Data storage position = LPPosition.load(self.vars.positionsInAccount[accountId][i]);
                 // Get how liquidity is currently arranged. In particular, how much of the liquidity is avail to traders in each direction?
                 (,int256 unfilledShortBase,, int256 unfilledLongBase) = _trackValuesBetweenTicks(
                     self,
@@ -724,10 +733,10 @@ library DatedIrsVamm {
         internal
         returns (int256 baseBalancePool, int256 quoteBalancePool) {
         
-        uint256 numPositions = self.state.positionsInAccount[accountId].length;
+        uint256 numPositions = self.vars.positionsInAccount[accountId].length;
 
         for (uint256 i = 0; i < numPositions; i++) {
-            LPPosition.Data storage position = LPPosition.load(self.state.positionsInAccount[accountId][i]);
+            LPPosition.Data storage position = LPPosition.load(self.vars.positionsInAccount[accountId][i]);
             (int256 trackerVariableTokenGlobalGrowth, int256 trackerBaseTokenGlobalGrowth) = 
                 growthBetweenTicks(self, position.tickLower, position.tickUpper);
             (int256 trackerVariableTokenAccumulated, int256 trackerBaseTokenAccumulated) = position.getUpdatedPositionBalances(trackerVariableTokenGlobalGrowth, trackerBaseTokenGlobalGrowth); 
@@ -764,8 +773,8 @@ library DatedIrsVamm {
         (int256 unfilledFixedTokensLeft_, int256 unfilledBaseTokensLeft_) = _trackValuesBetweenTicksOutside(
             self,
             averageBase,
-            tickLower < self.state.tick ? tickLower : self.state.tick, // min(tickLower, currentTick)
-            tickUpper < self.state.tick ? tickUpper : self.state.tick  // min(tickUpper, currentTick)
+            tickLower < self.vars.tick ? tickLower : self.vars.tick, // min(tickLower, currentTick)
+            tickUpper < self.vars.tick ? tickUpper : self.vars.tick  // min(tickUpper, currentTick)
         );
         unfilledFixedTokensLeft = -unfilledFixedTokensLeft_;
         unfilledBaseTokensLeft = -unfilledBaseTokensLeft_;
@@ -777,8 +786,8 @@ library DatedIrsVamm {
         (unfilledFixedTokensRight, unfilledBaseTokensRight) = _trackValuesBetweenTicksOutside(
             self,
             averageBase,
-            tickLower > self.state.tick ? tickLower : self.state.tick, // max(tickLower, currentTick)
-            tickUpper > self.state.tick ? tickUpper : self.state.tick  // max(tickUpper, currentTick)
+            tickLower > self.vars.tick ? tickLower : self.vars.tick, // max(tickLower, currentTick)
+            tickUpper > self.vars.tick ? tickUpper : self.vars.tick  // max(tickUpper, currentTick)
         );
         // console2.log("unfilledTokensRight: (%s, %s)", uint256(unfilledFixedTokensRight), uint256(unfilledBaseTokensRight)); // TODO_delete_log
     }
@@ -798,31 +807,31 @@ library DatedIrsVamm {
         int256 trackerVariableTokenBelowLowerTick;
         int256 trackerBaseTokenBelowLowerTick;
 
-        if (tickLower <= self.state.tick) {
-            trackerVariableTokenBelowLowerTick = self.state._ticks[tickLower].trackerVariableTokenGrowthOutsideX128;
-            trackerBaseTokenBelowLowerTick = self.state._ticks[tickLower].trackerBaseTokenGrowthOutsideX128;
+        if (tickLower <= self.vars.tick) {
+            trackerVariableTokenBelowLowerTick = self.vars._ticks[tickLower].trackerVariableTokenGrowthOutsideX128;
+            trackerBaseTokenBelowLowerTick = self.vars._ticks[tickLower].trackerBaseTokenGrowthOutsideX128;
         } else {
-            trackerVariableTokenBelowLowerTick = self.state.trackerVariableTokenGrowthGlobalX128 -
-                self.state._ticks[tickLower].trackerVariableTokenGrowthOutsideX128;
-            trackerBaseTokenBelowLowerTick = self.state.trackerVariableTokenGrowthGlobalX128 -
-                self.state._ticks[tickLower].trackerBaseTokenGrowthOutsideX128;
+            trackerVariableTokenBelowLowerTick = self.vars.trackerVariableTokenGrowthGlobalX128 -
+                self.vars._ticks[tickLower].trackerVariableTokenGrowthOutsideX128;
+            trackerBaseTokenBelowLowerTick = self.vars.trackerVariableTokenGrowthGlobalX128 -
+                self.vars._ticks[tickLower].trackerBaseTokenGrowthOutsideX128;
         }
 
         int256 trackerVariableTokenAboveUpperTick;
         int256 trackerBaseTokenAboveUpperTick;
 
-        if (tickUpper > self.state.tick) {
-            trackerVariableTokenAboveUpperTick = self.state._ticks[tickUpper].trackerVariableTokenGrowthOutsideX128;
-            trackerBaseTokenAboveUpperTick = self.state._ticks[tickUpper].trackerBaseTokenGrowthOutsideX128;
+        if (tickUpper > self.vars.tick) {
+            trackerVariableTokenAboveUpperTick = self.vars._ticks[tickUpper].trackerVariableTokenGrowthOutsideX128;
+            trackerBaseTokenAboveUpperTick = self.vars._ticks[tickUpper].trackerBaseTokenGrowthOutsideX128;
         } else {
-            trackerVariableTokenAboveUpperTick = self.state.trackerVariableTokenGrowthGlobalX128 -
-                self.state._ticks[tickUpper].trackerVariableTokenGrowthOutsideX128;
-            trackerBaseTokenAboveUpperTick = self.state.trackerVariableTokenGrowthGlobalX128 -
-                self.state._ticks[tickUpper].trackerBaseTokenGrowthOutsideX128;
+            trackerVariableTokenAboveUpperTick = self.vars.trackerVariableTokenGrowthGlobalX128 -
+                self.vars._ticks[tickUpper].trackerVariableTokenGrowthOutsideX128;
+            trackerBaseTokenAboveUpperTick = self.vars.trackerVariableTokenGrowthGlobalX128 -
+                self.vars._ticks[tickUpper].trackerBaseTokenGrowthOutsideX128;
         }
 
-        trackerVariableTokenGrowthBetween = self.state.trackerVariableTokenGrowthGlobalX128 - trackerVariableTokenBelowLowerTick - trackerVariableTokenAboveUpperTick;
-        trackerBaseTokenGrowthBetween = self.state.trackerVariableTokenGrowthGlobalX128 - trackerBaseTokenBelowLowerTick - trackerBaseTokenAboveUpperTick;
+        trackerVariableTokenGrowthBetween = self.vars.trackerVariableTokenGrowthGlobalX128 - trackerVariableTokenBelowLowerTick - trackerVariableTokenAboveUpperTick;
+        trackerBaseTokenGrowthBetween = self.vars.trackerVariableTokenGrowthGlobalX128 - trackerBaseTokenBelowLowerTick - trackerBaseTokenAboveUpperTick;
 
     }
 }

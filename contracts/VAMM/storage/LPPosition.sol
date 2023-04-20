@@ -15,10 +15,6 @@ library LPPosition {
 
     struct Data {
         /** 
-        * @dev unique position id
-        */
-        uint128 positionId;
-        /** 
         * @dev position's account id
         */
         uint128 accountId;
@@ -79,11 +75,10 @@ library LPPosition {
 
         position = load(positionId);
 
-        if (position.positionId != 0) {
-            revert PositionAlreadyExists(position.positionId);
+        if (position.accountId != 0) {
+            revert PositionAlreadyExists(positionId);
         }
 
-        position.positionId = positionId;
         position.accountId = accountId;
         position.tickUpper = tickUpper;
         position.tickLower = tickLower;
@@ -99,7 +94,7 @@ library LPPosition {
     ) internal {
         Data storage position = load(positionId);
 
-        if (position.positionId == 0) {
+        if (position.accountId == 0) {
             revert PositionNotFound();
         }
         position.trackerVariableTokenUpdatedGrowth = trackerVariableTokenUpdatedGrowth;
@@ -109,7 +104,7 @@ library LPPosition {
     }
 
     function updateBaseAmount(Data storage self, int128 baseAmount) internal {
-        if (self.positionId == 0) {
+        if (self.accountId == 0) {
             revert PositionNotFound();
         }
         self.baseAmount += baseAmount;
@@ -128,7 +123,7 @@ library LPPosition {
 
         position = load(positionId);
 
-        if(position.positionId != 0) {
+        if(position.accountId != 0) {
             return position;
         }
 

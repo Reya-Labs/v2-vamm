@@ -163,7 +163,7 @@ library VAMMBase {
         FlipTicksParams memory params,
         mapping(int24 => Tick.Info) storage _ticks,
         mapping(int16 => uint256) storage _tickBitmap,
-        VammConfiguration.VammState storage _vammVars,
+        VammConfiguration.State storage _vammVars,
         int256 _trackerVariableTokenGrowthGlobalX128,
         int256 _trackerBaseTokenGrowthGlobalX128,
         uint128 _maxLiquidityPerTick,
@@ -229,7 +229,7 @@ library VAMMBase {
 
     function checksBeforeSwap(
         IVAMMBase.SwapParams memory params,
-        VammConfiguration.VammState storage vammVarsStart,
+        VammConfiguration.State storage vammVarsStart,
         bool isFT
     ) internal view {
 

@@ -120,8 +120,6 @@ contract VoltzTestHelpers is Test {
     }
 }
 
-
-
 // Constants
 UD60x18 constant ONE = UD60x18.wrap(1e18);
 
@@ -130,7 +128,7 @@ contract VammTest is VoltzTestHelpers {
     // Contracts under test
     using DatedIrsVamm for DatedIrsVamm.Data;
     using SafeCastUni for uint256;
-    DatedIrsVamm.Data internal vamm;
+    uint256 internal vammId;
 
     address constant mockRateOracle = 0xAa73aA73Aa73Aa73AA73Aa73aA73AA73aa73aa73;
 
@@ -141,46 +139,47 @@ contract VammTest is VoltzTestHelpers {
     uint160 initSqrtPriceX96 = uint160(2 * FixedPoint96.Q96 / 10); // 0.2 => price ~= 0.04 = 4%
     uint128 initMarketId = 1;
     int24 initTickSpacing = 1; // TODO: test with different tick spacing; need to adapt boundTicks()
-    VammConfiguration.PriceConfig internal priceConfig = VammConfiguration.PriceConfig({
+    uint256 initMaturityTimestamp = block.timestamp + convert(FixedAndVariableMath.SECONDS_IN_YEAR);
+    VammConfiguration.Mutable internal mutableConfig = VammConfiguration.Mutable({
         priceImpactPhi: ud60x18(1e17), // 0.1
         priceImpactBeta: ud60x18(125e15), // 0.125
-        spread: ud60x18(3e15) // 0.3%
+        spread: ud60x18(3e15), // 0.3%
+        rateOracle: IRateOracle(mockRateOracle)
     });
 
-    VammConfiguration.VammConfig internal config = VammConfiguration.VammConfig({
-        vammId: 0,
-        marketId: initMarketId,
-        maturityTimestamp: block.timestamp + convert(FixedAndVariableMath.SECONDS_IN_YEAR),
+    VammConfiguration.Immutable internal immutableConfig = VammConfiguration.Immutable({
+        maturityTimestamp: initMaturityTimestamp,
         _maxLiquidityPerTick: type(uint128).max,
-        _tickSpacing: 60,
-        rateOracle: IRateOracle(mockRateOracle),
-        priceConfig: priceConfig
+        _tickSpacing: initTickSpacing
     });
 
     function setUp() public {
-        vamm.initialize(initSqrtPriceX96, block.timestamp + convert(FixedAndVariableMath.SECONDS_IN_YEAR), initMarketId, initTickSpacing);
+        DatedIrsVamm.create(initMarketId, initSqrtPriceX96, immutableConfig, mutableConfig);
+        vammId = uint256(keccak256(abi.encodePacked(initMarketId, initMaturityTimestamp)));
     }
 
     function test_Init_State() public {
-        assertEq(vamm.state.sqrtPriceX96, initSqrtPriceX96); 
-        assertEq(vamm.state.tick, TickMath.getTickAtSqrtRatio(initSqrtPriceX96)); 
-        assertEq(vamm.state.observationIndex, 0); 
-        assertEq(vamm.state.observationCardinality, 1); 
-        assertEq(vamm.state.observationCardinalityNext, 1); 
-       //assertEq(vamm.state.feeProtocol, 0); 
-        assertEq(vamm.state.unlocked, true); 
-        assertEq(vamm.config.priceConfig.priceImpactPhi, config.priceConfig.priceImpactPhi); 
-        assertEq(vamm.config.priceConfig.priceImpactBeta, config.priceConfig.priceImpactBeta); 
-        assertEq(vamm.config.priceConfig.spread, config.priceConfig.spread); 
-        assertEq(address(vamm.config.rateOracle), address(config.rateOracle)); 
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
+        assertEq(vamm.vars.sqrtPriceX96, initSqrtPriceX96); 
+        assertEq(vamm.vars.tick, TickMath.getTickAtSqrtRatio(initSqrtPriceX96)); 
+        assertEq(vamm.vars.observationIndex, 0); 
+        assertEq(vamm.vars.observationCardinality, 1); 
+        assertEq(vamm.vars.observationCardinalityNext, 1); 
+       //assertEq(vamm.vars.feeProtocol, 0); 
+        assertEq(vamm.vars.unlocked, true); 
+        assertEq(vamm.mutableConfig.priceImpactPhi, mutableConfig.priceImpactPhi); 
+        assertEq(vamm.mutableConfig.priceImpactBeta, mutableConfig.priceImpactBeta); 
+        assertEq(vamm.mutableConfig.spread, mutableConfig.spread); 
+        assertEq(address(vamm.mutableConfig.rateOracle), address(mutableConfig.rateOracle)); 
 
         // Check that we cannot re-init
         vm.expectRevert();
-        vamm.initialize(initSqrtPriceX96, block.timestamp + 100, initMarketId, initTickSpacing);
+        vamm.initialize(initSqrtPriceX96);
     }
 
     function test_Init_Twap_Unadjusted() public {
-        int24 tick = vamm.state.tick;
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
+        int24 tick = vamm.vars.tick;
         assertEq(vamm.observe(0), tick); 
 
         // no lookback, no adjustments
@@ -190,26 +189,28 @@ contract VammTest is VoltzTestHelpers {
     }
 
     function test_Init_Twap_WithSpread() public {
-        int24 tick = vamm.state.tick;
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
+        int24 tick = vamm.vars.tick;
         assertEq(vamm.observe(0), tick); 
 
         {
             // no lookback, adjust for spread, positive order size
             UD60x18 twapPrice = vamm.twap(0, 1, false, true);
             // Spread adds 0.3% to the price (as an absolute amount, not as a percentage of the price)
-            assertEq(twapPrice, VAMMBase.getPriceFromTick(tick).add(config.priceConfig.spread)); 
+            assertEq(twapPrice, VAMMBase.getPriceFromTick(tick).add(mutableConfig.spread)); 
         }
 
         {
             // no lookback, adjust for spread, negative order size
             UD60x18 twapPrice = vamm.twap(0, -1, false, true);
             // Spread subtracts 0.3% from the price (as an absolute amount, not as a percentage of the price)
-            assertEq(twapPrice, VAMMBase.getPriceFromTick(tick).sub(config.priceConfig.spread));
+            assertEq(twapPrice, VAMMBase.getPriceFromTick(tick).sub(mutableConfig.spread));
         }
     }
 
     function test_Init_Twap_WithPriceImpact() public {
-        int24 tick = vamm.state.tick;
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
+        int24 tick = vamm.vars.tick;
         assertEq(vamm.observe(0), tick); 
 
         {
@@ -240,7 +241,8 @@ contract VammTest is VoltzTestHelpers {
         vm.assume(orderSize != 0);
         orderSize = bound(orderSize, -int256(uMAX_UD60x18 / uUNIT), int256(uMAX_UD60x18 / uUNIT));
 
-        int24 tick = vamm.state.tick;
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
+        int24 tick = vamm.vars.tick;
         assertEq(vamm.observe(0), tick);
         UD60x18 instantPrice = VAMMBase.getPriceFromTick(tick);
 
@@ -348,12 +350,14 @@ contract VammTest is VoltzTestHelpers {
     // }
 
     function testFuzz_GetAccountFilledBalancesUnusedAccount(uint128 accountId) public {
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
         (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(accountId);
         assertEq(baseBalancePool, 0);
         assertEq(quoteBalancePool, 0);
     }
 
     function testFuzz_GetAccountUnfilledBasesUnusedAccount(uint128 accountId) public {
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
         (int256 unfilledBaseLong, int256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
         assertEq(unfilledBaseLong, 0);
         assertEq(unfilledBaseShort, 0);
@@ -369,6 +373,7 @@ contract VammTest is VoltzTestHelpers {
       UD60x18 currentLiquidityIndex = convert(mockLiquidityIndex);
       vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(currentLiquidityIndex));
 
+      DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
       (int256 trackedValue) = vamm._trackFixedTokens(baseAmount, tickLower, tickUpper, maturityTimestamp);
 
       UD60x18 expectedAveragePrice = averagePriceBetweenTicksUsingLoop(tickLower, tickUpper);
@@ -390,6 +395,7 @@ contract VammTest is VoltzTestHelpers {
       UD60x18 currentLiquidityIndex = convert(mockLiquidityIndex);
       vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(currentLiquidityIndex));
 
+      DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
       (int256 trackedValue) = vamm._trackFixedTokens(baseAmount, tickLower, tickUpper, maturityTimestamp);
 
       UD60x18 averagePrice = VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper);
@@ -420,6 +426,7 @@ contract VammTest is VoltzTestHelpers {
       UD60x18 currentLiquidityIndex = convert(mockLiquidityIndex);
       vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(currentLiquidityIndex));
 
+      DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
       (int256 trackedValue) = vamm._trackFixedTokens(baseAmount, tickLower, tickUpper, maturityTimestamp);
       assertAlmostExactlyEqual(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), ONE);
 
@@ -456,6 +463,8 @@ contract VammTest is VoltzTestHelpers {
     // }
 
     function test_GetAccountUnfilledBases() public {
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
+
         uint128 accountId = 1;
         uint160 sqrtLowerPriceX96 = uint160(1 * FixedPoint96.Q96 / 10); // 0.1 => price ~= 0.01 = 1%
         uint160 sqrtUpperPriceX96 = uint160(22 * FixedPoint96.Q96 / 100); // 0.22 => price ~= 0.0484 = ~5%
@@ -476,7 +485,7 @@ contract VammTest is VoltzTestHelpers {
         (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(accountId);
         assertEq(baseBalancePool, 0);
         assertEq(quoteBalancePool, 0);
-    
+
         // TODO: liquidity index only required for fixed tokens; mocking should not be required if we only want base token values
         vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
 
@@ -501,18 +510,21 @@ contract VammTest is VoltzTestHelpers {
     }
 
     function tickDistanceFromCurrentToTick(int24 _tick) public view returns (uint256 absoluteDistance) {
-        int24 currentTick = vamm.state.tick;
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
+        int24 currentTick = vamm.vars.tick;
         return tickDistance(currentTick, _tick);
     }
+
     function boundNewPositionLiquidityAmount(
         int128 unboundBaseToken,
         int24 _tickLower,
         int24 _tickUpper)
     internal returns (int128 boundBaseTokens)
     {
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
         // Ticks must be in range and cannot be equal
         uint256 tickRange = tickDistance(_tickLower, _tickUpper);
-        uint128 maxLiquidityPerTick = vamm.config._maxLiquidityPerTick;
+        uint128 maxLiquidityPerTick = vamm.immutableConfig._maxLiquidityPerTick;
         // console2.log("tickRange", tickRange); // TODO_delete_log
         // console2.log("maxLiquidityPerTick", maxLiquidityPerTick, maxLiquidityPerTick * tickRange); // TODO_delete_log
         int256 max = min(int256(type(int128).max), int256(uint256(maxLiquidityPerTick)) * int256(tickRange));
@@ -538,6 +550,7 @@ contract VammTest is VoltzTestHelpers {
         vm.assume(_mockLiquidityIndex != 0);
         UD60x18 mockLiquidityIndex = ud60x18(_mockLiquidityIndex);
 
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
         int256 executedBaseAmount = vamm.executeDatedMakerOrder(accountId,sqrtLowerPriceX96,sqrtUpperPriceX96, requestedBaseAmount);
         // console2.log("executedBaseAmount = %s", executedBaseAmount); // TODO_delete_log
         assertLe(executedBaseAmount, requestedBaseAmount);
