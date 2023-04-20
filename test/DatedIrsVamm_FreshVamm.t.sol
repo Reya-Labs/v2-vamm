@@ -2,6 +2,7 @@ pragma solidity >=0.8.13;
 
 import "forge-std/Test.sol";
  import "forge-std/console2.sol";
+ import "./VoltzTest.sol";
  import "../contracts/utils/SafeCastUni.sol";
  import "../contracts/VAMM/storage/LPPosition.sol";
 import "../contracts/VAMM/storage/DatedIrsVAMM.sol";
@@ -11,129 +12,16 @@ import { mulUDxInt } from "../contracts/utils/PrbMathHelper.sol";
 import { UD60x18, convert, ud60x18, uMAX_UD60x18, uUNIT } from "@prb/math/src/UD60x18.sol";
 import { SD59x18, sd59x18, convert } from "@prb/math/src/SD59x18.sol";
 
-// TODO: VoltzTestHelpers into own source file
-contract VoltzTestHelpers is Test {
-
-    /// @dev The minimum tick that may be passed to #getSqrtRatioAtTick computed from log base 1.0001 of 2**-128
-    int24 internal constant MIN_TICK = -69100;
-    /// @dev The maximum tick that may be passed to #getSqrtRatioAtTick computed from log base 1.0001 of 2**128
-    int24 internal constant MAX_TICK = -MIN_TICK;
-
-    // Helpers
-    function abs(int256 x) pure internal returns (uint256) {
-        return x >= 0 ? uint256(x) : uint256(-x);
-    }
-    function min(int256 a, int256 b) pure internal returns (int256) {
-        return a > b ? b : a;
-    }
-    function min(int24 a, int24 b) pure internal returns (int24) {
-        return a > b ? b : a;
-    }
-    // function max(int256 a, int256 b) pure internal returns (int256) {
-    //     return a < b ? b : a;
-    // }
-    function logTicks(int24 a, int24 b, string memory _message) internal view {
-        // string memory message = bytes(_message).length > 0 ? _message : "Ticks: ";
-        // console2.log(_message, bytes(_message).length > 0 ? " ticks: " : "Ticks:"); // TODO_delete_log
-        console2.logInt(a);
-        console2.logInt(b);
-    }
-    function boundTicks(
-        int24 _tickLower,
-        int24 _tickUpper)
-    internal view returns (int24 tickLower, int24 tickUpper)
-    {
-        // Ticks must be in range and cannot be equal
-        tickLower = int24(bound(_tickLower,  TickMath.MIN_TICK, TickMath.MAX_TICK - 1));
-        tickUpper = int24(bound(_tickUpper,  TickMath.MIN_TICK + 1, TickMath.MAX_TICK));
-        vm.assume(tickLower < tickUpper);
-    }
-    function tickDistance(int24 _tickA, int24 _tickB) public view returns (uint256 absoluteDistance) {
-        return abs(_tickA - _tickB);
-    }
-
-    using SafeCastUni for int256;
-
-    // Assertions
-    function assertEq(UD60x18 a, UD60x18 b) internal {
-        assertEq(UD60x18.unwrap(a), UD60x18.unwrap(b));
-    }
-    function assertEq(SD59x18 a, SD59x18 b) internal {
-        assertEq(SD59x18.unwrap(a), SD59x18.unwrap(b));
-    }
-    function assertGt(UD60x18 a, UD60x18 b) internal {
-        assertGt(UD60x18.unwrap(a), UD60x18.unwrap(b));
-    }
-    function assertLt(UD60x18 a, UD60x18 b) internal {
-        assertLt(UD60x18.unwrap(a), UD60x18.unwrap(b));
-    }
-    function assertAlmostEqual(SD59x18 a, SD59x18 b, SD59x18 deltaAsFractionOfA) internal {
-        if (SD59x18.unwrap(a) == SD59x18.unwrap(b)) {
-            // Equal (needed for case where a = b = 0)
-            return;
-        }
-        SD59x18 upperBound = SD59x18.unwrap(a) >= 0 ? a.add(deltaAsFractionOfA.mul(a)) : a.sub(deltaAsFractionOfA.mul(a));
-        SD59x18 lowerBound = SD59x18.unwrap(a) >= 0 ? a.sub(deltaAsFractionOfA.mul(a)) : a.add(deltaAsFractionOfA.mul(a));
-        if (b.gt(upperBound) || b.lt(lowerBound)) {
-            // console2.log("Expected the following two values to be almost equal:"); // TODO_delete_log
-            console2.logInt(SD59x18.unwrap(a));
-            console2.logInt(SD59x18.unwrap(b));
-        }
-        assertGe(SD59x18.unwrap(b), SD59x18.unwrap(lowerBound) );
-        assertLe(SD59x18.unwrap(b), SD59x18.unwrap(upperBound) );
-    }
-    function assertAlmostEqual(UD60x18 a, UD60x18 b, UD60x18 deltaAsFractionOfA) internal {
-        if (UD60x18.unwrap(a) == UD60x18.unwrap(b)) {
-            // Equal (needed for case where a = b = 0)
-            return;
-        }
-
-        UD60x18 upperBound = a.add(deltaAsFractionOfA.mul(a));
-        UD60x18 lowerBound = a.sub(deltaAsFractionOfA.mul(a));
-        if (b.gt(upperBound) || b.lt(lowerBound)) {
-            console.log("Expected %s <= %s <= %s", UD60x18.unwrap(lowerBound), UD60x18.unwrap(b), UD60x18.unwrap(upperBound));
-        }
-        assertGe(UD60x18.unwrap(b), UD60x18.unwrap(lowerBound) );
-        assertLe(UD60x18.unwrap(b), UD60x18.unwrap(upperBound) );
-    }
-    function assertAlmostEqual(UD60x18 a, UD60x18 b) internal {
-        UD60x18 deltaAsFractionOfA = ud60x18(1e14); // 0.01%
-        assertAlmostEqual(a, b, deltaAsFractionOfA);
-    }
-    function assertAlmostExactlyEqual(UD60x18 a, UD60x18 b) internal {
-        UD60x18 deltaAsFractionOfA = ud60x18(1e12); // 0.0001%
-        assertAlmostEqual(a, b, deltaAsFractionOfA);
-    }
-    function assertAlmostEqual(SD59x18 a, SD59x18 b) internal {
-        SD59x18 deltaAsFractionOfA = sd59x18(1e14); // 0.01%
-        assertAlmostEqual(a, b, deltaAsFractionOfA);
-    }
-    function assertAlmostExactlyEqual(SD59x18 a, SD59x18 b) internal {
-        SD59x18 deltaAsFractionOfA = sd59x18(1e12); // 0.0001%
-        assertAlmostEqual(a, b, deltaAsFractionOfA);
-    }
-    function assertAlmostEqual(int256 a, int256 b) internal {
-        assertAlmostEqual(SD59x18.wrap(a), SD59x18.wrap(b));
-    }
-    function assertEq(UD60x18 a, UD60x18 b, string memory err) internal {
-        assertEq(UD60x18.unwrap(a), UD60x18.unwrap(b), err);
-    }
-}
-
 // Constants
 UD60x18 constant ONE = UD60x18.wrap(1e18);
 
 // TODO: Break up this growing test contract into more multiple separate tests for increased readability
-contract VammTest is VoltzTestHelpers {
+contract VammTest_FreshVamm is VoltzTest {
     // Contracts under test
     using DatedIrsVamm for DatedIrsVamm.Data;
     using SafeCastUni for uint256;
     uint256 internal vammId;
-
     address constant mockRateOracle = 0xAa73aA73Aa73Aa73AA73Aa73aA73AA73aa73aa73;
-
-    // Test state
-    // uint256 latestPositionId;
 
     // Initial VAMM state
     uint160 initSqrtPriceX96 = uint160(2 * FixedPoint96.Q96 / 10); // 0.2 => price ~= 0.04 = 4%
