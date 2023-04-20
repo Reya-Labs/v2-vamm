@@ -333,7 +333,7 @@ library DatedIrsVamm {
 
     /// @dev Private but labelled internal for testability.
     ///
-    /// @dev Calculate `fixedTokens` for (some tick range that has uniform liquidity within) a trade. The calculation relies
+    /// @dev Calculate `fixedTokens` for some tick range that has uniform liquidity within a trade. The calculation relies
     /// on the trade being uniformly distributed across the specified tick range in order to calculate the average price (the fixedAPY), so this
     /// assumption must hold or the math will break. As such, the function can only really be useed to calculate `fixedTokens` for a subset of a trade,
     ///
@@ -363,7 +363,7 @@ library DatedIrsVamm {
     /// now simplifies to:
     ///   `cashflow[x] = baseTokens*liquidityIndex[x] - baseTokens*liquidityIndex[tradeDate]`
     /// which is what we want.
-    function _trackFixedTokens( // TODO: rename fixedTokensInHomogeneousTickWindow or similar? 
+    function _fixedTokensInHomogeneousTickWindow( // TODO: previously called trackFixedTokens; update python code to match new name 
       Data storage self,
       int256 baseAmount,
       int24 tickLower,
@@ -376,7 +376,7 @@ library DatedIrsVamm {
             int256 trackedValue
         )
     {
-        // TODO: calculate timeDeltaUntilMaturity and currentOracleValue outside _trackFixedTokens and pass as param to _trackFixedTokens, to avoid repeating the same work
+        // TODO: calculate timeDeltaUntilMaturity and currentOracleValue outside _fixedTokensInHomogeneousTickWindow and pass as param to _fixedTokensInHomogeneousTickWindow, to avoid repeating the same work
         UD60x18 averagePrice = VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper);
         UD60x18 timeDeltaUntilMaturity = FixedAndVariableMath.accrualFact(maturityTimestamp - block.timestamp); 
         UD60x18 currentOracleValue = self.mutableConfig.rateOracle.getCurrentIndex();
@@ -661,7 +661,7 @@ library DatedIrsVamm {
         // Get the numder of fixed tokens for the current section of our swap's tick range
         // This calculation assumes that the trade is uniformly distributed within the given tick range, which is only
         // true because there are no changes in liquidity between `state.tick` and `step.tickNext`.
-        fixedTokenDelta = _trackFixedTokens(
+        fixedTokenDelta = _fixedTokensInHomogeneousTickWindow(
             self,
             step.baseInStep,
             state.tick,
@@ -677,7 +677,7 @@ library DatedIrsVamm {
     /// @dev Private but labelled internal for testability.
     ///
     /// Gets the number of base tokens and fixed tokens between the specified ticks, assuming `basePerTick` base tokens per tick.
-    function _trackValuesBetweenTicksOutside( // TODO: rename _tokenValuesBetweenTicks
+    function _tokenValuesBetweenTicks( // TODO: previously called trackValuesBetweenTicksOutside; update python code to match new name
         Data storage self,
         int128 basePerTick,
         int24 tickLower,
@@ -691,7 +691,7 @@ library DatedIrsVamm {
         }
 
         int128 base = VAMMBase.baseBetweenTicks(tickLower, tickUpper, basePerTick);
-        trackerFixedTokenGrowthOutside = _trackFixedTokens(self, base, tickLower, tickUpper, self.immutableConfig.maturityTimestamp);
+        trackerFixedTokenGrowthOutside = _fixedTokensInHomogeneousTickWindow(self, base, tickLower, tickUpper, self.immutableConfig.maturityTimestamp);
         trackerBaseTokenGrowthOutside = base;
     }
 
@@ -712,7 +712,7 @@ library DatedIrsVamm {
             for (uint256 i = 0; i < numPositions; i++) {
                 LPPosition.Data storage position = LPPosition.load(self.vars.positionsInAccount[accountId][i]);
                 // Get how liquidity is currently arranged. In particular, how much of the liquidity is avail to traders in each direction?
-                (,int256 unfilledShortBase,, int256 unfilledLongBase) = _trackValuesBetweenTicks(
+                (,int256 unfilledShortBase,, int256 unfilledLongBase) = _getUnfilledTokenValues(
                     self,
                     position.tickLower,
                     position.tickUpper,
@@ -751,8 +751,8 @@ library DatedIrsVamm {
     ///
     /// Gets the number of "unfilled" (still available as liquidity) base tokens and fixed tokens between the specified tick range,
     /// looking both left of the current tick.
-    function _trackValuesBetweenTicks( // TODO: rename as getUnfilledTokenValues?
-    // TODO: remove calculations of fixed token values (from here and from _trackValuesBetweenTicksOutside) if these remain unused by any consumer of this function.
+    function _getUnfilledTokenValues( // TODO: previously called trackValuesBetweenTicks; update python code to match new name
+    // TODO: remove calculations of fixed token values (from here and from _tokenValuesBetweenTicks) if these remain unused by any consumer of this function.
         Data storage self,
         int24 tickLower,
         int24 tickUpper,
@@ -768,9 +768,9 @@ library DatedIrsVamm {
         }
 
         int128 averageBase = VAMMBase.basePerTick(tickLower, tickUpper, baseAmount);
-        // console2.log("_trackValuesBetweenTicks: averageBase = %s", uint256(int256(averageBase))); // TODO_delete_log // TODO: how does rounding work here? If we round down to zero has all liquidity vanished? What checks should be in place?
+        // console2.log("_getUnfilledTokenValues: averageBase = %s", uint256(int256(averageBase))); // TODO_delete_log // TODO: how does rounding work here? If we round down to zero has all liquidity vanished? What checks should be in place?
         // Compute unfilled tokens in our range and to the left of the current tick
-        (int256 unfilledFixedTokensLeft_, int256 unfilledBaseTokensLeft_) = _trackValuesBetweenTicksOutside(
+        (int256 unfilledFixedTokensLeft_, int256 unfilledBaseTokensLeft_) = _tokenValuesBetweenTicks(
             self,
             averageBase,
             tickLower < self.vars.tick ? tickLower : self.vars.tick, // min(tickLower, currentTick)
@@ -783,7 +783,7 @@ library DatedIrsVamm {
 
 
         // Compute unfilled tokens in our range and to the right of the current tick
-        (unfilledFixedTokensRight, unfilledBaseTokensRight) = _trackValuesBetweenTicksOutside(
+        (unfilledFixedTokensRight, unfilledBaseTokensRight) = _tokenValuesBetweenTicks(
             self,
             averageBase,
             tickLower > self.vars.tick ? tickLower : self.vars.tick, // max(tickLower, currentTick)

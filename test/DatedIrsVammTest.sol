@@ -363,7 +363,7 @@ contract VammTest is VoltzTestHelpers {
         assertEq(unfilledBaseShort, 0);
     }
 
-    function test_TrackFixedTokens() public {
+    function test_FixedTokensInHomogeneousTickWindow() public {
       int256 baseAmount = 5e10;
       int24 tickLower = -1;
       int24 tickUpper = 1;
@@ -374,7 +374,7 @@ contract VammTest is VoltzTestHelpers {
       vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(currentLiquidityIndex));
 
       DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
-      (int256 trackedValue) = vamm._trackFixedTokens(baseAmount, tickLower, tickUpper, maturityTimestamp);
+      (int256 trackedValue) = vamm._fixedTokensInHomogeneousTickWindow(baseAmount, tickLower, tickUpper, maturityTimestamp);
 
       UD60x18 expectedAveragePrice = averagePriceBetweenTicksUsingLoop(tickLower, tickUpper);
       assertAlmostEqual(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), ONE);
@@ -386,7 +386,7 @@ contract VammTest is VoltzTestHelpers {
       assertAlmostEqual(trackedValue, baseAmount * -2 * int256(mockLiquidityIndex));
     }
 
-    function testFuzz_TrackFixedTokens_VaryTicks(int24 tickLower, int24 tickUpper) public {
+    function testFuzz_FixedTokensInHomogeneousTickWindow_VaryTicks(int24 tickLower, int24 tickUpper) public {
       (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
       int256 baseAmount = -9e30;
       uint256 mockLiquidityIndex = 1;
@@ -396,7 +396,7 @@ contract VammTest is VoltzTestHelpers {
       vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(currentLiquidityIndex));
 
       DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
-      (int256 trackedValue) = vamm._trackFixedTokens(baseAmount, tickLower, tickUpper, maturityTimestamp);
+      (int256 trackedValue) = vamm._fixedTokensInHomogeneousTickWindow(baseAmount, tickLower, tickUpper, maturityTimestamp);
 
       UD60x18 averagePrice = VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper);
 
@@ -411,7 +411,7 @@ contract VammTest is VoltzTestHelpers {
       );
     }
 
-    function testFuzz_TrackFixedTokens_VaryTerm(uint256 secondsToMaturity) public {
+    function testFuzz_FixedTokensInHomogeneousTickWindow_VaryTerm(uint256 secondsToMaturity) public {
       int256 baseAmount = -123e20;
       int24 tickLower = -1;
       int24 tickUpper = 1;
@@ -427,7 +427,7 @@ contract VammTest is VoltzTestHelpers {
       vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(currentLiquidityIndex));
 
       DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
-      (int256 trackedValue) = vamm._trackFixedTokens(baseAmount, tickLower, tickUpper, maturityTimestamp);
+      (int256 trackedValue) = vamm._fixedTokensInHomogeneousTickWindow(baseAmount, tickLower, tickUpper, maturityTimestamp);
       assertAlmostExactlyEqual(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), ONE);
 
       // We expect -baseTokens * liquidityIndex[current] * (1 + fixedRate[ofSpecifiedTicks] * timeInYearsTillMaturity)
@@ -442,7 +442,7 @@ contract VammTest is VoltzTestHelpers {
     }
 
     // TODO: test that the weighted average of two average prices, using intervals (a,b) and (b,c) is the same as that of interval (a,c)
-    // This assumption may be implicit in the behaviour of `_trackValuesBetweenTicks()`, so we should check it.
+    // This assumption may be implicit in the behaviour of `_getUnfilledTokenValues()`, so we should check it.
     // function test_NewPositionTracking() public {
     //     uint128 accountId = 1;
     //     int24 tickLower = 2;
