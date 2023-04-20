@@ -179,7 +179,7 @@ library DatedIrsVamm {
 
         if (adjustForSpread) {
             require(orderSize != 0); // TODO: custom error
-            console2.log("GM",UD60x18.unwrap(self.mutableConfig.spread));
+            // console2.log("GM",UD60x18.unwrap(self.mutableConfig.spread)); // TODO_delete_log
             spreadImpactDelta = self.mutableConfig.spread;
         }
 
@@ -192,9 +192,9 @@ library DatedIrsVamm {
 
         // The projected price impact and spread of a trade will move the price up for buys, down for sells
         if (orderSize > 0) {
-            console2.log("GM",UD60x18.unwrap(geometricMeanPrice));
-            console2.log("SID",UD60x18.unwrap(spreadImpactDelta));
-            console2.log("PIF",UD60x18.unwrap(priceImpactAsFraction));
+            // console2.log("GM",UD60x18.unwrap(geometricMeanPrice)); // TODO_delete_log
+            // console2.log("SID",UD60x18.unwrap(spreadImpactDelta)); // TODO_delete_log
+            // console2.log("PIF",UD60x18.unwrap(priceImpactAsFraction)); // TODO_delete_log
             geometricMeanPrice = geometricMeanPrice.add(spreadImpactDelta).mul(ONE.add(priceImpactAsFraction));
         } else {
             if (spreadImpactDelta.gte(geometricMeanPrice)) {
@@ -205,9 +205,9 @@ library DatedIrsVamm {
                 // The model suggests that the price will drop below zero after price impact
                 return ZERO;
             }
-            console2.log("GM",UD60x18.unwrap(geometricMeanPrice));
-            console2.log("SID",UD60x18.unwrap(spreadImpactDelta));
-            console2.log("PIF",UD60x18.unwrap(priceImpactAsFraction));
+            // console2.log("GM",UD60x18.unwrap(geometricMeanPrice)); // TODO_delete_log
+            // console2.log("SID",UD60x18.unwrap(spreadImpactDelta)); // TODO_delete_log
+            // console2.log("PIF",UD60x18.unwrap(priceImpactAsFraction)); // TODO_delete_log
             geometricMeanPrice = geometricMeanPrice.sub(spreadImpactDelta).mul(ONE.sub(priceImpactAsFraction));
         }
 
