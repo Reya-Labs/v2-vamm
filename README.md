@@ -11,6 +11,14 @@ Install [foundry](https://book.getfoundry.sh/getting-started/installation) and r
 - `forge test --no-match-test "SlowFuzz"` will run all of the tests except some exceptionally slow fuzzing tests.
 - `forge test -vvv"` will run all of the tests and provide verbose output (for even more verbose, add more `v`s).
 
+# Gas costs
+
+We have saved some gas cost snapshots, with the latest typically being saved at `.gas-snapshot`. To see all snapshots run `ls -a .gas*`.
+
+To generate and updated gas snapshot, run `forge snapshot --no-match-test "SlowFuzz"`.
+
+To diff current gas costs with an earlier snapshot, pass the earlier snapshot as the `--diff` argument, e.g.: `forge snapshot --diff .gas_snapshot.preOptimisations --no-match-test "SlowFuzz"`
+
 # Deployment
 
 TODO.

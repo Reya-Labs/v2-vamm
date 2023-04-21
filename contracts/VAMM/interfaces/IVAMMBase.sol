@@ -35,10 +35,6 @@ interface IVAMMBase is IVAMM {
         int256 baseAmountSpecified;
         /// @dev The Q64.96 sqrt price limit. If !isFT, the price cannot be less than this
         uint160 sqrtPriceLimitX96;
-        /// @dev lower tick of the position
-        int24 tickLower;
-        /// @dev upper tick of the position
-        int24 tickUpper;
     }
 
     /// @dev "constructor" for proxy instances

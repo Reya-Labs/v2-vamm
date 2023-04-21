@@ -98,8 +98,6 @@ library DatedIrsVammPool {
                         : TickMath.MAX_SQRT_RATIO - 1
                 )
                 : priceLimit;
-        swapParams.tickLower = TickMath.MIN_TICK;
-        swapParams.tickUpper = TickMath.MAX_TICK - 1;
 
         (executedBaseAmount, executedQuoteAmount) = vamm.vammSwap(swapParams);
     }
