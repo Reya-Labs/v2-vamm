@@ -102,21 +102,11 @@ contract VammTest_WithLiquidity is DatedIrsVammTest {
         IVAMMBase.SwapParams memory params = IVAMMBase.SwapParams({
             recipient: address(this),
             baseAmountSpecified: 200_000_000_000, // TODO: there is not enough liquidity - should this really succeed?
-            sqrtPriceLimitX96: ACCOUNT_2_UPPER_SQRTPRICEX96,
-            tickLower: 0,
-            tickUpper: 1
+            sqrtPriceLimitX96: ACCOUNT_2_UPPER_SQRTPRICEX96
         });
-        // IVAMMBase.SwapParams memory params = IVAMMBase.SwapParams({
-        //     recipient: address(this),
-        //     baseAmountSpecified: -5_000_000_000,
-        //     sqrtPriceLimitX96: ACCOUNT_1_LOWER_SQRTPRICEX96,
-        //     tickLower: 0,
-        //     tickUpper: 1
-        // });
 
         // Mock the liquidity index for a swap
         vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
-
         (int256 trackerFixedTokenDelta, int256 trackerBaseTokenDelta) = vamm.vammSwap(params);
 
         // TODO: verify that return values are as expected
@@ -132,9 +122,7 @@ contract VammTest_WithLiquidity is DatedIrsVammTest {
     //     IVAMMBase.SwapParams memory params = IVAMMBase.SwapParams({
     //         recipient: address(this),
     //         baseAmountSpecified: -1_000_000_000,
-    //         sqrtPriceLimitX96: ACCOUNT_1_LOWER_SQRTPRICEX96,
-    //         tickLower: 0,
-    //         tickUpper: 1
+    //         sqrtPriceLimitX96: ACCOUNT_1_LOWER_SQRTPRICEX96
     //     });
 
     //     // Mock the liquidity index for a swap

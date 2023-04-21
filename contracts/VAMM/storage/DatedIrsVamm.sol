@@ -468,7 +468,6 @@ library DatedIrsVamm {
         VAMMBase.checkCurrentTimestampMaturityTimestampDelta(self.immutableConfig.maturityTimestamp);
 
         // console2.log("Checking ticks in vammSwap"); // TODO_delete_log
-        Tick.checkTicks(params.tickLower, params.tickUpper);
 
         VAMMBase.checksBeforeSwap(params, self.vars, params.baseAmountSpecified > 0);
 
@@ -633,8 +632,6 @@ library DatedIrsVamm {
 
         emit VAMMBase.Swap(
             msg.sender,
-            params.tickLower,
-            params.tickUpper,
             params.baseAmountSpecified,
             params.sqrtPriceLimitX96,
             trackerFixedTokenDelta,

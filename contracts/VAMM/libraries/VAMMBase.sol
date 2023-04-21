@@ -41,8 +41,6 @@ library VAMMBase {
     /// @dev emitted after a successful swap transaction
     event Swap(
         address sender,
-        int24 indexed tickLower,
-        int24 indexed tickUpper,
         int256 desiredBaseAmount,
         uint160 sqrtPriceLimitX96,
         int256 trackerFixedTokenDelta,
