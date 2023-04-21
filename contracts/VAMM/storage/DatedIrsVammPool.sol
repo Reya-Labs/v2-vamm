@@ -5,11 +5,13 @@ import "./DatedIrsVamm.sol";
 import "../libraries/VAMMBase.sol";
 import "../../ownership/OwnableStorage.sol";
 import "../libraries/VammConfiguration.sol";
+import "./PoolPauser.sol";
 
 /// @title Interface a Pool needs to adhere.
 library DatedIrsVammPool {
     using DatedIrsVamm for DatedIrsVamm.Data;
     using VAMMBase for bool;
+    using PoolPauser for PoolPauser.Data;
 
     struct Data {
         mapping(address => bool) pauser;
@@ -84,8 +86,7 @@ library DatedIrsVammPool {
         external
         returns (int256 executedBaseAmount, int256 executedQuoteAmount){
         // TODO: authentication!
-        Data storage self = DatedIrsVammPool.load();
-        self.paused.whenNotPaused();
+        PoolPauser.load().whenNotPaused();
 
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
 
@@ -125,8 +126,7 @@ library DatedIrsVammPool {
         external
         returns (int256 executedBaseAmount){ // TODO: returning 256 for 128 request seems wrong?
        
-        Data storage self = DatedIrsVammPool.load();
-        self.paused.whenNotPaused();
+        PoolPauser.load().whenNotPaused();
         // TODO: authentication!
         
        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);

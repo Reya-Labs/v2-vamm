@@ -30,6 +30,7 @@
   },
   "dependencies": {
     "@morenabarboni/sumo": "^1.0.0",
+    "@openzeppelin/contracts": "^4.8.3",
     "@prb/math": "^3.3.0"
   }
 }

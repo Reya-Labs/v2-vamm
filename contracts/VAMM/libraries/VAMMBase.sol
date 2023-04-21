@@ -301,10 +301,6 @@ library VAMMBase {
         }
     }
 
-    function whenNotPaused(bool paused) internal pure {
-        require(!paused, "Paused");
-    }
-
     function lock(bool _unlocked) internal pure {
         if (!_unlocked) {
             revert CustomErrors.CanOnlyTradeIfUnlocked();

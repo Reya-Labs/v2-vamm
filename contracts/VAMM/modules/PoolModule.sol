@@ -4,10 +4,16 @@ pragma solidity >=0.8.13;
 import { UD60x18, ZERO } from "@prb/math/src/UD60x18.sol";
 import "../interfaces/IPool.sol";
 import "../storage/DatedIrsVamm.sol";
+import "../storage/PoolPauser.sol";
+import "@openzeppelin/contracts/utils/math/SignedMath.sol";
+import "../../utils/feature-flag/FeatureFlag.sol";
 
 /// @title Interface a Pool needs to adhere.
 contract PoolModule is IPool {
     using DatedIrsVamm for DatedIrsVamm.Data;
+    using PoolPauser for PoolPauser.Data;
+
+    bytes32 private constant _PAUSER_FEATURE_FLAG = "registerProduct";
 
     /// @notice returns a human-readable name for a given pool
     function name(uint128 poolId) external view returns (string memory) {
@@ -17,32 +23,27 @@ contract PoolModule is IPool {
     function executeDatedTakerOrder(
         uint128 marketId,
         uint32 maturityTimestamp,
-        int256 baseAmount
+        int256 baseAmount,
+        uint160 priceLimit
     )
         external
         returns (int256 executedBaseAmount, int256 executedQuoteAmount) {
         
         // TODO: authentication!
-        // Data storage self = DatedIrsVammPool.load();
-        // self.paused.whenNotPaused();
+        PoolPauser.load().whenNotPaused();
 
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
 
         IVAMMBase.SwapParams memory swapParams;
         swapParams.baseAmountSpecified = baseAmount;
-        swapParams.sqrtPriceLimitX96 = 
+        swapParams.sqrtPriceLimitX96 = priceLimit == 0
+                ? (
                     baseAmount < 0 // VT
                         ? TickMath.MIN_SQRT_RATIO + 1
-                        : TickMath.MAX_SQRT_RATIO - 1;
-        // swapParams.sqrtPriceLimitX96 = priceLimit == 0
-        //         ? (
-        //             baseAmount < 0 // VT
-        //                 ? TickMath.MIN_SQRT_RATIO + 1
-        //                 : TickMath.MAX_SQRT_RATIO - 1
-        //         )
-        //         : priceLimit;
-        swapParams.tickLower = TickMath.MIN_TICK;
-        swapParams.tickUpper = TickMath.MAX_TICK - 1;
+                        : TickMath.MAX_SQRT_RATIO - 1
+                )
+                : priceLimit;
+        //todo: populate recipient field
 
         (executedBaseAmount, executedQuoteAmount) = vamm.vammSwap(swapParams);
     }
@@ -69,72 +70,69 @@ contract PoolModule is IPool {
         view
         returns (uint256 unfilledBaseLong, uint256 unfilledBaseShort) {      
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
-        (int256 long, int256 short) = vamm.getAccountUnfilledBases(accountId);
+        (int256 _unfilledBaseLong, int256 _unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
 
-        // TODo: safecast
-        unfilledBaseLong = uint256(long);
-        unfilledBaseLong = uint256(short);
+        // TODO: we decided to have the unfilled balances unsigned, considering the name already points to a direction
+        // to avoid abs(), adjustments are required to getAccountUnfilledBases
+        unfilledBaseLong = SignedMath.abs(_unfilledBaseLong);
+        unfilledBaseShort = SignedMath.abs(_unfilledBaseShort);
     }
 
-    function closePosition(
+
+    function closeUnfilledBase(
         uint128 marketId,
         uint32 maturityTimestamp,
         uint128 accountId
     )
         external
-        returns (int256 closedBasePool, int256 closedQuotePool) {
+        returns (int256 closeUnfilledBasePool) {
+
+        // TODO: authentication!
+        PoolPauser.load().whenNotPaused();
+
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
+
+        uint128[] memory positions = vamm.vars.positionsInAccount[accountId];
+
+        for (uint256 i = 0; i < positions.length; i++) {
+            LPPosition.Data memory position = LPPosition.load(positions[i]);
+            closeUnfilledBasePool += vamm.executeDatedMakerOrder(
+                accountId, 
+                TickMath.getSqrtRatioAtTick(position.tickLower),
+                TickMath.getSqrtRatioAtTick(position.tickUpper),
+                -position.baseAmount
+            );
+        }
         
-        closedBasePool = 0;
-        closedQuotePool = 0;
     }
 
-    function getDatedIRSGwap(uint128 marketId, uint32 maturityTimestamp) external view returns (UD60x18 datedIRSGwap) {
-        datedIRSGwap = ZERO;
+    /// @inheritdoc IPool
+    function getAdjustedDatedIRSGwap(uint128 marketId, uint32 maturityTimestamp, int256 orderSize, uint32 lookbackWindow) external view returns (UD60x18 datedIRSGwap) {
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
+        datedIRSGwap = vamm.twap(lookbackWindow, orderSize, true, true);
     }
 
-    function supportsInterface(bytes4 interfaceID) external pure returns (bool) {
-        return true;
+    /**
+     * @notice Get dated irs gwap
+     * @param marketId Id of the market for which we want to retrieve the dated irs gwap
+     * @param maturityTimestamp Timestamp at which a given market matures
+     * @param lookbackWindow Number of seconds in the past from which to calculate the time-weighted means
+     * @param orderSize The order size to use when adjusting the price for price impact or spread. Must not be zero if either of the boolean params is true because it used to indicate the direction of the trade and therefore the direction of the adjustment. Function will revert if `abs(orderSize)` overflows when cast to a `U60x18`
+     * @param adjustForPriceImpact Whether or not to adjust the returned price by the VAMM's configured spread.
+     * @param adjustForSpread Whether or not to adjust the returned price by the VAMM's configured spread.
+     * @return datedIRSGwap Geometric Time Weighted Average Fixed Rate
+     */
+    function getDatedIRSGwap(uint128 marketId, uint32 maturityTimestamp, uint32 lookbackWindow, int256 orderSize, bool adjustForPriceImpact,  bool adjustForSpread) external view returns (UD60x18 datedIRSGwap) {
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
+        datedIRSGwap = vamm.twap(lookbackWindow, orderSize, adjustForPriceImpact, adjustForSpread);
     }
 
-    // function closeUnfilledBase(
-    //     uint128 marketId,
-    //     uint32 maturityTimestamp,
-    //     uint128 accountId
-    // )
-    //     external
-    //     returns (int256 closedBasePool) {
+    function setPauseState(bool paused) external {
+        FeatureFlag.ensureAccessToFeature(_PAUSER_FEATURE_FLAG);
+        PoolPauser.load().setPauseState(paused);
+    }
 
-    //     DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
-
-    //     uint128[] positions = vamm.state.positionsInAccount[accountId];
-
-    //     for (uint256 i = 0; i < positions.length; i++) {
-    //         uint128 baseAmount = LPPosition.load(positions[i]).baseAmount;
-            
-    //         closedBasePool = vamm.executeDatedMakerOrder(
-    //             accountId, 
-    //             TickMath.getSqrtRatioAtTick(position.tickLower),
-    //             TickMath.getSqrtRatioAtTick(position.tickUpper),
-    //             -baseAmount
-    //         );
-    //     }
-        
-    //     // todo: closedQuotePool
-    // }
-
-    // /**
-    //  * @notice Get dated irs gwap for the purposes of unrealized pnl calculation in the portfolio (see Portfolio.sol)
-    //  * @param marketId Id of the market for which we want to retrieve the dated irs gwap
-    //  * @param maturityTimestamp Timestamp at which a given market matures
-    //  * @return datedIRSGwap Geometric Time Weighted Average Fixed Rate
-    //  */
-    // function getDatedIRSGwap(uint128 marketId, uint32 maturityTimestamp, int256 orderSize, uint32 lookbackWindow) external view returns (UD60x18 datedIRSGwap) {
-    //     DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
-    //     datedIRSGwap = vamm.twap(lookbackWindow, orderSize, true, true);
-    // }
-
-    // function getAdjustedDatedIRSGwap(uint128 marketId, uint32 maturityTimestamp, uint32 secondsAgo, int256 orderSize, bool adjustForPriceImpact,  bool adjustForSpread) external view returns (UD60x18 datedIRSGwap) {
-    //     DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
-    //     datedIRSGwap = vamm.twap(lookbackWindow, orderSize, adjustForPriceImpact, adjustForSpread);
-    // }
+    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
+        return interfaceId == type(IPool).interfaceId || interfaceId == this.supportsInterface.selector;
+    }
 }
