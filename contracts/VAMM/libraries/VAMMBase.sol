@@ -18,6 +18,7 @@ import { ud60x18 } from "../../utils/PrbMathHelper.sol";
 import "../libraries/FixedAndVariableMath.sol";
 import "../../utils/FixedPoint128.sol";
 import "../interfaces/IVAMMBase.sol";
+import { mulUDxInt } from "../../utils/PrbMathHelper.sol";
 import "forge-std/console2.sol"; // TODO: remove
 
 
@@ -29,6 +30,7 @@ library VAMMBase {
     using Tick for mapping(int24 => Tick.Info);
     using TickBitmap for mapping(int16 => uint256);
 
+    UD60x18 constant ONE = UD60x18.wrap(1e18);
     SD59x18 constant PRICE_EXPONENT_BASE = SD59x18.wrap(10001e14); // 1.0001
     UD60x18 constant PRICE_EXPONENT_BASE_MINUS_ONE = UD60x18.wrap(1e14); // 0.0001
 
@@ -136,6 +138,90 @@ library VAMMBase {
         uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(_tick);
         uint256 priceX96 = FullMath.mulDiv(sqrtPriceX96, sqrtPriceX96, FixedPoint96.Q96);
         return UD60x18.wrap(FullMath.mulDiv(priceX96, 1e18, FixedPoint96.Q96));
+    }
+
+    /// @dev Private but labelled internal for testability.
+    ///
+    /// @dev Calculate `fixedTokens` for some tick range that has uniform liquidity within a trade. The calculation relies
+    /// on the trade being uniformly distributed across the specified tick range in order to calculate the average price (the fixedAPY), so this
+    /// assumption must hold or the math will break. As such, the function can only really be useed to calculate `fixedTokens` for a subset of a trade,
+    ///
+    /// Thinking about cashflows from first principles, the cashflow of an IRS at time `x` (`x < maturityTimestamp`) is:
+    ///  (1)  `cashflow[x] = notional * (variableAPYBetween[tradeDate, x] - fixedAPY) * timeInYearsBetween[tradeDate, x]`   
+    /// We use liquidity indices to track variable rates, such that
+    ///  (2)  `variableAPYBetween[tradeDate, x] * timeInYearsBetween[tradeDate, x] = (liquidityIndex[x] / liquidityIndex[tradeDate]) - 1     
+    /// We can therefore rearrange (1) as:
+    ///       `cashflow[x] = notional * ((variableAPYBetween[tradeDate, x]*timeInYearsBetween[tradeDate, x]) - (fixedAPY*timeInYearsBetween[tradeDate, x]))`   
+    ///       `cashflow[x] = notional * ((liquidityIndex[x] / liquidityIndex[tradeDate]) - 1 - (fixedAPY*timeInYearsBetween[tradeDate, x]))`   
+    ///   (3) `cashflow[x] = notional*(liquidityIndex[x] / liquidityIndex[tradeDate]) - notional*(1 + fixedAPY*timeInYearsBetween[tradeDate, x])`
+    /// Now if we define:
+    ///   `baseTokens:= notional / liquidityIndex[tradeDate]`
+    /// then we can further rearrange (3) as:
+    ///       `cashflow[x] = baseTokens*liquidityIndex[x] - baseTokens*liquidityIndex[tradeDate]*(1 + fixedAPY*timeInYearsBetween[tradeDate, x])`
+    /// And now if we define:
+    ///   `fixedTokens:= -baseTokens*liquidityIndex[tradeDate]*(1 + fixedAPY*timeInYearsBetween[tradeDate, maturityTimestamp])
+    /// Then we will have simply:
+    ///   (4) `cashflow[maturity] = baseTokens*liquidityIndex[maturity] + fixedTokens`
+    /// 
+    /// In Voltz, `baseTokens` is calculated off-chain based on the desired notional, and is one of the inputs that the smart contracts see when a trade is made.
+    ///
+    /// The following function helps with the calculation of `fixedTokens`.
+    ///
+    /// Pluggin in a fixed Rate or 0 and we see that
+    ///   `cashflow[x] = baseTokens*liquidityIndex[x] - baseTokens*liquidityIndex[tradeDate]*(1 + fixedAPY*timeInYearsBetween[tradeDate, x])`
+    /// now simplifies to:
+    ///   `cashflow[x] = baseTokens*liquidityIndex[x] - baseTokens*liquidityIndex[tradeDate]`
+    /// which is what we want.
+    function _fixedTokensInHomogeneousTickWindow( // TODO: previously called trackFixedTokens; update python code to match new name 
+      int256 baseAmount,
+      int24 tickLower,
+      int24 tickUpper,
+      UD60x18 yearsUntilMaturity,
+      UD60x18 currentOracleValue
+    )
+        internal
+        pure
+        returns (
+            int256 trackedValue
+        )
+    {
+        UD60x18 averagePrice = VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper);
+        UD60x18 timeComponent = ONE.add(averagePrice.mul(yearsUntilMaturity)); // (1 + fixedRate * timeInYearsTillMaturity)
+        trackedValue = mulUDxInt(
+            currentOracleValue.mul(timeComponent),
+            -baseAmount
+        );
+    }
+
+    /// @dev Private but labelled internal for testability.
+    function _calculateUpdatedGlobalTrackerValues(
+        VAMMBase.SwapState memory state,
+        VAMMBase.StepComputations memory step,
+        UD60x18 yearsUntilMaturity,
+        UD60x18 currentOracleValue
+    )
+        internal
+        pure
+        returns (
+            int256 stateVariableTokenGrowthGlobalX128,
+            int256 stateFixedTokenGrowthGlobalX128,
+            int256 fixedTokenDelta
+        )
+    {
+        // Get the numder of fixed tokens for the current section of our swap's tick range
+        // This calculation assumes that the trade is uniformly distributed within the given tick range, which is only
+        // true because there are no changes in liquidity between `state.tick` and `step.tickNext`.
+        fixedTokenDelta = VAMMBase._fixedTokensInHomogeneousTickWindow(
+            step.baseInStep,
+            state.tick,
+            step.tickNext,
+            yearsUntilMaturity,
+            currentOracleValue
+        );
+
+        // update global trackers
+        stateVariableTokenGrowthGlobalX128 = state.trackerBaseTokenGrowthGlobalX128 + FullMath.mulDivSigned(step.trackerBaseTokenDelta, FixedPoint128.Q128, state.accumulator);
+        stateFixedTokenGrowthGlobalX128 = state.trackerFixedTokenGrowthGlobalX128 + FullMath.mulDivSigned(fixedTokenDelta, FixedPoint128.Q128, state.accumulator);
     }
 
     /// @dev Private but labelled internal for testability.

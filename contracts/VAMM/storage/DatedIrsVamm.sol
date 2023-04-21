@@ -11,7 +11,6 @@ import "../../utils/SqrtPriceMath.sol";
 import "../libraries/SwapMath.sol";
 import { UD60x18, convert } from "@prb/math/src/UD60x18.sol";
 import { SD59x18 } from "@prb/math/src/SD59x18.sol";
-import { mulUDxInt } from "../../utils/PrbMathHelper.sol";
 import "../libraries/FixedAndVariableMath.sol";
 import "../../utils/FixedPoint128.sol";
 import "../libraries/VAMMBase.sol";
@@ -29,7 +28,7 @@ import "forge-std/console2.sol"; // TODO: remove
  */
 library DatedIrsVamm {
 
-    UD60x18 constant ONE = UD60x18.wrap(1e18);
+    UD60x18 constant ONE = VAMMBase.ONE;
     UD60x18 constant ZERO = UD60x18.wrap(0);
     using SafeCastUni for uint256;
     using SafeCastUni for int256;
@@ -331,62 +330,6 @@ library DatedIrsVamm {
         self.mutableConfig.spread = _config.spread;
     }
 
-    /// @dev Private but labelled internal for testability.
-    ///
-    /// @dev Calculate `fixedTokens` for some tick range that has uniform liquidity within a trade. The calculation relies
-    /// on the trade being uniformly distributed across the specified tick range in order to calculate the average price (the fixedAPY), so this
-    /// assumption must hold or the math will break. As such, the function can only really be useed to calculate `fixedTokens` for a subset of a trade,
-    ///
-    /// Thinking about cashflows from first principles, the cashflow of an IRS at time `x` (`x < maturityTimestamp`) is:
-    ///  (1)  `cashflow[x] = notional * (variableAPYBetween[tradeDate, x] - fixedAPY) * timeInYearsBetween[tradeDate, x]`   
-    /// We use liquidity indices to track variable rates, such that
-    ///  (2)  `variableAPYBetween[tradeDate, x] * timeInYearsBetween[tradeDate, x] = (liquidityIndex[x] / liquidityIndex[tradeDate]) - 1     
-    /// We can therefore rearrange (1) as:
-    ///       `cashflow[x] = notional * ((variableAPYBetween[tradeDate, x]*timeInYearsBetween[tradeDate, x]) - (fixedAPY*timeInYearsBetween[tradeDate, x]))`   
-    ///       `cashflow[x] = notional * ((liquidityIndex[x] / liquidityIndex[tradeDate]) - 1 - (fixedAPY*timeInYearsBetween[tradeDate, x]))`   
-    ///   (3) `cashflow[x] = notional*(liquidityIndex[x] / liquidityIndex[tradeDate]) - notional*(1 + fixedAPY*timeInYearsBetween[tradeDate, x])`
-    /// Now if we define:
-    ///   `baseTokens:= notional / liquidityIndex[tradeDate]`
-    /// then we can further rearrange (3) as:
-    ///       `cashflow[x] = baseTokens*liquidityIndex[x] - baseTokens*liquidityIndex[tradeDate]*(1 + fixedAPY*timeInYearsBetween[tradeDate, x])`
-    /// And now if we define:
-    ///   `fixedTokens:= -baseTokens*liquidityIndex[tradeDate]*(1 + fixedAPY*timeInYearsBetween[tradeDate, maturityTimestamp])
-    /// Then we will have simply:
-    ///   (4) `cashflow[maturity] = baseTokens*liquidityIndex[maturity] + fixedTokens`
-    /// 
-    /// In Voltz, `baseTokens` is calculated off-chain based on the desired notional, and is one of the inputs that the smart contracts see when a trade is made.
-    ///
-    /// The following function helps with the calculation of `fixedTokens`.
-    ///
-    /// Pluggin in a fixed Rate or 0 and we see that
-    ///   `cashflow[x] = baseTokens*liquidityIndex[x] - baseTokens*liquidityIndex[tradeDate]*(1 + fixedAPY*timeInYearsBetween[tradeDate, x])`
-    /// now simplifies to:
-    ///   `cashflow[x] = baseTokens*liquidityIndex[x] - baseTokens*liquidityIndex[tradeDate]`
-    /// which is what we want.
-    function _fixedTokensInHomogeneousTickWindow( // TODO: previously called trackFixedTokens; update python code to match new name 
-      Data storage self,
-      int256 baseAmount,
-      int24 tickLower,
-      int24 tickUpper,
-      uint256 maturityTimestamp
-    )
-        internal
-        view
-        returns (
-            int256 trackedValue
-        )
-    {
-        // TODO: calculate timeDeltaUntilMaturity and currentOracleValue outside _fixedTokensInHomogeneousTickWindow and pass as param to _fixedTokensInHomogeneousTickWindow, to avoid repeating the same work
-        UD60x18 averagePrice = VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper);
-        UD60x18 timeDeltaUntilMaturity = FixedAndVariableMath.accrualFact(maturityTimestamp - block.timestamp); 
-        UD60x18 currentOracleValue = self.mutableConfig.rateOracle.getCurrentIndex();
-        UD60x18 timeComponent = ONE.add(averagePrice.mul(timeDeltaUntilMaturity)); // (1 + fixedRate * timeInYearsTillMaturity)
-        trackedValue = mulUDxInt(
-            currentOracleValue.mul(timeComponent),
-            -baseAmount
-        );
-    }
-
     /// @dev Private but labelled internal for testability. Consumers of the library should use `executeDatedMakerOrder()`.
     /// Mints `baseAmount` of liquidity for the specified `accountId`, uniformly (same amount per-tick) between the specified ticks.
     function _vammMint(
@@ -484,6 +427,11 @@ library DatedIrsVamm {
             trackerBaseTokenDeltaCumulative: 0 // for Trader (user invoking the swap)
         });
 
+        // The following are used n times within the loop, but will not change so they are calculated here
+        uint256 secondsTillMaturity = self.immutableConfig.maturityTimestamp - block.timestamp;
+        UD60x18 yearsUntilMaturity = FixedAndVariableMath.accrualFact(secondsTillMaturity); 
+        UD60x18 currentOracleValue = self.mutableConfig.rateOracle.getCurrentIndex();
+
         // continue swapping as long as we haven't used the entire input/output and haven't reached the price (implied fixed rate) limit
         bool advanceRight = params.baseAmountSpecified > 0;
         while (
@@ -538,7 +486,7 @@ library DatedIrsVamm {
                     sqrtRatioTargetX96: sqrtRatioTargetX96,
                     liquidity: state.accumulator,
                     amountRemaining: state.amountSpecifiedRemaining,
-                    timeToMaturityInSeconds: self.immutableConfig.maturityTimestamp - block.timestamp
+                    timeToMaturityInSeconds: secondsTillMaturity
                 })
             );
 
@@ -560,11 +508,11 @@ library DatedIrsVamm {
                     state.trackerBaseTokenGrowthGlobalX128,
                     state.trackerFixedTokenGrowthGlobalX128,
                     step.trackerFixedTokenDelta
-                ) = _calculateUpdatedGlobalTrackerValues( 
-                    self,
+                ) = VAMMBase._calculateUpdatedGlobalTrackerValues( 
                     state,
                     step,
-                    self.immutableConfig.maturityTimestamp
+                    yearsUntilMaturity,
+                    currentOracleValue
                 );
 
                 state.trackerFixedTokenDeltaCumulative -= step.trackerFixedTokenDelta; // fixedTokens; opposite sign from that of the LP's
@@ -637,38 +585,6 @@ library DatedIrsVamm {
             trackerFixedTokenDelta,
             trackerBaseTokenDelta
         );
-    }
-
-
-    /// @dev Private but labelled internal for testability.
-    function _calculateUpdatedGlobalTrackerValues(
-        Data storage self,
-        VAMMBase.SwapState memory state,
-        VAMMBase.StepComputations memory step,
-        uint256 maturityTimestamp
-    )
-        internal
-        view
-        returns (
-            int256 stateVariableTokenGrowthGlobalX128,
-            int256 stateFixedTokenGrowthGlobalX128,
-            int256 fixedTokenDelta
-        )
-    {
-        // Get the numder of fixed tokens for the current section of our swap's tick range
-        // This calculation assumes that the trade is uniformly distributed within the given tick range, which is only
-        // true because there are no changes in liquidity between `state.tick` and `step.tickNext`.
-        fixedTokenDelta = _fixedTokensInHomogeneousTickWindow(
-            self,
-            step.baseInStep,
-            state.tick,
-            step.tickNext,
-            maturityTimestamp
-        );
-
-        // update global trackers
-        stateVariableTokenGrowthGlobalX128 = state.trackerBaseTokenGrowthGlobalX128 + FullMath.mulDivSigned(step.trackerBaseTokenDelta, FixedPoint128.Q128, state.accumulator);
-        stateFixedTokenGrowthGlobalX128 = state.trackerFixedTokenGrowthGlobalX128 + FullMath.mulDivSigned(fixedTokenDelta, FixedPoint128.Q128, state.accumulator);
     }
 
     /// @notice For a given LP account, how much liquidity is available to trade in each direction.
@@ -753,7 +669,6 @@ library DatedIrsVamm {
         unfilledBaseTokensLeft = -unfilledBaseTokensLeft_;
 
         // console2.log("unfilledTokensLeft: (%s, %s)", uint256(unfilledFixedTokensLeft), uint256(unfilledBaseTokensLeft)); // TODO_delete_log
-
 
         // Compute unfilled tokens in our range and to the right of the current tick
         unfilledBaseTokensRight = VAMMBase.baseBetweenTicks(

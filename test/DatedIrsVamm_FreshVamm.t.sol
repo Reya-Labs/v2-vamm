@@ -158,6 +158,7 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
         return sumOfPrices.div(convert(uint256(int256(1 + tickUpper - tickLower))));
     }
 
+    // TODO: move to separate VAMMBase test file (with others)
     function test_SumOfAllPricesUpToPlus10k()
     public {
         // The greater the tick range, the more the real answer deviates from a naive average of the top and bottom price
@@ -176,6 +177,7 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
         assertEq(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), ud60x18(1e18));
     }
 
+    // TODO: move to separate VAMMBase test file (with others)
     function test_AveragePriceBetweenTicks_SingleTick1()
     public {
         // The greater the tick range, the more the real answer deviates from a naive average of the top and bottom price
@@ -273,13 +275,10 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
       int24 tickLower = -1;
       int24 tickUpper = 1;
       uint256 mockLiquidityIndex = 2;
-      uint256 maturityTimestamp = block.timestamp + convert(FixedAndVariableMath.SECONDS_IN_YEAR);
  
       UD60x18 currentLiquidityIndex = convert(mockLiquidityIndex);
-      vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(currentLiquidityIndex));
 
-      DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
-      (int256 trackedValue) = vamm._fixedTokensInHomogeneousTickWindow(baseAmount, tickLower, tickUpper, maturityTimestamp);
+      (int256 trackedValue) = VAMMBase._fixedTokensInHomogeneousTickWindow(baseAmount, tickLower, tickUpper, convert(uint256(1)), currentLiquidityIndex);
 
       UD60x18 expectedAveragePrice = averagePriceBetweenTicksUsingLoop(tickLower, tickUpper);
       assertAlmostEqual(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), ONE);
@@ -292,17 +291,14 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
       assertAlmostEqual(trackedValue, baseAmount * -2 * int256(mockLiquidityIndex));
     }
 
+    // TODO: move to separate VAMMBase test file (with others)
     function testFuzz_FixedTokensInHomogeneousTickWindow_VaryTicks(int24 tickLower, int24 tickUpper) public {
       (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
       int256 baseAmount = -9e30;
       uint256 mockLiquidityIndex = 1;
-      uint256 maturityTimestamp = block.timestamp + convert(FixedAndVariableMath.SECONDS_IN_YEAR);
- 
       UD60x18 currentLiquidityIndex = convert(mockLiquidityIndex);
-      vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(currentLiquidityIndex));
 
-      DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
-      (int256 trackedValue) = vamm._fixedTokensInHomogeneousTickWindow(baseAmount, tickLower, tickUpper, maturityTimestamp);
+      (int256 trackedValue) = VAMMBase._fixedTokensInHomogeneousTickWindow(baseAmount, tickLower, tickUpper, convert(uint256(1)), currentLiquidityIndex);
 
       UD60x18 averagePrice = VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper);
 
@@ -317,6 +313,7 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
       );
     }
 
+    // TODO: move to separate VAMMBase test file (with others)
     function testFuzz_FixedTokensInHomogeneousTickWindow_VaryTerm(uint256 secondsToMaturity) public {
       int256 baseAmount = -123e20;
       int24 tickLower = -1;
@@ -326,14 +323,11 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
 
       // Bound term between 0 and one hundred years
       secondsToMaturity = bound(secondsToMaturity,  0, SECONDS_IN_YEAR * 100);
-      uint256 maturityTimestamp = block.timestamp + secondsToMaturity;
       UD60x18 timeInYearsTillMaturity = convert(secondsToMaturity).div(FixedAndVariableMath.SECONDS_IN_YEAR);
  
       UD60x18 currentLiquidityIndex = convert(mockLiquidityIndex);
-      vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(currentLiquidityIndex));
 
-      DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
-      (int256 trackedValue) = vamm._fixedTokensInHomogeneousTickWindow(baseAmount, tickLower, tickUpper, maturityTimestamp);
+      (int256 trackedValue) = VAMMBase._fixedTokensInHomogeneousTickWindow(baseAmount, tickLower, tickUpper, timeInYearsTillMaturity, currentLiquidityIndex);
       assertAlmostExactlyEqual(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), ONE);
 
       // We expect -baseTokens * liquidityIndex[current] * (1 + fixedRate[ofSpecifiedTicks] * timeInYearsTillMaturity)
@@ -551,8 +545,7 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
         uint128 accountId,
         int24 tickLower,
         int24 tickUpper,
-        int128 requestedBaseAmount,
-        uint256 _mockLiquidityIndex
+        int128 requestedBaseAmount
     ) public {
         vm.assume(accountId != 0);
         (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
