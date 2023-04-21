@@ -283,6 +283,7 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
 
       UD60x18 expectedAveragePrice = averagePriceBetweenTicksUsingLoop(tickLower, tickUpper);
       assertAlmostEqual(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), ONE);
+      assertAlmostEqual(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), expectedAveragePrice);
 
       // We expect -baseTokens * liquidityIndex[current] * (1 + fixedRate[ofSpecifiedTicks] * timeInYearsTillMaturity)
       //         = -5e10       * mockLiquidityIndex      * (1 + expectedAveragePrice        * 1)         
@@ -378,8 +379,6 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
 
         int24 tickLower = TickMath.getTickAtSqrtRatio(sqrtLowerPriceX96);
         int24 tickUpper = TickMath.getTickAtSqrtRatio(sqrtUpperPriceX96);
-        uint256 _mockLiquidityIndex = 2;
-        UD60x18 mockLiquidityIndex = convert(_mockLiquidityIndex);
         int128 requestedBaseAmount = 50_000_000_000;
 
         int256 executedBaseAmount = vamm.executeDatedMakerOrder(accountId,sqrtLowerPriceX96,sqrtUpperPriceX96, requestedBaseAmount);
@@ -390,9 +389,6 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
         (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(accountId);
         assertEq(baseBalancePool, 0);
         assertEq(quoteBalancePool, 0);
-
-        // TODO: liquidity index only required for fixed tokens; mocking should not be required if we only want base token values
-        vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
 
         // We expect the full base amount is unfilled cos there have been no trades
         (int256 unfilledBaseLong, int256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
@@ -445,8 +441,6 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
 
             int24 tickLower = TickMath.getTickAtSqrtRatio(sqrtLowerPriceX96);
             int24 tickUpper = TickMath.getTickAtSqrtRatio(sqrtUpperPriceX96);
-            uint256 _mockLiquidityIndex = 2;
-            UD60x18 mockLiquidityIndex = convert(_mockLiquidityIndex);
             int128 requestedBaseAmount = 50_000_000_000;
 
             int256 executedBaseAmount = vamm.executeDatedMakerOrder(accountId,sqrtLowerPriceX96,sqrtUpperPriceX96, requestedBaseAmount);
@@ -457,9 +451,6 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
             (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(accountId);
             assertEq(baseBalancePool, 0);
             assertEq(quoteBalancePool, 0);
-
-            // TODO: liquidity index only required for fixed tokens; mocking should not be required if we only want base token values
-            vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
 
             // We expect the full base amount is unfilled cos there have been no trades
             (int256 unfilledBaseLong, int256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
@@ -510,8 +501,6 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
 
             int24 tickLower = TickMath.getTickAtSqrtRatio(sqrtLowerPriceX96);
             int24 tickUpper = TickMath.getTickAtSqrtRatio(sqrtUpperPriceX96);
-            uint256 _mockLiquidityIndex = 2;
-            UD60x18 mockLiquidityIndex = convert(_mockLiquidityIndex);
             int128 requestedBaseAmount = 50_000_000_000;
 
             int256 executedBaseAmount = vamm.executeDatedMakerOrder(accountId,sqrtLowerPriceX96,sqrtUpperPriceX96, requestedBaseAmount);
@@ -522,9 +511,6 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
             (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(accountId);
             assertEq(baseBalancePool, 0);
             assertEq(quoteBalancePool, 0);
-
-            // TODO: liquidity index only required for fixed tokens; mocking should not be required if we only want base token values
-            vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
 
             // We expect the full base amount is unfilled cos there have been no trades
             (int256 unfilledBaseLong, int256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
@@ -575,9 +561,6 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
         requestedBaseAmount = boundNewPositionLiquidityAmount(requestedBaseAmount, tickLower, tickUpper); // Cannot withdraw liquidity before we add it
         uint160 sqrtLowerPriceX96 = TickMath.getSqrtRatioAtTick(tickLower);
         uint160 sqrtUpperPriceX96 = TickMath.getSqrtRatioAtTick(tickUpper);
-        _mockLiquidityIndex = bound(_mockLiquidityIndex, 1, 1000000e18); // TODO: push this higher - when does it break? Document limitations.
-        vm.assume(_mockLiquidityIndex != 0);
-        UD60x18 mockLiquidityIndex = ud60x18(_mockLiquidityIndex);
 
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
         int256 executedBaseAmount = vamm.executeDatedMakerOrder(accountId,sqrtLowerPriceX96,sqrtUpperPriceX96, requestedBaseAmount);
@@ -589,9 +572,6 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
         assertEq(baseBalancePool, 0);
         assertEq(quoteBalancePool, 0);
     
-        // TODO: liquidity index only required for fixed tokens; mocking should not be required if we only want base token values
-        vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
-
         // We expect the full base amount is unfilled cos there have been no trades
         (int256 unfilledBaseLong, int256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
         // console2.log("unfilledBaseLong", unfilledBaseLong); // TODO_delete_log

@@ -671,27 +671,6 @@ library DatedIrsVamm {
         stateFixedTokenGrowthGlobalX128 = state.trackerFixedTokenGrowthGlobalX128 + FullMath.mulDivSigned(fixedTokenDelta, FixedPoint128.Q128, state.accumulator);
     }
 
-    /// @dev Private but labelled internal for testability.
-    ///
-    /// Gets the number of base tokens and fixed tokens between the specified ticks, assuming `basePerTick` base tokens per tick.
-    function _tokenValuesBetweenTicks( // TODO: previously called trackValuesBetweenTicksOutside; update python code to match new name
-        Data storage self,
-        int128 basePerTick,
-        int24 tickLower,
-        int24 tickUpper
-    ) internal view returns(
-        int256 trackerFixedTokenGrowthOutside,
-        int256 trackerBaseTokenGrowthOutside
-    ) {
-        if (tickLower == tickUpper) {
-            return (0, 0);
-        }
-
-        int128 base = VAMMBase.baseBetweenTicks(tickLower, tickUpper, basePerTick);
-        trackerFixedTokenGrowthOutside = _fixedTokensInHomogeneousTickWindow(self, base, tickLower, tickUpper, self.immutableConfig.maturityTimestamp);
-        trackerBaseTokenGrowthOutside = base;
-    }
-
     /// @notice For a given LP account, how much liquidity is available to trade in each direction.
     /// 
     /// @param accountId The LP account. All positions within the account will be considered.
@@ -710,7 +689,7 @@ library DatedIrsVamm {
             for (uint256 i = 0; i < numPositions; i++) {
                 LPPosition.Data storage position = LPPosition.load(self.vars.positionsInAccount[accountId][i]);
                 // Get how liquidity is currently arranged. In particular, how much of the liquidity is avail to traders in each direction?
-                (,int256 unfilledShortBase,, int256 unfilledLongBase) = _getUnfilledTokenValues(
+                (int256 unfilledShortBase, int256 unfilledLongBase) = _getUnfilledBaseTokenValues(
                     self,
                     position.tickLower,
                     position.tickUpper,
@@ -748,45 +727,39 @@ library DatedIrsVamm {
 
     /// @dev Private but labelled internal for testability.
     ///
-    /// Gets the number of "unfilled" (still available as liquidity) base tokens and fixed tokens between the specified tick range,
-    /// looking both left of the current tick.
-    function _getUnfilledTokenValues( // TODO: previously called trackValuesBetweenTicks; update python code to match new name
-    // TODO: remove calculations of fixed token values (from here and from _tokenValuesBetweenTicks) if these remain unused by any consumer of this function.
+    /// Gets the number of "unfilled" (still available as liquidity) base tokens within the specified tick range,
+    /// looking both left and right of the current tick.
+    function _getUnfilledBaseTokenValues( // TODO: previously called trackValuesBetweenTicks; update python code to match new name
         Data storage self,
         int24 tickLower,
         int24 tickUpper,
         int128 baseAmount
     ) internal view returns(
-        int256 unfilledFixedTokensLeft,
         int256 unfilledBaseTokensLeft,
-        int256 unfilledFixedTokensRight,
         int256 unfilledBaseTokensRight
     ) {
         if (tickLower == tickUpper) {
-            return (0, 0, 0, 0);
+            return (0, 0);
         }
 
         int128 averageBase = VAMMBase.basePerTick(tickLower, tickUpper, baseAmount);
         // console2.log("_getUnfilledTokenValues: averageBase = %s", uint256(int256(averageBase))); // TODO_delete_log // TODO: how does rounding work here? If we round down to zero has all liquidity vanished? What checks should be in place?
         // Compute unfilled tokens in our range and to the left of the current tick
-        (int256 unfilledFixedTokensLeft_, int256 unfilledBaseTokensLeft_) = _tokenValuesBetweenTicks(
-            self,
-            averageBase,
+        int256 unfilledBaseTokensLeft_ = VAMMBase.baseBetweenTicks(
             tickLower < self.vars.tick ? tickLower : self.vars.tick, // min(tickLower, currentTick)
-            tickUpper < self.vars.tick ? tickUpper : self.vars.tick  // min(tickUpper, currentTick)
+            tickUpper < self.vars.tick ? tickUpper : self.vars.tick,  // min(tickUpper, currentTick)
+            averageBase
         );
-        unfilledFixedTokensLeft = -unfilledFixedTokensLeft_;
         unfilledBaseTokensLeft = -unfilledBaseTokensLeft_;
 
         // console2.log("unfilledTokensLeft: (%s, %s)", uint256(unfilledFixedTokensLeft), uint256(unfilledBaseTokensLeft)); // TODO_delete_log
 
 
         // Compute unfilled tokens in our range and to the right of the current tick
-        (unfilledFixedTokensRight, unfilledBaseTokensRight) = _tokenValuesBetweenTicks(
-            self,
-            averageBase,
+        unfilledBaseTokensRight = VAMMBase.baseBetweenTicks(
             tickLower > self.vars.tick ? tickLower : self.vars.tick, // max(tickLower, currentTick)
-            tickUpper > self.vars.tick ? tickUpper : self.vars.tick  // max(tickUpper, currentTick)
+            tickUpper > self.vars.tick ? tickUpper : self.vars.tick,  // max(tickUpper, currentTick)
+            averageBase
         );
         // console2.log("unfilledTokensRight: (%s, %s)", uint256(unfilledFixedTokensRight), uint256(unfilledBaseTokensRight)); // TODO_delete_log
     }
