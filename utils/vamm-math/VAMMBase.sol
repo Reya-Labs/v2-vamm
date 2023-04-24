@@ -220,8 +220,8 @@ library VAMMBase {
         // true because there are no changes in liquidity between `state.tick` and `step.tickNext`.
         fixedTokenDelta = VAMMBase._fixedTokensInHomogeneousTickWindow(
             step.baseInStep,
-            state.tick,
-            step.tickNext,
+            state.tick < step.tickNext ? state.tick : step.tickNext,
+            state.tick > step.tickNext ? state.tick : step.tickNext,
             yearsUntilMaturity,
             currentOracleValue
         );

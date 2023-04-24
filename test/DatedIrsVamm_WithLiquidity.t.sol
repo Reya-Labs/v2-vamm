@@ -105,7 +105,7 @@ contract VammTest_WithLiquidity is DatedIrsVammTest {
             sqrtPriceLimitX96: ACCOUNT_2_UPPER_SQRTPRICEX96
         });
 
-        // Mock the liquidity index for a swap
+        // Mock the liquidity index that is read during a swap
         vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
         (int256 trackerFixedTokenDelta, int256 trackerBaseTokenDelta) = vamm.vammSwap(params);
 
@@ -116,20 +116,24 @@ contract VammTest_WithLiquidity is DatedIrsVammTest {
         console2.log("trackerBaseTokenDelta", trackerBaseTokenDelta);
     }
 
-    // function test_Swap_MovingLeft() public { // TODO!
-    //     DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
+    function test_Swap_MovingLeft() public {
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
 
-    //     VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
-    //         recipient: address(this),
-    //         baseAmountSpecified: -1_000_000_000,
-    //         sqrtPriceLimitX96: ACCOUNT_1_LOWER_SQRTPRICEX96
-    //     });
+        IVAMMBase.SwapParams memory params = IVAMMBase.SwapParams({
+            recipient: address(this),
+            baseAmountSpecified: -100_000_000_000, // TODO: there is not enough liquidity - should this really succeed?
+            sqrtPriceLimitX96: ACCOUNT_1_LOWER_SQRTPRICEX96
+        });
 
-    //     // Mock the liquidity index for a swap
-    //     vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
+        // Mock the liquidity index that is read during a swap
+        vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
 
-    //     (int256 trackerFixedTokenDelta, int256 trackerBaseTokenDelta) = vamm.vammSwap(params);
-    //     console2.log("trackerFixedTokenDelta", trackerFixedTokenDelta);
-    //     console2.log("trackerBaseTokenDelta", trackerBaseTokenDelta);
-    // }
+        (int256 trackerFixedTokenDelta, int256 trackerBaseTokenDelta) = vamm.vammSwap(params);
+
+        // TODO: verify that return values are as expected
+        // TODO: verify that updated VAMM state is as expected
+        // TODO: what is the expected behaviour for orders that cannot be filled? If not "fail", how does the caller know how much was filled?
+        console2.log("trackerFixedTokenDelta", trackerFixedTokenDelta);
+        console2.log("trackerBaseTokenDelta", trackerBaseTokenDelta);
+    }
 }
