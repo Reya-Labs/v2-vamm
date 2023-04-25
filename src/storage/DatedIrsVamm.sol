@@ -3,17 +3,17 @@ pragma solidity >=0.8.13;
 
 import "./LPPosition.sol";
 
-import "../libraries/VAMMBase.sol";
-import "../libraries/SwapMath.sol";
-import "../libraries/FixedAndVariableMath.sol";
+import "../utils/VAMMBase.sol";
+import "../utils/SwapMath.sol";
+import "../utils/FixedAndVariableMath.sol";
 
-import "../../../utils/SafeCastUni.sol";
-import "../../../utils/CustomErrors.sol";
+import "../../utils/SafeCastUni.sol";
+import "../../utils/CustomErrors.sol";
 
 //todo: why use this instead of prbmath helper?
 import { UD60x18, convert } from "@prb/math/src/UD60x18.sol";
 import { SD59x18 } from "@prb/math/src/SD59x18.sol";
-import { mulUDxInt } from "../../../utils/PrbMathHelper.sol";
+import { mulUDxInt } from "../../utils/PrbMathHelper.sol";
 
 /**
  * @title Connects external contracts that implement the `IVAMM` interface to the protocol.

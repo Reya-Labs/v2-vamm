@@ -4,11 +4,11 @@ import "forge-std/Test.sol";
 import "forge-std/console2.sol";
 import "./VoltzTest.sol";
 import "../utils/SafeCastUni.sol";
-import "../contracts/VAMM/storage/LPPosition.sol";
-import "../contracts/VAMM/storage/DatedIrsVAMM.sol";
+import "../src/storage/LPPosition.sol";
+import "../src/storage/DatedIrsVAMM.sol";
 import "../utils/CustomErrors.sol";
-import "../contracts/VAMM/storage/LPPosition.sol";
-import "../contracts/VAMM/libraries/Tick.sol";
+import "../src/storage/LPPosition.sol";
+import "../src/utils/Tick.sol";
 
 import { mulUDxInt } from "../utils/PrbMathHelper.sol";
 import { UD60x18, convert, ud60x18, uMAX_UD60x18, uUNIT } from "@prb/math/src/UD60x18.sol";

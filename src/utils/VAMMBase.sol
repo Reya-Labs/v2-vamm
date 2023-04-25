@@ -7,16 +7,16 @@ import "./TickBitmap.sol";
 import "./Time.sol";
 import "./VammConfiguration.sol";
 
-import "../../../utils/FullMath.sol";
-import "../../../utils/FixedPoint96.sol";
-import "../../../utils/FixedPoint128.sol";
-import "../../../utils/SafeCastUni.sol";
-import "../../../utils/CustomErrors.sol";
+import "../../utils/FullMath.sol";
+import "../../utils/FixedPoint96.sol";
+import "../../utils/FixedPoint128.sol";
+import "../../utils/SafeCastUni.sol";
+import "../../utils/CustomErrors.sol";
 
 import { UD60x18, convert as convert_ud } from "@prb/math/src/UD60x18.sol";
 import { SD59x18, convert as convert_sd } from "@prb/math/src/SD59x18.sol";
 
-import { ud60x18, mulUDxInt } from "../../../utils/PrbMathHelper.sol";
+import { ud60x18, mulUDxInt } from "../../utils/PrbMathHelper.sol";
 
 /// @title Tick
 /// @notice Contains functions for managing tick processes and relevant calculations

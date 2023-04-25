@@ -2,7 +2,7 @@
 pragma solidity >=0.8.13;
 
 import "../storage/DatedIrsVamm.sol";
-import "../../../utils/owner-upgrade/OwnableStorage.sol";
+import "../../utils/owner-upgrade/OwnableStorage.sol";
 
 /**
  * @title Module for configuring a market

@@ -6,7 +6,7 @@ import "./Oracle.sol";
 
 import { UD60x18 } from "@prb/math/src/UD60x18.sol";
 
-import "../../../utils/interfaces/IRateOracle.sol";
+import "../../utils/interfaces/IRateOracle.sol";
 
 /**
  * @title Tracks configurations for dated irs markets

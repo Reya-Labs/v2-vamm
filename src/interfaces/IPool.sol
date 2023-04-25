@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import "../../../utils/interfaces/IERC165.sol";
+import "../../utils/interfaces/IERC165.sol";
 import { UD60x18 } from "@prb/math/src/UD60x18.sol";
 
 /// @title Interface a Pool needs to adhere.
