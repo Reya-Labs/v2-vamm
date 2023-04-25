@@ -18,9 +18,9 @@ library LPPosition {
         */
         uint128 accountId;
         /** 
-        * @dev position notional amount
+        * @dev amount of liquidity per tick in this position
         */
-        int128 baseAmount;
+        int128 liquidity;
         /** 
         * @dev lower tick boundary of the position
         */
@@ -102,11 +102,11 @@ library LPPosition {
         position.trackerBaseTokenAccumulated = trackerBaseTokenAccumulated;
     }
 
-    function updateBaseAmount(Data storage self, int128 baseAmount) internal {
+    function updateLiquidity(Data storage self, int128 liquidityDelta) internal {
         if (self.accountId == 0) {
             revert PositionNotFound();
         }
-        self.baseAmount += baseAmount;
+        self.liquidity += liquidityDelta;
     }
 
     /// @dev Private but labelled internal for testability.
@@ -143,15 +143,15 @@ library LPPosition {
         int256 trackerBaseTokenDeltaGrowth =
                 trackerBaseTokenGlobalGrowth - self.trackerBaseTokenUpdatedGrowth;
 
-        int256 averageBase = VAMMBase.basePerTick(
-            self.tickLower,
-            self.tickUpper,
-            self.baseAmount
-        );
+        // int256 averageBase = VAMMBase.liquidityPerTick(
+        //     self.tickLower,
+        //     self.tickUpper,
+        //     self.baseAmount
+        // );
 
         return (
-            self.trackerVariableTokenAccumulated + trackerVariableTokenDeltaGrowth * averageBase,
-            self.trackerBaseTokenAccumulated + trackerBaseTokenDeltaGrowth * averageBase
+            self.trackerVariableTokenAccumulated + trackerVariableTokenDeltaGrowth * self.liquidity, // TODO: check if this is correcxt formula
+            self.trackerBaseTokenAccumulated + trackerBaseTokenDeltaGrowth * self.liquidity // TODO: check if this is correcxt formula
         );
     }
 

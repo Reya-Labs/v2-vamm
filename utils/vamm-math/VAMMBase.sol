@@ -5,6 +5,8 @@ pragma solidity >=0.8.13;
 import "./Tick.sol";
 import "./TickBitmap.sol";
 import "./VammConfiguration.sol";
+import "forge-std/console2.sol"; // TODO: remove
+
 
 import "./FullMath.sol";
 import "./FixedPoint96.sol";
@@ -31,6 +33,7 @@ library VAMMBase {
     UD60x18 constant ONE = UD60x18.wrap(1e18);
     SD59x18 constant PRICE_EXPONENT_BASE = SD59x18.wrap(10001e14); // 1.0001
     UD60x18 constant PRICE_EXPONENT_BASE_MINUS_ONE = UD60x18.wrap(1e14); // 0.0001
+    uint256 internal constant Q96 = 2**96;
 
     struct TickData {
         mapping(int24 => Tick.Info) _ticks;
@@ -59,14 +62,13 @@ library VAMMBase {
     /// @dev emitted after a given vamm is successfully initialized
     event VAMMInitialization(uint160 sqrtPriceX96, int24 tick);
 
-    /// @dev emitted after a successful minting of a given LP position
-    event Mint(
+    /// @dev emitted after a successful mint or burn of liquidity on a given LP position
+    event LiquidityChange(
         address sender,
         uint128 indexed accountId,
         int24 indexed tickLower,
         int24 indexed tickUpper,
-        int128 requestedBaseAmount,
-        int128 executedBaseAmount
+        int128 liquidityDelta
     );
 
     event VAMMPriceChange(int24 tick);
@@ -122,23 +124,25 @@ library VAMMBase {
         int128 accumulatorDelta;
     }
 
-    /// @dev Computes the agregate amount of base between two ticks, given a tick range and the amount of base per tick.
-    /// The answer must be a valid `int128` (because total liquidity is limited to `int128`). Reverts on overflow.
+    /// @dev Computes the agregate amount of base between two ticks, given a tick range and the amount of liquidity per tick.
+    /// The answer must be a valid `int256`. Reverts on overflow.
     function baseBetweenTicks(
         int24 _tickLower,
         int24 _tickUpper,
-        int128 _basePerTick
-    ) internal pure returns(int128) {
-        return _basePerTick * (_tickUpper - _tickLower);
-    }
+        int128 _liquidityPerTick
+    ) internal view returns(int256) {
+        // get sqrt ratios
+        uint160 sqrtRatioAX96 = TickMath.getSqrtRatioAtTick(_tickLower);
 
-    /// @dev Computes the amount of base per tick, given a tick range and an aggregate base amount
-    function basePerTick(
-        int24 _tickLower,
-        int24 _tickUpper,
-        int128 _aggregateBaseAmount
-    ) internal pure returns(int128) {
-        return _aggregateBaseAmount / (_tickUpper - _tickLower);
+        uint160 sqrtRatioBX96 = TickMath.getSqrtRatioAtTick(_tickUpper);
+
+        if (sqrtRatioAX96 > sqrtRatioBX96)
+            (sqrtRatioAX96, sqrtRatioBX96) = (sqrtRatioBX96, sqrtRatioAX96);
+
+        uint256 absBase = FullMath
+                .mulDiv(uint128(_liquidityPerTick > 0 ? _liquidityPerTick : -_liquidityPerTick), sqrtRatioBX96 - sqrtRatioAX96, Q96);
+
+        return _liquidityPerTick > 0 ? absBase.toInt() : -(absBase.toInt());
     }
 
     function getPriceFromTick(int24 _tick) internal pure returns(UD60x18 price) {
@@ -208,13 +212,14 @@ library VAMMBase {
         UD60x18 currentOracleValue
     )
         internal
-        pure
+        view
         returns (
-            int256 stateVariableTokenGrowthGlobalX128,
+            int256 stateBaseTokenGrowthGlobalX128,
             int256 stateFixedTokenGrowthGlobalX128,
             int256 fixedTokenDelta
         )
     {
+        // console2.log("accumulating", state.liquidity); // TODO_delete_log
         // Get the numder of fixed tokens for the current section of our swap's tick range
         // This calculation assumes that the trade is uniformly distributed within the given tick range, which is only
         // true because there are no changes in liquidity between `state.tick` and `step.tickNext`.
@@ -227,8 +232,9 @@ library VAMMBase {
         );
 
         // update global trackers
-        stateVariableTokenGrowthGlobalX128 = state.trackerBaseTokenGrowthGlobalX128 + FullMath.mulDivSigned(step.trackerBaseTokenDelta, FixedPoint128.Q128, state.accumulator);
+        stateBaseTokenGrowthGlobalX128 = state.trackerBaseTokenGrowthGlobalX128 + FullMath.mulDivSigned(step.trackerBaseTokenDelta, FixedPoint128.Q128, state.accumulator);
         stateFixedTokenGrowthGlobalX128 = state.trackerFixedTokenGrowthGlobalX128 + FullMath.mulDivSigned(fixedTokenDelta, FixedPoint128.Q128, state.accumulator);
+        // console2.log("returning", stateBaseTokenGrowthGlobalX128);
     }
 
     /// @dev Private but labelled internal for testability.

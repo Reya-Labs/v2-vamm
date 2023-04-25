@@ -279,36 +279,31 @@ library DatedIrsVamm {
     }
 
     /**
-     * @notice Executes a dated maker order that provides liquidity this VAMM
+     * @notice Executes a dated maker order that provides liquidity to (or removes liquidty from) this VAMM
      * @param accountId Id of the `Account` with which the lp wants to provide liqudiity
      * @param fixedRateLower Lower Fixed Rate of the range order
      * @param fixedRateUpper Upper Fixed Rate of the range order
-     * @param requestedBaseAmount Requested amount of notional provided to a given vamm in terms of the virtual base tokens of the
-     * market
-     * @param executedBaseAmount Executed amount of notional provided to a given vamm in terms of the virtual base tokens of the
-     * market
+     * @param liquidityDelta Liquidity to add (positive values) or remove (negative values) witin the tick range
      */
     function executeDatedMakerOrder(
         Data storage self,
         uint128 accountId,
         uint160 fixedRateLower,
         uint160 fixedRateUpper,
-        int128 requestedBaseAmount
+        int128 liquidityDelta
     )
     internal
-    returns (int256 executedBaseAmount){        
+    {      
         int24 tickLower = TickMath.getTickAtSqrtRatio(fixedRateLower);
         int24 tickUpper = TickMath.getTickAtSqrtRatio(fixedRateUpper);
 
         LPPosition.Data storage position = LPPosition._ensurePositionOpened(accountId, tickLower, tickUpper);
         self.vars.positionsInAccount[accountId].push(LPPosition.getPositionId(accountId, tickLower, tickUpper));
 
-        require(position.baseAmount + requestedBaseAmount >= 0, "Burning too much"); // TODO: CustomError
+        require(position.liquidity + liquidityDelta >= 0, "Burning too much"); // TODO: CustomError
 
-        executedBaseAmount = _vammMint(self, accountId, tickLower, tickUpper, requestedBaseAmount);
-        position.updateBaseAmount(requestedBaseAmount);
-       
-        return executedBaseAmount;
+        _updateLiquidity(self, accountId, tickLower, tickUpper, liquidityDelta);
+        position.updateLiquidity(liquidityDelta);
     }
 
     function configure(
@@ -324,35 +319,31 @@ library DatedIrsVamm {
     }
 
     /// @dev Private but labelled internal for testability. Consumers of the library should use `executeDatedMakerOrder()`.
-    /// Mints `baseAmount` of liquidity for the specified `accountId`, uniformly (same amount per-tick) between the specified ticks.
-    function _vammMint(
+    /// Mints (`liquidityDelta > 0`) or burns (`liquidityDelta < 0`) `liquidityDelta` liquidity for the specified `accountId`, uniformly between the specified ticks.
+    function _updateLiquidity(
         Data storage self,
         uint128 accountId,
         int24 tickLower,
         int24 tickUpper,
-        int128 requesetedBaseAmount
+        int128 liquidityDelta
     ) internal
       lock(self)
-      returns (int128 executedBaseAmount)
     {
         VAMMBase.checkCurrentTimestampMaturityTimestampDelta(self.immutableConfig.maturityTimestamp);
 
-        // console2.log("_vammMint: ticks = (%s, %s)", uint256(int256(tickLower)), uint256(int256(tickUpper))); // TODO_delete_log
+        // console2.log("_updateLiquidity: ticks = (%s, %s)", uint256(int256(tickLower)), uint256(int256(tickUpper))); // TODO_delete_log
         Tick.checkTicks(tickLower, tickUpper);
 
         bool flippedLower;
         bool flippedUpper;
 
-        // TODO: this results in rounding per tick. How did that work in v1 / UniV3? Is there a simpler or more efficient solution?
-        int128 basePerTick = VAMMBase.basePerTick(tickLower, tickUpper, requesetedBaseAmount);
-
         /// @dev update the ticks if necessary
-        if (basePerTick != 0) {
+        if (liquidityDelta != 0) {
 
             VAMMBase.FlipTicksParams memory params;
             params.tickLower = tickLower;
             params.tickUpper = tickUpper;
-            params.accumulatorDelta = basePerTick;
+            params.accumulatorDelta = liquidityDelta;
             (flippedLower, flippedUpper) = params.flipTicks(
                 self.vars._ticks,
                 self.vars._tickBitmap,
@@ -365,7 +356,7 @@ library DatedIrsVamm {
         }
 
         // clear any tick data that is no longer needed
-        if (basePerTick < 0) {
+        if (liquidityDelta < 0) {
             if (flippedLower) {
                 self.vars._ticks.clear(tickLower);
             }
@@ -374,23 +365,21 @@ library DatedIrsVamm {
             }
         }
 
-        if (basePerTick != 0) {
+        if (liquidityDelta != 0) {
             if (
                 (self.vars.tick >= tickLower) && (self.vars.tick < tickUpper)
             ) {
                 // current tick is inside the passed range
-                uint128 accumulatorBefore = self.vars.accumulator; // SLOAD for gas optimization
+                uint128 liquidityBefore = self.vars.accumulator; // SLOAD for gas optimization
 
                 self.vars.accumulator = LiquidityMath.addDelta(
-                    accumulatorBefore,
-                    basePerTick
+                    liquidityBefore,
+                    liquidityDelta
                 );
             }
         }
 
-        executedBaseAmount = VAMMBase.baseBetweenTicks(tickLower, tickUpper, basePerTick);
-
-        emit VAMMBase.Mint(msg.sender, accountId, tickLower, tickUpper, requesetedBaseAmount, executedBaseAmount);
+        emit VAMMBase.LiquidityChange(msg.sender, accountId, tickLower, tickUpper, liquidityDelta);
     }
 
     function vammSwap(
@@ -431,6 +420,8 @@ library DatedIrsVamm {
             state.amountSpecifiedRemaining != 0 &&
             state.sqrtPriceX96 != params.sqrtPriceLimitX96
         ) {
+            // console2.log("while loop start");
+            // console2.log(" - params.sqrtPriceLimitX96", params.sqrtPriceLimitX96);
             VAMMBase.StepComputations memory step;
 
             ///// GET NEXT TICK /////
@@ -442,6 +433,8 @@ library DatedIrsVamm {
             /// add a test for the statement that checks for the above two conditions
             (step.tickNext, step.initialized) = self.vars._tickBitmap
                 .nextInitializedTickWithinOneWord(state.tick, self.immutableConfig._tickSpacing, !advanceRight);
+
+            // console2.log(" - state.trackerBaseTokenDeltaCumulative ", state.trackerBaseTokenDeltaCumulative); // TODO_delete_log
 
             // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
             if (advanceRight && step.tickNext > TickMath.MAX_TICK) {
@@ -482,6 +475,11 @@ library DatedIrsVamm {
                     timeToMaturityInSeconds: secondsTillMaturity
                 })
             );
+
+            // console2.log("Post-step with liquidity", state.accumulator);
+            // console2.log(" - amount in ", step.amountIn);
+            // console2.log(" - amount out", step.amountOut);
+            // console2.log(" - product   ", step.amountOut * step.amountIn);
 
             ///// UPDATE TRACKERS /////
 
@@ -536,7 +534,44 @@ library DatedIrsVamm {
                 // recompute unless we're on a lower tick boundary (i.e. already transitioned ticks), and haven't moved
                 state.tick = TickMath.getTickAtSqrtRatio(state.sqrtPriceX96);
             }
+        
+            // console2.log("while loop end");
+            // console2.log(" - state.tick", state.tick);
+            // if (self.vars._ticks[state.tick].initialized) {
+            //     console2.log(" - liquidityGross at tick", self.vars._ticks[state.tick].liquidityGross);
+            //     console2.log(" - liquidityNet at tick", self.vars._ticks[state.tick].liquidityNet);
+
+            // }
+            // console2.log(" - liquidity at current tick", state.accumulator);
+            // console2.log(" - liquidity at committed  tick", self.vars.accumulator);
+            // console2.log(" - state.sqrtPriceX96", state.sqrtPriceX96);
+            // console2.log("         limit: ", params.sqrtPriceLimitX96);
+            // console2.log(" - state.amountSpecifiedRemaining", state.amountSpecifiedRemaining);
+            // console2.log(" - state.trackerBaseTokenDeltaCumulative ", state.trackerBaseTokenDeltaCumulative);
+            // if(advanceRight) {
+            //     console2.log(" - sum ", state.amountSpecifiedRemaining + state.trackerBaseTokenDeltaCumulative);
+            // } else {
+            //     console2.log(" - sum ", state.amountSpecifiedRemaining - state.trackerBaseTokenDeltaCumulative);
+            // }
         }
+
+            // console2.log("while loop ended");
+            // console2.log(" - state.tick", state.tick);
+            // if (self.vars._ticks[state.tick].initialized) {
+            //     console2.log(" - liquidityGross at tick", self.vars._ticks[state.tick].liquidityGross);
+            //     console2.log(" - liquidityNet at tick", self.vars._ticks[state.tick].liquidityNet);
+            // }
+            // console2.log(" - liquidity at current tick", state.liquidity);
+            // console2.log(" - liquidity at committed  tick", self.vars.liquidity);
+            // console2.log(" - state.sqrtPriceX96", state.sqrtPriceX96);
+            // console2.log("         limit: ", params.sqrtPriceLimitX96);
+            // console2.log(" - state.amountSpecifiedRemaining", state.amountSpecifiedRemaining);
+            // console2.log(" - state.trackerBaseTokenDeltaCumulative ", state.trackerBaseTokenDeltaCumulative);
+            // if(advanceRight) {
+            //     console2.log(" - sum ", state.amountSpecifiedRemaining + state.trackerBaseTokenDeltaCumulative);
+            // } else {
+            //     console2.log(" - sum ", state.amountSpecifiedRemaining - state.trackerBaseTokenDeltaCumulative);
+            // }
 
         ///// UPDATE VAMM VARS AFTER SWAP /////
         if (state.tick != self.vars.tick) {
@@ -602,7 +637,7 @@ library DatedIrsVamm {
                     self,
                     position.tickLower,
                     position.tickUpper,
-                    position.baseAmount
+                    position.liquidity
                 );
 
                 unfilledBaseLong += unfilledLongBase;
@@ -642,7 +677,7 @@ library DatedIrsVamm {
         Data storage self,
         int24 tickLower,
         int24 tickUpper,
-        int128 baseAmount
+        int128 liquidityPerTick
     ) internal view returns(
         int256 unfilledBaseTokensLeft,
         int256 unfilledBaseTokensRight
@@ -651,13 +686,13 @@ library DatedIrsVamm {
             return (0, 0);
         }
 
-        int128 averageBase = VAMMBase.basePerTick(tickLower, tickUpper, baseAmount);
+        // int128 averageBase = VAMMBase.liquidityPerTick(tickLower, tickUpper, baseAmount);
         // console2.log("_getUnfilledTokenValues: averageBase = %s", uint256(int256(averageBase))); // TODO_delete_log // TODO: how does rounding work here? If we round down to zero has all liquidity vanished? What checks should be in place?
         // Compute unfilled tokens in our range and to the left of the current tick
         int256 unfilledBaseTokensLeft_ = VAMMBase.baseBetweenTicks(
             tickLower < self.vars.tick ? tickLower : self.vars.tick, // min(tickLower, currentTick)
             tickUpper < self.vars.tick ? tickUpper : self.vars.tick,  // min(tickUpper, currentTick)
-            averageBase
+            liquidityPerTick
         );
         unfilledBaseTokensLeft = -unfilledBaseTokensLeft_;
 
@@ -667,7 +702,7 @@ library DatedIrsVamm {
         unfilledBaseTokensRight = VAMMBase.baseBetweenTicks(
             tickLower > self.vars.tick ? tickLower : self.vars.tick, // max(tickLower, currentTick)
             tickUpper > self.vars.tick ? tickUpper : self.vars.tick,  // max(tickUpper, currentTick)
-            averageBase
+            liquidityPerTick
         );
         // console2.log("unfilledTokensRight: (%s, %s)", uint256(unfilledFixedTokensRight), uint256(unfilledBaseTokensRight)); // TODO_delete_log
     }

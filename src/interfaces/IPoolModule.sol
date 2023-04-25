@@ -15,22 +15,19 @@ interface IPoolModule is IERC165 {
         uint128 marketId,
         uint32 maturityTimestamp,
         int256 baseAmount,
-        uint160 priceLimit
+        uint160 sqrtPriceLimitX96
     )
         external
         returns (int256 executedBaseAmount, int256 executedQuoteAmount);
 
     /**
-     * @notice Executes a dated maker order against a vamm that provided liquidity to a given marketId & maturityTimestamp pair
+     * @notice Provides liquidity to (or removes liquidty from) a given marketId & maturityTimestamp pair
      * @param accountId Id of the `Account` with which the lp wants to provide liqudiity
      * @param marketId Id of the market in which the lp wants to provide liqudiity
      * @param maturityTimestamp Timestamp at which a given market matures
      * @param fixedRateLower Lower Fixed Rate of the range order
      * @param fixedRateUpper Upper Fixed Rate of the range order
-     * @param requestedBaseAmount Requested amount of notional provided to a given vamm in terms of the virtual base tokens of the
-     * market
-     * @param executedBaseAmount Executed amount of notional provided to a given vamm in terms of the virtual base tokens of the
-     * market
+     * @param liquidityDelta Liquidity to add (positive values) or remove (negative values) witin the tick range
      */
     function initiateDatedMakerOrder(
         uint128 accountId,
@@ -38,10 +35,9 @@ interface IPoolModule is IERC165 {
         uint256 maturityTimestamp,
         uint160 fixedRateLower,
         uint160 fixedRateUpper,
-        int128 requestedBaseAmount
+        int128 liquidityDelta
     )
-        external
-        returns (int256 executedBaseAmount);
+        external;
 
     /// @dev todo docs
     function closeUnfilledBase(
