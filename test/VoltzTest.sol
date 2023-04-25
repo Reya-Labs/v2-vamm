@@ -2,16 +2,16 @@ pragma solidity >=0.8.13;
 
 import "forge-std/Test.sol";
 import "forge-std/console2.sol";
-
 import "../utils/vamm-math/TickMath.sol";
 import { mulUDxInt } from "@voltz-protocol/util-contracts/src/helpers/PrbMathHelper.sol";
 import { UD60x18, convert, ud60x18, uMAX_UD60x18, uUNIT } from "@prb/math/UD60x18.sol";
 import { SD59x18, sd59x18, convert } from "@prb/math/SD59x18.sol";
-
 import "@voltz-protocol/util-contracts/src/helpers/SafeCast.sol";
+
 
 /// @dev Contains assertions and other functions used by multiple tests
 contract VoltzTest is Test {
+    using SafeCastU256 for uint256;
 
     /// @dev The minimum tick that may be passed to #getSqrtRatioAtTick computed from log base 1.0001 of 2**-128
     int24 internal constant MIN_TICK = -69100;
@@ -49,6 +49,11 @@ contract VoltzTest is Test {
     }
     function tickDistance(int24 _tickA, int24 _tickB) public pure returns (uint256 absoluteDistance) {
         return abs(_tickA - _tickB);
+    }
+    function sqrtPriceDistanceX96(int24 _tickA, int24 _tickB) public pure returns (uint256 absoluteSqrtPriceDistanceX96) {
+        uint160 sqrtRatioAX96 = TickMath.getSqrtRatioAtTick(_tickA);
+        uint160 sqrtRatioBX96 = TickMath.getSqrtRatioAtTick(_tickB);
+        return abs(uint256(sqrtRatioAX96).toInt() - uint256(sqrtRatioBX96).toInt());
     }
 
     using SafeCastI256 for uint256;
@@ -113,6 +118,11 @@ contract VoltzTest is Test {
     }
     function assertAlmostEqual(int256 a, int256 b) internal {
         assertAlmostEqual(SD59x18.wrap(a), SD59x18.wrap(b));
+    }
+    function assertOffByNoMoreThan2OrAlmostEqual(int256 a, int256 b) internal {
+        if (abs(a-b) > 2) {
+            assertAlmostEqual(SD59x18.wrap(a), SD59x18.wrap(b));
+        }
     }
     function assertEq(UD60x18 a, UD60x18 b, string memory err) internal {
         assertEq(UD60x18.unwrap(a), UD60x18.unwrap(b), err);

@@ -23,7 +23,7 @@ contract PoolModule is IPoolModule {
         uint128 marketId,
         uint32 maturityTimestamp,
         int256 baseAmount,
-        uint160 priceLimit
+        uint160 sqrtPriceLimitX96
     )
         external override
         returns (int256 executedBaseAmount, int256 executedQuoteAmount) {
@@ -35,13 +35,13 @@ contract PoolModule is IPoolModule {
 
         VAMMBase.SwapParams memory swapParams;
         swapParams.baseAmountSpecified = baseAmount;
-        swapParams.sqrtPriceLimitX96 = priceLimit == 0
+        swapParams.sqrtPriceLimitX96 = sqrtPriceLimitX96 == 0
                 ? (
                     baseAmount < 0 // VT
                         ? TickMath.MIN_SQRT_RATIO + 1
                         : TickMath.MAX_SQRT_RATIO - 1
                 )
-                : priceLimit;
+                : sqrtPriceLimitX96;
         //todo: populate recipient field
 
         (executedBaseAmount, executedQuoteAmount) = vamm.vammSwap(swapParams);
@@ -54,18 +54,17 @@ contract PoolModule is IPoolModule {
         uint128 accountId,
         uint128 marketId,
         uint256 maturityTimestamp,
-        uint160 fixedRateLower,
-        uint160 fixedRateUpper,
-        int128 requestedBaseAmount
+        uint160 fixedRateLower,  // TODO: use tick lower instead? 
+        uint160 fixedRateUpper, // TODO: use tick upper instead?
+        int128 liquidityDelta
     )
         external override
-        returns (int256 executedBaseAmount){ // TODO: returning 256 for 128 request seems wrong?
-       
+    {
         PoolPauser.whenNotPaused();
         // TODO: authentication!
         
        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
-       return vamm.executeDatedMakerOrder(accountId, fixedRateLower, fixedRateUpper, requestedBaseAmount);
+       vamm.executeDatedMakerOrder(accountId, fixedRateLower, fixedRateUpper, liquidityDelta);
     }
 
     /**
@@ -88,12 +87,13 @@ contract PoolModule is IPoolModule {
 
         for (uint256 i = 0; i < positions.length; i++) {
             LPPosition.Data memory position = LPPosition.load(positions[i]);
-            closeUnfilledBasePool += vamm.executeDatedMakerOrder(
+            vamm.executeDatedMakerOrder(
                 accountId, 
                 TickMath.getSqrtRatioAtTick(position.tickLower),
                 TickMath.getSqrtRatioAtTick(position.tickUpper),
-                -position.baseAmount
+                -position.liquidity
             );
+            closeUnfilledBasePool -= position.liquidity;
         }
         
     }

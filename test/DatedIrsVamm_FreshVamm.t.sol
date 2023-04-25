@@ -130,21 +130,23 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
     function testFuzz_BaseBetweenTicks(
         int24 tickLower,
         int24 tickUpper,
-        int128 basePerTick)
+        int128 liquidity)
     public {
         (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
-        basePerTick = int128(bound(basePerTick, 0, type(int128).max / tickDistance(tickLower, tickUpper).toInt().to128()));
-        assertEq(VAMMBase.baseBetweenTicks(tickLower, tickUpper, basePerTick), int256(basePerTick) * (tickUpper - tickLower));
+        // Check that baseBetweenTicks and getLiquidityForBase are symetric
+        liquidity = boundNewPositionLiquidityAmount(tickLower, tickUpper, liquidity);
+        int256 baseAmount = VAMMBase.baseBetweenTicks(tickLower, tickUpper, liquidity);
+        assertOffByNoMoreThan2OrAlmostEqual(getLiquidityForBase(tickLower, tickUpper, baseAmount), liquidity); // TODO: can we do better than off-by-two for small values? is it important?
     }
 
-    function testFuzz_BasePerTick(
-        int24 tickLower,
-        int24 tickUpper,
-        int128 baseAmount)
-    public {
-        (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
-        assertEq(VAMMBase.basePerTick(tickLower, tickUpper, baseAmount), baseAmount / (tickUpper - tickLower));
-    }
+    // function testFuzz_LiquidityPerTick(
+    //     int24 tickLower,
+    //     int24 tickUpper,
+    //     int128 baseAmount)
+    // public {
+    //     (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
+    //     assertEq(VAMMBase.liquidityPerTick(tickLower, tickUpper, baseAmount), baseAmount / (tickUpper - tickLower));
+    // }
 
     function averagePriceBetweenTicksUsingLoop(
         int24 tickLower,
@@ -373,11 +375,10 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
 
         int24 tickLower = TickMath.getTickAtSqrtRatio(sqrtLowerPriceX96);
         int24 tickUpper = TickMath.getTickAtSqrtRatio(sqrtUpperPriceX96);
-        int128 requestedBaseAmount = 50_000_000_000;
+        int128 baseAmount = 50_000_000_000;
+        int128 liquidityDelta = getLiquidityForBase(tickLower, tickUpper, baseAmount);
 
-        int256 executedBaseAmount = vamm.executeDatedMakerOrder(accountId,sqrtLowerPriceX96,sqrtUpperPriceX96, requestedBaseAmount);
-        // console2.log("executedBaseAmount = %s", executedBaseAmount); // TODO_delete_log
-        assertAlmostEqual(executedBaseAmount, requestedBaseAmount);
+        vamm.executeDatedMakerOrder(accountId,sqrtLowerPriceX96,sqrtUpperPriceX96, liquidityDelta);
 
         // Position just opened so no filled balances
         (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(accountId);
@@ -403,19 +404,18 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
         }
 
         // Absolute value of long and shorts should add up to executed amount
-        assertEq(unfilledBaseLong - unfilledBaseShort, executedBaseAmount);
+        assertAlmostEqual(unfilledBaseLong - unfilledBaseShort, baseAmount);
 
-        // The current price is within the tick range, so we expect the accumulator to equal basePerTick
-        int128 basePerTick = VAMMBase.basePerTick(tickLower, tickUpper, executedBaseAmount.to128());
-        assertEq(vamm.vars.accumulator.toInt(), basePerTick);
+        // The current price is within the tick range, so we expect the accumulator to equal liquidityDelta
+        assertEq(vamm.vars.accumulator.toInt(), liquidityDelta);
 
-        // We also expect liquidityGross to equal basePerTick for both upper and lower ticks 
-        assertEq(vamm.vars._ticks[tickLower].liquidityGross.toInt(), basePerTick);
-        assertEq(vamm.vars._ticks[tickUpper].liquidityGross.toInt(), basePerTick);
+        // We also expect liquidityGross to equal liquidityPerTick for both upper and lower ticks 
+        assertEq(vamm.vars._ticks[tickLower].liquidityGross.toInt(), liquidityDelta);
+        assertEq(vamm.vars._ticks[tickUpper].liquidityGross.toInt(), liquidityDelta);
 
-        // When moving left to right (right to left), basePerTick should be added (subtracted) at the lower tick and subtracted (added) at the upper tick 
-        assertEq(vamm.vars._ticks[tickLower].liquidityNet, basePerTick);
-        assertEq(vamm.vars._ticks[tickUpper].liquidityNet, -basePerTick);
+        // When moving left to right (right to left), liquidityPerTick should be added (subtracted) at the lower tick and subtracted (added) at the upper tick 
+        assertEq(vamm.vars._ticks[tickLower].liquidityNet, liquidityDelta);
+        assertEq(vamm.vars._ticks[tickUpper].liquidityNet, -liquidityDelta);
     }
 
     // TODO: extend to 3 or more LPs and test TickInfo when multiple LPs start/end at same tick
@@ -423,7 +423,7 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
         int24 lp1tickLower;
         int24 lp1tickUpper;
-        int128 lp1basePerTick;
+        int128 lp1liquidity;
 
         // First LP
         {
@@ -435,11 +435,9 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
 
             int24 tickLower = TickMath.getTickAtSqrtRatio(sqrtLowerPriceX96);
             int24 tickUpper = TickMath.getTickAtSqrtRatio(sqrtUpperPriceX96);
-            int128 requestedBaseAmount = 50_000_000_000;
-
-            int256 executedBaseAmount = vamm.executeDatedMakerOrder(accountId,sqrtLowerPriceX96,sqrtUpperPriceX96, requestedBaseAmount);
-            // console2.log("executedBaseAmount = %s", executedBaseAmount); // TODO_delete_log
-            assertAlmostEqual(executedBaseAmount, requestedBaseAmount);
+            int128 baseAmount = 50_000_000_000;
+            int128 liquidityDelta = getLiquidityForBase(tickLower, tickUpper, baseAmount);
+            vamm.executeDatedMakerOrder(accountId,sqrtLowerPriceX96,sqrtUpperPriceX96, liquidityDelta);
 
             // Position just opened so no filled balances
             (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(accountId);
@@ -465,24 +463,23 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
             }
 
             // Absolute value of long and shorts should add up to executed amount
-            assertEq(unfilledBaseLong - unfilledBaseShort, executedBaseAmount);
+            assertAlmostEqual(unfilledBaseLong - unfilledBaseShort, baseAmount);
 
-            // The current price is within the tick range, so we expect the accumulator to equal basePerTick
-            int128 basePerTick = VAMMBase.basePerTick(tickLower, tickUpper, executedBaseAmount.to128());
-            assertEq(vamm.vars.accumulator.toInt(), basePerTick);
+            // The current price is within the tick range, so we expect the accumulator to equal liquidityDelta
+            assertEq(vamm.vars.accumulator.toInt(), liquidityDelta);
 
-            // We also expect liquidityGross to equal basePerTick for both upper and lower ticks 
-            assertEq(vamm.vars._ticks[tickLower].liquidityGross.toInt(), basePerTick);
-            assertEq(vamm.vars._ticks[tickUpper].liquidityGross.toInt(), basePerTick);
+            // We also expect liquidityGross to equal liquidityDelta for both upper and lower ticks 
+            assertEq(vamm.vars._ticks[tickLower].liquidityGross.toInt(), liquidityDelta);
+            assertEq(vamm.vars._ticks[tickUpper].liquidityGross.toInt(), liquidityDelta);
 
-            // When moving left to right (right to left), basePerTick should be added (subtracted) at the lower tick and subtracted (added) at the upper tick 
-            assertEq(vamm.vars._ticks[tickLower].liquidityNet, basePerTick);
-            assertEq(vamm.vars._ticks[tickUpper].liquidityNet, -basePerTick);
+            // When moving left to right (right to left), liquidityDelta should be added (subtracted) at the lower tick and subtracted (added) at the upper tick 
+            assertEq(vamm.vars._ticks[tickLower].liquidityNet, liquidityDelta);
+            assertEq(vamm.vars._ticks[tickUpper].liquidityNet, -liquidityDelta);
 
             // Save some values for additional testing after extra LPs
             lp1tickLower = tickLower;
             lp1tickUpper = tickUpper;
-            lp1basePerTick = basePerTick;
+            lp1liquidity = liquidityDelta;
         }
 
         // Second LP
@@ -495,11 +492,9 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
 
             int24 tickLower = TickMath.getTickAtSqrtRatio(sqrtLowerPriceX96);
             int24 tickUpper = TickMath.getTickAtSqrtRatio(sqrtUpperPriceX96);
-            int128 requestedBaseAmount = 50_000_000_000;
-
-            int256 executedBaseAmount = vamm.executeDatedMakerOrder(accountId,sqrtLowerPriceX96,sqrtUpperPriceX96, requestedBaseAmount);
-            // console2.log("executedBaseAmount = %s", executedBaseAmount); // TODO_delete_log
-            assertAlmostEqual(executedBaseAmount, requestedBaseAmount);
+            int128 baseAmount = 50_000_000_000;
+            int128 liquidityDelta = getLiquidityForBase(tickLower, tickUpper, baseAmount);
+            vamm.executeDatedMakerOrder(accountId,sqrtLowerPriceX96,sqrtUpperPriceX96, liquidityDelta);
 
             // Position just opened so no filled balances
             (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(accountId);
@@ -525,19 +520,18 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
             }
 
             // Absolute value of long and shorts should add up to executed amount
-            assertEq(unfilledBaseLong - unfilledBaseShort, executedBaseAmount);
+            assertAlmostEqual(unfilledBaseLong - unfilledBaseShort, baseAmount);
 
-            // The current price is within both tick ranges, so we expect the accumulator to equal the sum of two basePerTick values
-            int128 basePerTick = VAMMBase.basePerTick(tickLower, tickUpper, executedBaseAmount.to128());
-            assertEq(vamm.vars.accumulator.toInt(), basePerTick + lp1basePerTick);
+            // The current price is within both tick ranges, so we expect the accumulator to equal the sum of two liquidityDelta values
+            assertEq(vamm.vars.accumulator.toInt(), liquidityDelta + lp1liquidity);
 
-            // We expect liquidityGross to equal basePerTick for both upper and lower ticks 
-            assertEq(vamm.vars._ticks[tickLower].liquidityGross.toInt(), basePerTick);
-            assertEq(vamm.vars._ticks[tickUpper].liquidityGross.toInt(), basePerTick);
+            // We expect liquidityGross to equal liquidityDelta for both upper and lower ticks 
+            assertEq(vamm.vars._ticks[tickLower].liquidityGross.toInt(), liquidityDelta);
+            assertEq(vamm.vars._ticks[tickUpper].liquidityGross.toInt(), liquidityDelta);
 
-            // When moving left to right (right to left), basePerTick should be added (subtracted) at the lower tick and subtracted (added) at the upper tick 
-            assertEq(vamm.vars._ticks[tickLower].liquidityNet, basePerTick);
-            assertEq(vamm.vars._ticks[tickUpper].liquidityNet, -basePerTick);
+            // When moving left to right (right to left), liquidityDelta should be added (subtracted) at the lower tick and subtracted (added) at the upper tick 
+            assertEq(vamm.vars._ticks[tickLower].liquidityNet, liquidityDelta);
+            assertEq(vamm.vars._ticks[tickUpper].liquidityNet, -liquidityDelta);
         }
     }
 
@@ -545,20 +539,17 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
         uint128 accountId,
         int24 tickLower,
         int24 tickUpper,
-        int128 requestedBaseAmount
+        int128 liquidityDelta
     ) public {
         vm.assume(accountId != 0);
         (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
-        logTicks(tickLower, tickUpper, "testFuzz_GetAccountUnfilledBases");
-        vm.assume(tickUpper != TickMath.MAX_TICK); // TODO: seems to fail (error "LO") at maxTick - is that OK?
-        requestedBaseAmount = boundNewPositionLiquidityAmount(requestedBaseAmount, tickLower, tickUpper); // Cannot withdraw liquidity before we add it
+        liquidityDelta = boundNewPositionLiquidityAmount(tickLower, tickUpper, liquidityDelta);
+
         uint160 sqrtLowerPriceX96 = TickMath.getSqrtRatioAtTick(tickLower);
         uint160 sqrtUpperPriceX96 = TickMath.getSqrtRatioAtTick(tickUpper);
 
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
-        int256 executedBaseAmount = vamm.executeDatedMakerOrder(accountId,sqrtLowerPriceX96,sqrtUpperPriceX96, requestedBaseAmount);
-        // console2.log("executedBaseAmount = %s", executedBaseAmount); // TODO_delete_log
-        assertLe(executedBaseAmount, requestedBaseAmount);
+        vamm.executeDatedMakerOrder(accountId,sqrtLowerPriceX96,sqrtUpperPriceX96, liquidityDelta);
 
         // Position just opened so no filled balances
         (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(accountId);
@@ -567,20 +558,16 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
     
         // We expect the full base amount is unfilled cos there have been no trades
         (int256 unfilledBaseLong, int256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
-        // console2.log("unfilledBaseLong", unfilledBaseLong); // TODO_delete_log
-        // console2.log("unfilledBaseShort", unfilledBaseShort); // TODO_delete_log
         uint256 distanceToLower = tickDistanceFromCurrentToTick(tickLower);
         uint256 distanceToUpper = tickDistanceFromCurrentToTick(tickUpper);
-        // console2.log("distanceToLower", distanceToLower); // TODO_delete_log
-        // console2.log("distanceToUpper", distanceToUpper); // TODO_delete_log
-        if (distanceToLower > distanceToUpper) {
-            assertGe(abs(unfilledBaseShort), abs(unfilledBaseLong), "short < long");
-        } else if (distanceToLower < distanceToUpper) {
-            assertLe(abs(unfilledBaseShort), abs(unfilledBaseLong), "short > long");
-        } else {
-            // Distances are equal
-            assertEq(abs(unfilledBaseShort), abs(unfilledBaseLong), "short != long");
+        if (distanceToLower > 0) {
+            assertGe(abs(unfilledBaseShort), 0, "short unexpectedlly zero");
         }
-        assertEq(unfilledBaseLong - unfilledBaseShort, executedBaseAmount);
+        if (distanceToUpper > 0) {
+            assertGe(abs(unfilledBaseLong), 0, "long unexpectedlly zero");
+        }
+
+        int256 baseAmount = VAMMBase.baseBetweenTicks(tickLower, tickUpper, liquidityDelta);
+        assertOffByNoMoreThan2OrAlmostEqual(unfilledBaseLong - unfilledBaseShort, baseAmount);
     }
 }

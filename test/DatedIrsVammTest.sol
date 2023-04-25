@@ -42,6 +42,30 @@ contract DatedIrsVammTest is VoltzTest {
         _tickSpacing: initTickSpacing
     });
 
+    /// @notice Computes the amount of liquidity per tick to use for a given base amount and price range
+    /// @dev Calculates `baseAmount / (sqrtRatio(tickUpper) - sqrtRatio(tickLower))`.
+    /// @param tickLower The first tick boundary
+    /// @param tickUpper The second tick boundary
+    /// @param baseAmount The amount of base token being sent in
+    /// @return liquidity The amount of liquidity per tick
+    function getLiquidityForBase(
+        int24 tickLower,
+        int24 tickUpper,
+        int256 baseAmount
+    ) public view returns (int128 liquidity) {
+
+        // get sqrt ratios
+        uint160 sqrtRatioAX96 = TickMath.getSqrtRatioAtTick(tickLower);
+        uint160 sqrtRatioBX96 = TickMath.getSqrtRatioAtTick(tickUpper);
+
+        if (sqrtRatioAX96 > sqrtRatioBX96)
+            (sqrtRatioAX96, sqrtRatioBX96) = (sqrtRatioBX96, sqrtRatioAX96);
+        uint256 absLiquidity = FullMath
+                .mulDiv(uint256(baseAmount > 0 ? baseAmount : -baseAmount), VAMMBase.Q96, sqrtRatioBX96 - sqrtRatioAX96);
+
+        return baseAmount > 0 ? absLiquidity.toInt().to128() : -(absLiquidity.toInt().to128());
+    }
+
     function tickDistanceFromCurrentToTick(int24 _tick) public view returns (uint256 absoluteDistance) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
         int24 currentTick = vamm.vars.tick;
@@ -49,20 +73,22 @@ contract DatedIrsVammTest is VoltzTest {
     }
 
     function boundNewPositionLiquidityAmount(
-        int128 unboundBaseToken,
-        int24 _tickLower,
-        int24 _tickUpper)
-    internal view returns (int128 boundBaseTokens)
+        int24 tickLower,
+        int24 tickUpper,
+        int128 unboundLiquidityDelta)
+    internal view returns (int128 liquidityDelta)
     {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
         // Ticks must be in range and cannot be equal
-        uint256 tickRange = tickDistance(_tickLower, _tickUpper);
+        // uint256 tickRange = tickDistance(_tickLower, _tickUpper);
         uint128 maxLiquidityPerTick = vamm.immutableConfig._maxLiquidityPerTick;
-        // console2.log("tickRange", tickRange); // TODO_delete_log
-        // console2.log("maxLiquidityPerTick", maxLiquidityPerTick, maxLiquidityPerTick * tickRange); // TODO_delete_log
-        int256 max = min(int256(type(int128).max), int256(uint256(maxLiquidityPerTick)) * int256(tickRange));
+        //int256 max = min(int256(type(int128).max), int256(uint256(maxLiquidityPerTick)*tickRange));
+        int256 max = min(int256(type(int128).max - 1), int256(uint256(maxLiquidityPerTick))); // TODO: why is type(int128).max not safe?
 
-        return int128(bound(unboundBaseToken, 0, max)); // New positions cannot withdraw liquidity so >= 0
+        // Amounts of liquidty smaller than required for base amount of 100k might produce acceptable rounding errors that nonetheless make tests fiddly
+        int256 min = getLiquidityForBase(tickLower, tickUpper, 1000_000); 
+
+        return int128(bound(unboundLiquidityDelta, min, max)); // New positions cannot withdraw liquidity so >= 0
     }
 
     function logTickInfo(string memory label, int24 _tick) view internal {
