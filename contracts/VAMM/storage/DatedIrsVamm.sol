@@ -1,33 +1,25 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import "../../utils/AccessError.sol";
-import "../interfaces/IVAMMBase.sol";
-import "../libraries/Tick.sol";
-import "../libraries/Time.sol";
-import "../libraries/TickBitmap.sol";
-import "../../utils/SafeCastUni.sol";
-import "../../utils/SqrtPriceMath.sol";
+import "./LPPosition.sol";
+
+import "../libraries/VAMMBase.sol";
 import "../libraries/SwapMath.sol";
+import "../libraries/FixedAndVariableMath.sol";
+
+import "../../../utils/SafeCastUni.sol";
+import "../../../utils/CustomErrors.sol";
+
+//todo: why use this instead of prbmath helper?
 import { UD60x18, convert } from "@prb/math/src/UD60x18.sol";
 import { SD59x18 } from "@prb/math/src/SD59x18.sol";
-import "../libraries/FixedAndVariableMath.sol";
-import "../../utils/FixedPoint128.sol";
-import "../libraries/VAMMBase.sol";
-import "../interfaces/IVAMM.sol";
-import "../libraries/VammConfiguration.sol";
-import "../../utils/CustomErrors.sol";
-import "../libraries/Oracle.sol";
-import "./LPPosition.sol";
-import "../../interfaces/IRateOracle.sol";
-import "forge-std/console2.sol"; // TODO: remove
+import { mulUDxInt } from "../../../utils/PrbMathHelper.sol";
 
 /**
  * @title Connects external contracts that implement the `IVAMM` interface to the protocol.
  *
  */
 library DatedIrsVamm {
-
     UD60x18 constant ONE = VAMMBase.ONE;
     UD60x18 constant ZERO = UD60x18.wrap(0);
     using SafeCastUni for uint256;
@@ -402,7 +394,7 @@ library DatedIrsVamm {
 
     function vammSwap(
         Data storage self,
-        IVAMMBase.SwapParams memory params
+        VAMMBase.SwapParams memory params
     )
         internal
         lock(self)

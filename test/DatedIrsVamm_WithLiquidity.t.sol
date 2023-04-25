@@ -1,14 +1,14 @@
 pragma solidity >=0.8.13;
 
 import "forge-std/Test.sol";
- import "forge-std/console2.sol";
- import "./DatedIrsVammTest.sol";
- import "../contracts/utils/SafeCastUni.sol";
- import "../contracts/VAMM/storage/LPPosition.sol";
-import "../contracts/VAMM/storage/DatedIrsVAMM.sol";
-import "../contracts/utils/CustomErrors.sol";
+import "forge-std/console2.sol";
+import "./DatedIrsVammTest.sol";
+import "../utils/SafeCastUni.sol";
 import "../contracts/VAMM/storage/LPPosition.sol";
-import { mulUDxInt } from "../contracts/utils/PrbMathHelper.sol";
+import "../contracts/VAMM/storage/DatedIrsVAMM.sol";
+import "../utils/CustomErrors.sol";
+import "../contracts/VAMM/storage/LPPosition.sol";
+import { mulUDxInt } from "../utils/PrbMathHelper.sol";
 import { UD60x18, convert, ud60x18, uMAX_UD60x18, uUNIT } from "@prb/math/src/UD60x18.sol";
 import { SD59x18, sd59x18, convert } from "@prb/math/src/SD59x18.sol";
 
@@ -99,7 +99,7 @@ contract VammTest_WithLiquidity is DatedIrsVammTest {
     function test_Swap_MovingRight() public {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
 
-        IVAMMBase.SwapParams memory params = IVAMMBase.SwapParams({
+        VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
             recipient: address(this),
             baseAmountSpecified: 200_000_000_000, // TODO: there is not enough liquidity - should this really succeed?
             sqrtPriceLimitX96: ACCOUNT_2_UPPER_SQRTPRICEX96
@@ -119,7 +119,7 @@ contract VammTest_WithLiquidity is DatedIrsVammTest {
     // function test_Swap_MovingLeft() public { // TODO!
     //     DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
 
-    //     IVAMMBase.SwapParams memory params = IVAMMBase.SwapParams({
+    //     VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
     //         recipient: address(this),
     //         baseAmountSpecified: -1_000_000_000,
     //         sqrtPriceLimitX96: ACCOUNT_1_LOWER_SQRTPRICEX96

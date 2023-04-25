@@ -1,10 +1,12 @@
 //SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import { UD60x18 } from "@prb/math/src/UD60x18.sol";
-import "../../interfaces/IRateOracle.sol";
-import "../interfaces/IVAMMBase.sol";
+import "./Tick.sol";
 import "./Oracle.sol";
+
+import { UD60x18 } from "@prb/math/src/UD60x18.sol";
+
+import "../../../utils/interfaces/IRateOracle.sol";
 
 /**
  * @title Tracks configurations for dated irs markets
@@ -57,7 +59,7 @@ library VammConfiguration {
         mapping(uint128 => uint128[]) positionsInAccount;
         /// @notice The currently in range liquidity available to the pool
         /// @dev This value has no relationship to the total liquidity across all ticks
-         uint128 accumulator;
+        uint128 accumulator;
         /// @dev total amount of variable tokens in vamm
         int256 trackerVariableTokenGrowthGlobalX128;
         /// @dev total amount of base tokens in vamm

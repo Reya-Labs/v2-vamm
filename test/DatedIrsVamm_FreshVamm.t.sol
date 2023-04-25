@@ -3,12 +3,12 @@ pragma solidity >=0.8.13;
 import "forge-std/Test.sol";
  import "forge-std/console2.sol";
  import "./DatedIrsVammTest.sol";
- import "../contracts/utils/SafeCastUni.sol";
+ import "../utils/SafeCastUni.sol";
  import "../contracts/VAMM/storage/LPPosition.sol";
 import "../contracts/VAMM/storage/DatedIrsVAMM.sol";
-import "../contracts/utils/CustomErrors.sol";
+import "../utils/CustomErrors.sol";
 import "../contracts/VAMM/storage/LPPosition.sol";
-import { mulUDxInt } from "../contracts/utils/PrbMathHelper.sol";
+import { mulUDxInt } from "../utils/PrbMathHelper.sol";
 import { UD60x18, convert, ud60x18, uMAX_UD60x18, uUNIT } from "@prb/math/src/UD60x18.sol";
 import { SD59x18, sd59x18, convert } from "@prb/math/src/SD59x18.sol";
 

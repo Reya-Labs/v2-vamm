@@ -1,9 +1,10 @@
-//SPDX-License-Identifier: MIT
-pragma solidity >=0.8.11 <0.9.0;
+// SPDX-License-Identifier: MIT
+pragma solidity >=0.8.13;
 
 import "./OwnableStorage.sol";
-import "../interfaces/IOwnable.sol";
-import "../utils/CustomErrors.sol";
+import "./IOwnable.sol";
+import "./AddressError.sol";
+import "./ChangeError.sol";
 
 /**
  * @title Contract for facilitating ownership by a single address.
@@ -38,11 +39,11 @@ contract Ownable is IOwnable {
         OwnableStorage.Data storage store = OwnableStorage.load();
 
         if (newNominatedOwner == address(0)) {
-            revert CustomErrors.ZeroAddress();
+            revert AddressError.ZeroAddress();
         }
 
         if (newNominatedOwner == store.nominatedOwner) {
-            revert CustomErrors.NoChange();
+            revert ChangeError.NoChange();
         }
 
         store.nominatedOwner = newNominatedOwner;

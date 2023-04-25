@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pragma solidity >=0.8.13;
-import { SD59x18 } from "@prb/math/src/SD59x18.sol";
+
 import { UD60x18, convert } from "@prb/math/src/UD60x18.sol";
-import "./Time.sol";
 
 /// @title A utility library for mathematics of fixed and variable token amounts.
 library FixedAndVariableMath {

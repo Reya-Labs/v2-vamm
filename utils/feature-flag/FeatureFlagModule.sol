@@ -1,7 +1,7 @@
 //SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import "../../ownership/Ownable.sol";
+import "../owner-upgrade/Ownable.sol";
 import "./FeatureFlag.sol";
 
 import "./IFeatureFlagModule.sol";

@@ -3,7 +3,6 @@ pragma solidity >=0.8.13;
 
 /// @title Interface a Pool needs to adhere.
 library PoolPauser {
-
     event PauseState(bool newPauseState);
 
     struct Data {
@@ -17,12 +16,12 @@ library PoolPauser {
         }
     }
 
-    function setPauseState(Data storage self, bool state) external {
+    function setPauseState(Data storage self, bool state) internal {
         self.paused = state;
         emit PauseState(state);
     }
 
-    function whenNotPaused(Data storage self) external view {
-        require(!self.paused, "Paused");
+    function whenNotPaused() internal view {
+        require(!PoolPauser.load().paused, "Paused");
     }
 }

@@ -1,9 +1,10 @@
-//SPDX-License-Identifier: MIT
-pragma solidity >=0.8.11 <0.9.0;
+// SPDX-License-Identifier: MIT
+pragma solidity >=0.8.13;
 
 /**
  * @title Contract for facilitating ownership by a single address.
  */
+
 interface IOwnable {
     /**
      * @notice Thrown when an address tries to accept ownership but has not been nominated.
@@ -32,7 +33,8 @@ interface IOwnable {
 
     /**
      * @notice Allows the current owner to nominate a new owner.
-     * @dev The nominated owner will have to call `acceptOwnership` in a separate transaction in order to finalize the action and become the new contract owner.
+     * @dev The nominated owner will have to call `acceptOwnership` in a separate transaction in order to finalize the action and
+     * become the new contract owner.
      * @param newNominatedOwner The address that is to become nominated.
      */
     function nominateNewOwner(address newNominatedOwner) external;

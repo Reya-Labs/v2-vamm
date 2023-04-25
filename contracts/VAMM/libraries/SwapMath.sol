@@ -2,11 +2,7 @@
 
 pragma solidity >=0.8.13;
 
-import "../../utils/FullMath.sol";
-import "../../utils/SqrtPriceMath.sol";
-import { UD60x18 } from "@prb/math/src/UD60x18.sol";
-import { SD59x18 } from "@prb/math/src/SD59x18.sol";
-import "./FixedAndVariableMath.sol";
+import "../../../utils/SqrtPriceMath.sol";
 
 /// @title Computes the result of a swap within ticks
 /// @notice Contains methods for computing the result of a swap within a single tick price range, i.e., a single tick.
@@ -18,19 +14,6 @@ library SwapMath {
         int256 amountRemaining;
         uint256 timeToMaturityInSeconds;
     }
-
-    // function computeFeeAmount(
-    //     UD60x18 notional,
-    //     uint256 timeToMaturityInSeconds,
-    //     UD60x18 feePercentage
-    // ) internal pure returns (uint256 feeAmount) {
-    //     UD60x18 timeInYears = FixedAndVariableMath.accrualFact(
-    //         timeToMaturityInSeconds
-    //     );
-
-    //     UD60x18 feeAmountWad = notional.mul(feePercentage).mul(timeInYears);
-    //     feeAmount = convert(feeAmountWad);
-    // }
 
     /// @notice Computes the result of swapping some amount in, or amount out, given the parameters of the swap
     /// @dev The fee, plus the amount in, will never exceed the amount remaining if the swap's `amountSpecified` is positive

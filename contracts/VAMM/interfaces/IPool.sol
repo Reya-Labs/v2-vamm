@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import "../../utils/interfaces/IERC165.sol";
+import "../../../utils/interfaces/IERC165.sol";
 import { UD60x18 } from "@prb/math/src/UD60x18.sol";
 
 /// @title Interface a Pool needs to adhere.
@@ -18,23 +18,23 @@ interface IPool is IERC165 {
         external
         returns (int256 executedBaseAmount, int256 executedQuoteAmount);
 
-    function getAccountFilledBalances(
-        uint128 marketId,
-        uint32 maturityTimestamp,
-        uint128 accountId
-    )
-        external
-        view
-        returns (int256 baseBalancePool, int256 quoteBalancePool);
+    // function getAccountFilledBalances(
+    //     uint128 marketId,
+    //     uint32 maturityTimestamp,
+    //     uint128 accountId
+    // )
+    //     external
+    //     view
+    //     returns (int256 baseBalancePool, int256 quoteBalancePool);
 
-    function getAccountUnfilledBases(
-        uint128 marketId,
-        uint32 maturityTimestamp,
-        uint128 accountId
-    )
-        external
-        view
-        returns (uint256 unfilledBaseLong, uint256 unfilledBaseShort);
+    // function getAccountUnfilledBases(
+    //     uint128 marketId,
+    //     uint32 maturityTimestamp,
+    //     uint128 accountId
+    // )
+    //     external
+    //     view
+    //     returns (uint256 unfilledBaseLong, uint256 unfilledBaseShort);
 
     function closeUnfilledBase(
         uint128 marketId,
@@ -52,5 +52,5 @@ interface IPool is IERC165 {
      * @param lookbackWindow Whether or not to adjust the returned price by the VAMM's configured spread.
      * @return datedIRSGwap Geometric Time Weighted Average Fixed Rate
      */
-    function getAdjustedDatedIRSGwap(uint128 marketId, uint32 maturityTimestamp, int256 orderSize, uint32 lookbackWindow) external view returns (UD60x18 datedIRSGwap);
+    // function getAdjustedDatedIRSGwap(uint128 marketId, uint32 maturityTimestamp, int256 orderSize, uint32 lookbackWindow) external view returns (UD60x18 datedIRSGwap);
 }

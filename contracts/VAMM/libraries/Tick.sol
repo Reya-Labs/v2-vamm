@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 pragma solidity >=0.8.13;
+
 import "./LiquidityMath.sol";
-import "../../utils/TickMath.sol";
-import "../../utils/SafeCastUni.sol";
-import "forge-std/console2.sol"; // TODO: remove
+
+import "../../../utils/TickMath.sol";
+import "../../../utils/SafeCastUni.sol";
 
 /// @title Tick
 /// @notice Contains functions for managing tick processes and relevant calculations

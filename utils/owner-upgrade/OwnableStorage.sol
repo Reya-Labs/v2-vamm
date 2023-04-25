@@ -1,11 +1,10 @@
-//SPDX-License-Identifier: MIT
-pragma solidity >=0.8.11 <0.9.0;
+// SPDX-License-Identifier: MIT
+pragma solidity >=0.8.13;
 
-import "../utils/CustomErrors.sol";
+import "./AccessError.sol";
 
 library OwnableStorage {
-    bytes32 private constant _SLOT_OWNABLE_STORAGE =
-        keccak256(abi.encode("xyz.voltz.v2-periphery.Ownable"));
+    bytes32 private constant _SLOT_OWNABLE_STORAGE = keccak256(abi.encode("xyz.voltz.OwnableStorage"));
 
     struct Data {
         address owner;
@@ -21,7 +20,7 @@ library OwnableStorage {
 
     function onlyOwner() internal view {
         if (msg.sender != getOwner()) {
-            revert CustomErrors.Unauthorized(msg.sender);
+            revert AccessError.Unauthorized(msg.sender);
         }
     }
 

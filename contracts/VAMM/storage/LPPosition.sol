@@ -7,7 +7,6 @@ import "../libraries/VAMMBase.sol";
  * @title Tracks LP positions
  */
 library LPPosition {
-
     using LPPosition for LPPosition.Data;
 
     error PositionNotFound();
@@ -164,7 +163,7 @@ library LPPosition {
         int24 tickLower,
         int24 tickUpper
     )
-        public
+        internal
         pure
         returns (uint128){
 

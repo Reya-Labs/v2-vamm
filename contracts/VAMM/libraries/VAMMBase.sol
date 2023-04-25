@@ -2,25 +2,21 @@
 
 pragma solidity >=0.8.13;
 
-import "../../utils/AccessError.sol";
-import "../interfaces/IVAMMBase.sol";
-import "../libraries/Tick.sol";
-import "../libraries/Tick.sol";
-import "../libraries/TickBitmap.sol";
+import "./Tick.sol";
+import "./TickBitmap.sol";
+import "./Time.sol";
 import "./VammConfiguration.sol";
-import "../../utils/SafeCastUni.sol";
-import "../../utils/SqrtPriceMath.sol";
-import "../../utils/CustomErrors.sol";
-import "../libraries/SwapMath.sol";
-import { UD60x18 } from "@prb/math/src/UD60x18.sol";
-import { SD59x18, convert as convert_sd } from "@prb/math/src/SD59x18.sol";
-import { ud60x18 } from "../../utils/PrbMathHelper.sol";
-import "../libraries/FixedAndVariableMath.sol";
-import "../../utils/FixedPoint128.sol";
-import "../interfaces/IVAMMBase.sol";
-import { mulUDxInt } from "../../utils/PrbMathHelper.sol";
-import "forge-std/console2.sol"; // TODO: remove
 
+import "../../../utils/FullMath.sol";
+import "../../../utils/FixedPoint96.sol";
+import "../../../utils/FixedPoint128.sol";
+import "../../../utils/SafeCastUni.sol";
+import "../../../utils/CustomErrors.sol";
+
+import { UD60x18, convert as convert_ud } from "@prb/math/src/UD60x18.sol";
+import { SD59x18, convert as convert_sd } from "@prb/math/src/SD59x18.sol";
+
+import { ud60x18, mulUDxInt } from "../../../utils/PrbMathHelper.sol";
 
 /// @title Tick
 /// @notice Contains functions for managing tick processes and relevant calculations
@@ -37,6 +33,15 @@ library VAMMBase {
     struct TickData {
         mapping(int24 => Tick.Info) _ticks;
         mapping(int16 => uint256) _tickBitmap;
+    }
+
+    struct SwapParams {
+        /// @dev Address of the trader initiating the swap
+        address recipient;
+        /// @dev The amount of the swap in base tokens, which implicitly configures the swap as exact input (positive), or exact output (negative)
+        int256 baseAmountSpecified;
+        /// @dev The Q64.96 sqrt price limit. If !isFT, the price cannot be less than this
+        uint160 sqrtPriceLimitX96;
     }
 
     // ==================== EVENTS ======================
@@ -134,7 +139,7 @@ library VAMMBase {
         return _aggregateBaseAmount / (_tickUpper - _tickLower);
     }
 
-    function getPriceFromTick(int24 _tick) public pure returns(UD60x18 price) {
+    function getPriceFromTick(int24 _tick) internal pure returns(UD60x18 price) {
         uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(_tick);
         uint256 priceX96 = FullMath.mulDiv(sqrtPriceX96, sqrtPriceX96, FixedPoint96.Q96);
         return UD60x18.wrap(FullMath.mulDiv(priceX96, 1e18, FixedPoint96.Q96));
@@ -232,7 +237,7 @@ library VAMMBase {
     /// (B) we can guarantee that the result is positive (because `1.0001^(n+1)` is positive) and return an unsigned value
     ///
     /// For those reasons, we return not the sum of `1.0001^x` for `x`=0,...,`n`, but that sum plus 10,000.
-    function _sumOfAllPricesUpToPlus10k(int24 tick) public pure returns(UD60x18 price) {
+    function _sumOfAllPricesUpToPlus10k(int24 tick) internal pure returns(UD60x18 price) {
         // Tick might be negative and UD60x18 does not support `.pow(x)` for x < 0, so we must use SD59x18
         SD59x18 numeratorSigned = PRICE_EXPONENT_BASE.pow(convert_sd(int256(tick + 1)));
 
@@ -248,7 +253,7 @@ library VAMMBase {
         int24 _tickUpper
     ) internal pure returns(UD60x18) {
         // As both of the below results are 10k too large, the difference between them will be correct
-        return _sumOfAllPricesUpToPlus10k(_tickUpper).sub(_sumOfAllPricesUpToPlus10k(_tickLower - 1)).div(convert(uint256(int256(1 + _tickUpper - _tickLower))));
+        return _sumOfAllPricesUpToPlus10k(_tickUpper).sub(_sumOfAllPricesUpToPlus10k(_tickLower - 1)).div(convert_ud(uint256(int256(1 + _tickUpper - _tickLower))));
     }
 
     function flipTicks(
@@ -301,22 +306,8 @@ library VAMMBase {
         }
     }
 
-    function lock(bool _unlocked) internal pure {
-        if (!_unlocked) {
-            revert CustomErrors.CanOnlyTradeIfUnlocked();
-        }
-        _unlocked = false;
-    }
-
-    function unlock(bool _unlocked) internal pure {
-        if (_unlocked) {
-            revert CustomErrors.CanOnlyUnlockIfLocked();
-        }
-        _unlocked = true;
-    }
-
     function checksBeforeSwap(
-        IVAMMBase.SwapParams memory params,
+        VAMMBase.SwapParams memory params,
         VammConfiguration.State storage vammVarsStart,
         bool isFT
     ) internal view {
