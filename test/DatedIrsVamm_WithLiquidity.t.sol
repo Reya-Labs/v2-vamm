@@ -1,16 +1,16 @@
 pragma solidity >=0.8.13;
 
 import "forge-std/Test.sol";
- import "forge-std/console2.sol";
- import "./DatedIrsVammTest.sol";
- import "../contracts/utils/SafeCastUni.sol";
- import "../contracts/VAMM/storage/LPPosition.sol";
-import "../contracts/VAMM/storage/DatedIrsVAMM.sol";
-import "../contracts/utils/CustomErrors.sol";
-import "../contracts/VAMM/storage/LPPosition.sol";
-import { mulUDxInt } from "../contracts/utils/PrbMathHelper.sol";
-import { UD60x18, convert, ud60x18, uMAX_UD60x18, uUNIT } from "@prb/math/src/UD60x18.sol";
-import { SD59x18, sd59x18, convert } from "@prb/math/src/SD59x18.sol";
+import "forge-std/console2.sol";
+import "./DatedIrsVammTest.sol";
+import "../src/storage/LPPosition.sol";
+import "../src/storage/DatedIrsVAMM.sol";
+import "../utils/CustomErrors.sol";
+import "../src/storage/LPPosition.sol";
+import { mulUDxInt } from "@voltz-protocol/util-contracts/src/helpers/PrbMathHelper.sol";
+import { UD60x18, convert, ud60x18, uMAX_UD60x18, uUNIT } from "@prb/math/UD60x18.sol";
+import { SD59x18, sd59x18, convert } from "@prb/math/SD59x18.sol";
+import "@voltz-protocol/util-contracts/src/helpers/SafeCast.sol";
 
 // Constants
 UD60x18 constant ONE = UD60x18.wrap(1e18);
@@ -18,8 +18,8 @@ UD60x18 constant ONE = UD60x18.wrap(1e18);
 // TODO: Break up this growing test contract into more multiple separate tests for increased readability
 contract VammTest_WithLiquidity is DatedIrsVammTest {
     using DatedIrsVamm for DatedIrsVamm.Data;
-    using SafeCastUni for uint256;
-    using SafeCastUni for uint128;
+    using SafeCastU256 for uint256;
+    using SafeCastU128 for uint128;
 
     uint128 ACCOUNT_1 = 1;
     uint160 ACCOUNT_1_LOWER_SQRTPRICEX96 = uint160(1 * FixedPoint96.Q96 / 10); // 0.1 => price = 0.01 = 1%
@@ -62,7 +62,7 @@ contract VammTest_WithLiquidity is DatedIrsVammTest {
         //    accumulator * distance_from_current_price_to_LP2_lower_tick
         // AND
         //    LP1_per-tick_value * distance_from_LP1_lower_tick_to_LP2_lower_tick
-        liquidityToLeft = vamm.vars.accumulator.toInt256() * int256(vamm.vars.tick - ACCOUNT_2_TICK_LOWER);
+        liquidityToLeft = vamm.vars.accumulator.to256().toInt() * int256(vamm.vars.tick - ACCOUNT_2_TICK_LOWER);
         liquidityToLeft += vamm.vars._ticks[ACCOUNT_1_TICK_LOWER].liquidityNet * int256(ACCOUNT_2_TICK_LOWER - ACCOUNT_1_TICK_LOWER);
         // console2.log("liquidityToLeft ", liquidityToLeft);
 
@@ -70,7 +70,7 @@ contract VammTest_WithLiquidity is DatedIrsVammTest {
         //    accumulator * distance_from_current_price_to_LP1_upper_tick
         // AND
         //    LP1_per-tick_value * distance_from_LP1_lower_tick_to_LP2_lower_tick
-        liquidityToRight = vamm.vars.accumulator.toInt256() * int256(ACCOUNT_1_TICK_UPPER - vamm.vars.tick);
+        liquidityToRight = vamm.vars.accumulator.to256().toInt() * int256(ACCOUNT_1_TICK_UPPER - vamm.vars.tick);
         liquidityToRight += -vamm.vars._ticks[ACCOUNT_2_TICK_UPPER].liquidityNet * int256(ACCOUNT_2_TICK_UPPER - ACCOUNT_1_TICK_UPPER);
         // console2.log("liquidityToRight", liquidityToRight);
 
@@ -99,7 +99,7 @@ contract VammTest_WithLiquidity is DatedIrsVammTest {
     function test_Swap_MovingRight() public {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
 
-        IVAMMBase.SwapParams memory params = IVAMMBase.SwapParams({
+        VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
             recipient: address(this),
             baseAmountSpecified: 200_000_000_000, // TODO: there is not enough liquidity - should this really succeed?
             sqrtPriceLimitX96: ACCOUNT_2_UPPER_SQRTPRICEX96
@@ -119,7 +119,7 @@ contract VammTest_WithLiquidity is DatedIrsVammTest {
     // function test_Swap_MovingLeft() public { // TODO!
     //     DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
 
-    //     IVAMMBase.SwapParams memory params = IVAMMBase.SwapParams({
+    //     VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
     //         recipient: address(this),
     //         baseAmountSpecified: -1_000_000_000,
     //         sqrtPriceLimitX96: ACCOUNT_1_LOWER_SQRTPRICEX96

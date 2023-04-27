@@ -2,11 +2,13 @@ pragma solidity >=0.8.13;
 
 import "forge-std/Test.sol";
 import "forge-std/console2.sol";
-import "../contracts/utils/SafeCastUni.sol";
-import "../contracts/utils/TickMath.sol";
-import { mulUDxInt } from "../contracts/utils/PrbMathHelper.sol";
-import { UD60x18, convert, ud60x18, uMAX_UD60x18, uUNIT } from "@prb/math/src/UD60x18.sol";
-import { SD59x18, sd59x18, convert } from "@prb/math/src/SD59x18.sol";
+
+import "../utils/vamm-math/TickMath.sol";
+import { mulUDxInt } from "@voltz-protocol/util-contracts/src/helpers/PrbMathHelper.sol";
+import { UD60x18, convert, ud60x18, uMAX_UD60x18, uUNIT } from "@prb/math/UD60x18.sol";
+import { SD59x18, sd59x18, convert } from "@prb/math/SD59x18.sol";
+
+import "@voltz-protocol/util-contracts/src/helpers/SafeCast.sol";
 
 /// @dev Contains assertions and other functions used by multiple tests
 contract VoltzTest is Test {
@@ -49,7 +51,7 @@ contract VoltzTest is Test {
         return abs(_tickA - _tickB);
     }
 
-    using SafeCastUni for int256;
+    using SafeCastI256 for uint256;
 
     // Assertions
     function assertEq(UD60x18 a, UD60x18 b) internal {

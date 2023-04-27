@@ -1,0 +1,20 @@
+name = "voltz-vamm"
+version = "0.0.4"
+description = "Voltz V2 VAMM"
+
+# `salt` here only affects the InitialModuleBunde and CoreProxy contracts
+[setting.salt]
+description = "Change this to a unique string when deploying multiple instances of the protocol. Note that only the proxy contract will be unique."
+defaultValue = "main"
+
+# owner is required and must be overridden
+[setting.owner]
+description = "Admin user for the protocol"
+
+# Deploys OwnerUpgradeModule, which inherits from OwnerModule and 
+# UpgradeModule; it essentially represents an UUPSUpgradeable 
+# contract. Only re-deployed if salt is changed.
+[contract.OwnerUpgradeModule]
+artifact = "OwnerUpgradeModule"
+salt = "<%= settings.salt %>"
+create2 = true

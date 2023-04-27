@@ -1,25 +1,26 @@
 pragma solidity >=0.8.13;
 
 import "forge-std/Test.sol";
- import "forge-std/console2.sol";
- import "./VoltzTest.sol";
- import "../contracts/utils/SafeCastUni.sol";
- import "../contracts/VAMM/storage/LPPosition.sol";
-import "../contracts/VAMM/storage/DatedIrsVAMM.sol";
-import "../contracts/utils/CustomErrors.sol";
-import "../contracts/VAMM/storage/LPPosition.sol";
-import "../contracts/VAMM/libraries/Tick.sol";
+import "forge-std/console2.sol";
+import "./VoltzTest.sol";
+import "../src/storage/LPPosition.sol";
+import "../src/storage/DatedIrsVAMM.sol";
+import "../utils/CustomErrors.sol";
+import "../src/storage/LPPosition.sol";
+import "../utils/vamm-math/Tick.sol";
 
-import { mulUDxInt } from "../contracts/utils/PrbMathHelper.sol";
-import { UD60x18, convert, ud60x18, uMAX_UD60x18, uUNIT } from "@prb/math/src/UD60x18.sol";
-import { SD59x18, sd59x18, convert } from "@prb/math/src/SD59x18.sol";
+import "@voltz-protocol/util-contracts/src/helpers/SafeCast.sol";
+
+import { mulUDxInt } from "@voltz-protocol/util-contracts/src/helpers/PrbMathHelper.sol";
+import { UD60x18, convert, ud60x18, uMAX_UD60x18, uUNIT } from "@prb/math/UD60x18.sol";
+import { SD59x18, sd59x18, convert } from "@prb/math/SD59x18.sol";
 
 /// @dev Contains assertions and other functions used by multiple tests
 contract DatedIrsVammTest is VoltzTest {
     // Contracts under test
     using DatedIrsVamm for DatedIrsVamm.Data;
-    using SafeCastUni for uint256;
-    using SafeCastUni for int256;
+    using SafeCastU256 for uint256;
+    using SafeCastI256 for int256;
     uint256 internal vammId;
     address constant mockRateOracle = 0xAa73aA73Aa73Aa73AA73Aa73aA73AA73aa73aa73;
 
