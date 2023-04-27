@@ -26,11 +26,12 @@ jobs:
         with:
           cache: "yarn"
           node-version: "lts/*"
+          registry-url: "https://npm.pkg.github.com"
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
       - name: "Install the Node.js dependencies"
         run: "yarn install --immutable"
-        env: 
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "Bump versions"
         run: "yarn bump"
