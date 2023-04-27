@@ -1350,9 +1350,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@voltz-protocol/v2-periphery@workspace:.":
+"@voltz-protocol/v2-vamm@workspace:.":
   version: 0.0.0-use.local
-  resolution: "@voltz-protocol/v2-periphery@workspace:."
+  resolution: "@voltz-protocol/v2-vamm@workspace:."
   dependencies:
     "@ethersproject/abi": ^5.4.7
     "@ethersproject/providers": ^5.4.7
