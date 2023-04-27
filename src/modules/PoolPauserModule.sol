@@ -4,7 +4,7 @@ pragma solidity >=0.8.13;
 import "../interfaces/IPoolPauserModule.sol";
 
 import "../storage/PoolPauser.sol";
-import "../../utils/feature-flag/FeatureFlag.sol";
+import "@voltz-protocol/util-modules/src/modules/FeatureFlagModule.sol";
 
 contract PoolPauserModule is IPoolPauserModule {
   using PoolPauser for PoolPauser.Data;

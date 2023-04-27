@@ -1,9 +1,10 @@
 {
-  "name": "@voltz-protocol/v2-periphery",
+  "name": "@voltz-protocol/v2-vamm",
   "version": "1.0.0",
   "description": "V2 non-core smart contracts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "forge build --sizes",
+    "test": "forge test"
   },
   "devDependencies": {
     "@ethersproject/abi": "^5.4.7",
@@ -31,6 +32,9 @@
   "dependencies": {
     "@morenabarboni/sumo": "^1.0.0",
     "@openzeppelin/contracts": "^4.8.3",
-    "@prb/math": "^3.3.0"
-  }
+    "@prb/math": "3.3.0",
+    "@voltz-protocol/util-contracts": "1.1.0",
+    "@voltz-protocol/util-modules": "1.0.3"
+  },
+  "packageManager": "yarn@3.5.0"
 }

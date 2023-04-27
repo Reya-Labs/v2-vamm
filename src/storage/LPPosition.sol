@@ -1,7 +1,7 @@
 //SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import "../utils/VAMMBase.sol";
+import "../../utils/vamm-math/VAMMBase.sol";
 
 /**
  * @title Tracks LP positions

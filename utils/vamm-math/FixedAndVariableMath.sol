@@ -2,7 +2,7 @@
 
 pragma solidity >=0.8.13;
 
-import { UD60x18, convert } from "@prb/math/src/UD60x18.sol";
+import { UD60x18, convert } from "@prb/math/UD60x18.sol";
 
 /// @title A utility library for mathematics of fixed and variable token amounts.
 library FixedAndVariableMath {

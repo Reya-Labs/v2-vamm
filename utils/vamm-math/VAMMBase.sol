@@ -4,25 +4,27 @@ pragma solidity >=0.8.13;
 
 import "./Tick.sol";
 import "./TickBitmap.sol";
-import "./Time.sol";
 import "./VammConfiguration.sol";
 
-import "../../utils/FullMath.sol";
-import "../../utils/FixedPoint96.sol";
-import "../../utils/FixedPoint128.sol";
-import "../../utils/SafeCastUni.sol";
-import "../../utils/CustomErrors.sol";
+import "./FullMath.sol";
+import "./FixedPoint96.sol";
+import "./FixedPoint128.sol";
 
-import { UD60x18, convert as convert_ud } from "@prb/math/src/UD60x18.sol";
-import { SD59x18, convert as convert_sd } from "@prb/math/src/SD59x18.sol";
+import "../CustomErrors.sol";
+import "../Time.sol";
 
-import { ud60x18, mulUDxInt } from "../../utils/PrbMathHelper.sol";
+import { UD60x18, convert as convert_ud } from "@prb/math/UD60x18.sol";
+import { SD59x18, convert as convert_sd } from "@prb/math/SD59x18.sol";
+
+import { ud60x18, mulUDxInt } from "@voltz-protocol/util-contracts/src/helpers/PrbMathHelper.sol";
+
+import "@voltz-protocol/util-contracts/src/helpers/SafeCast.sol";
 
 /// @title Tick
 /// @notice Contains functions for managing tick processes and relevant calculations
 library VAMMBase {
-    using SafeCastUni for uint256;
-    using SafeCastUni for int256;
+    using SafeCastU256 for uint256;
+    using SafeCastI256 for int256;
     using Tick for mapping(int24 => Tick.Info);
     using TickBitmap for mapping(int16 => uint256);
 

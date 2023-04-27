@@ -2,11 +2,11 @@
 pragma solidity >=0.8.13;
 
 import "./Tick.sol";
-import "./Oracle.sol";
 
-import { UD60x18 } from "@prb/math/src/UD60x18.sol";
+import { UD60x18 } from "@prb/math/UD60x18.sol";
 
-import "../../utils/interfaces/IRateOracle.sol";
+import "../Oracle.sol";
+import "../interfaces/IRateOracle.sol";
 
 /**
  * @title Tracks configurations for dated irs markets

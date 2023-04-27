@@ -3,17 +3,18 @@ pragma solidity >=0.8.13;
 
 import "./LPPosition.sol";
 
-import "../utils/VAMMBase.sol";
-import "../utils/SwapMath.sol";
-import "../utils/FixedAndVariableMath.sol";
+import "../../utils/vamm-math/VAMMBase.sol";
+import "../../utils/vamm-math/SwapMath.sol";
+import "../../utils/vamm-math/FixedAndVariableMath.sol";
 
-import "../../utils/SafeCastUni.sol";
 import "../../utils/CustomErrors.sol";
 
 //todo: why use this instead of prbmath helper?
-import { UD60x18, convert } from "@prb/math/src/UD60x18.sol";
-import { SD59x18 } from "@prb/math/src/SD59x18.sol";
-import { mulUDxInt } from "../../utils/PrbMathHelper.sol";
+import { UD60x18, convert } from "@prb/math/UD60x18.sol";
+import { SD59x18 } from "@prb/math/SD59x18.sol";
+import { mulUDxInt } from "@voltz-protocol/util-contracts/src/helpers/PrbMathHelper.sol";
+
+import "@voltz-protocol/util-contracts/src/helpers/SafeCast.sol";
 
 /**
  * @title Connects external contracts that implement the `IVAMM` interface to the protocol.
@@ -22,8 +23,8 @@ import { mulUDxInt } from "../../utils/PrbMathHelper.sol";
 library DatedIrsVamm {
     UD60x18 constant ONE = VAMMBase.ONE;
     UD60x18 constant ZERO = UD60x18.wrap(0);
-    using SafeCastUni for uint256;
-    using SafeCastUni for int256;
+    using SafeCastU256 for uint256;
+    using SafeCastI256 for int256;
     using VAMMBase for VAMMBase.FlipTicksParams;
     using VAMMBase for bool;
     using Tick for mapping(int24 => Tick.Info);
@@ -485,13 +486,13 @@ library DatedIrsVamm {
             ///// UPDATE TRACKERS /////
 
             if(advanceRight) {
-                step.baseInStep -= step.amountIn.toInt256();
+                step.baseInStep -= step.amountIn.toInt();
                 // LP is a Variable Taker
-                step.trackerBaseTokenDelta = (step.amountIn).toInt256();
+                step.trackerBaseTokenDelta = (step.amountIn).toInt();
             } else {
-                step.baseInStep += step.amountOut.toInt256();
+                step.baseInStep += step.amountOut.toInt();
                 // LP is a Fixed Taker
-                step.trackerBaseTokenDelta -= step.amountOut.toInt256();
+                step.trackerBaseTokenDelta -= step.amountOut.toInt();
             }
             state.amountSpecifiedRemaining += step.baseInStep;
 

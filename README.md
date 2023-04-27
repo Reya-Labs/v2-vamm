@@ -2,6 +2,13 @@
 
 - Node v18 and `yarn`/`pnpm`
 - [Foundry](https://book.getfoundry.sh/getting-started/installation)
+- Create global `.yarnrc.yml` file: `touch ~/.yarnrc.yml` and paste the following:
+  ```
+  npmRegistries:
+    https://npm.pkg.github.com/:
+      npmAuthToken: <Your GitHub Personal Access Token>
+  ```
+
 - Run `yarn` to install dependencies
 
 # Testing

@@ -3,14 +3,14 @@ pragma solidity >=0.8.13;
 import "forge-std/Test.sol";
  import "forge-std/console2.sol";
  import "./DatedIrsVammTest.sol";
- import "../utils/SafeCastUni.sol";
  import "../src/storage/LPPosition.sol";
 import "../src/storage/DatedIrsVAMM.sol";
 import "../utils/CustomErrors.sol";
 import "../src/storage/LPPosition.sol";
-import { mulUDxInt } from "../utils/PrbMathHelper.sol";
-import { UD60x18, convert, ud60x18, uMAX_UD60x18, uUNIT } from "@prb/math/src/UD60x18.sol";
-import { SD59x18, sd59x18, convert } from "@prb/math/src/SD59x18.sol";
+import { mulUDxInt } from "@voltz-protocol/util-contracts/src/helpers/PrbMathHelper.sol";
+import { UD60x18, convert, ud60x18, uMAX_UD60x18, uUNIT } from "@prb/math/UD60x18.sol";
+import { SD59x18, sd59x18, convert } from "@prb/math/SD59x18.sol";
+import "@voltz-protocol/util-contracts/src/helpers/SafeCast.sol";
 
 // Constants
 UD60x18 constant ONE = UD60x18.wrap(1e18);
@@ -18,9 +18,9 @@ UD60x18 constant ONE = UD60x18.wrap(1e18);
 // TODO: Break up this growing test contract into more multiple separate tests for increased readability
 contract VammTest_FreshVamm is DatedIrsVammTest {
     using DatedIrsVamm for DatedIrsVamm.Data;
-    using SafeCastUni for uint256;
-    using SafeCastUni for uint128;
-    using SafeCastUni for int256;
+    using SafeCastU256 for uint256;
+    using SafeCastU128 for uint128;
+    using SafeCastI256 for int256;
 
     function setUp() public {
         DatedIrsVamm.create(initMarketId, initSqrtPriceX96, immutableConfig, mutableConfig);
@@ -133,7 +133,7 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
         int128 basePerTick)
     public {
         (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
-        basePerTick = int128(bound(basePerTick, 0, type(int128).max / tickDistance(tickLower, tickUpper).toInt128()));
+        basePerTick = int128(bound(basePerTick, 0, type(int128).max / tickDistance(tickLower, tickUpper).toInt().to128()));
         assertEq(VAMMBase.baseBetweenTicks(tickLower, tickUpper, basePerTick), int256(basePerTick) * (tickUpper - tickLower));
     }
 
@@ -406,12 +406,12 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
         assertEq(unfilledBaseLong - unfilledBaseShort, executedBaseAmount);
 
         // The current price is within the tick range, so we expect the accumulator to equal basePerTick
-        int128 basePerTick = VAMMBase.basePerTick(tickLower, tickUpper, executedBaseAmount.toInt128());
-        assertEq(vamm.vars.accumulator.toInt128(), basePerTick);
+        int128 basePerTick = VAMMBase.basePerTick(tickLower, tickUpper, executedBaseAmount.to128());
+        assertEq(vamm.vars.accumulator.toInt(), basePerTick);
 
         // We also expect liquidityGross to equal basePerTick for both upper and lower ticks 
-        assertEq(vamm.vars._ticks[tickLower].liquidityGross.toInt128(), basePerTick);
-        assertEq(vamm.vars._ticks[tickUpper].liquidityGross.toInt128(), basePerTick);
+        assertEq(vamm.vars._ticks[tickLower].liquidityGross.toInt(), basePerTick);
+        assertEq(vamm.vars._ticks[tickUpper].liquidityGross.toInt(), basePerTick);
 
         // When moving left to right (right to left), basePerTick should be added (subtracted) at the lower tick and subtracted (added) at the upper tick 
         assertEq(vamm.vars._ticks[tickLower].liquidityNet, basePerTick);
@@ -468,12 +468,12 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
             assertEq(unfilledBaseLong - unfilledBaseShort, executedBaseAmount);
 
             // The current price is within the tick range, so we expect the accumulator to equal basePerTick
-            int128 basePerTick = VAMMBase.basePerTick(tickLower, tickUpper, executedBaseAmount.toInt128());
-            assertEq(vamm.vars.accumulator.toInt128(), basePerTick);
+            int128 basePerTick = VAMMBase.basePerTick(tickLower, tickUpper, executedBaseAmount.to128());
+            assertEq(vamm.vars.accumulator.toInt(), basePerTick);
 
             // We also expect liquidityGross to equal basePerTick for both upper and lower ticks 
-            assertEq(vamm.vars._ticks[tickLower].liquidityGross.toInt128(), basePerTick);
-            assertEq(vamm.vars._ticks[tickUpper].liquidityGross.toInt128(), basePerTick);
+            assertEq(vamm.vars._ticks[tickLower].liquidityGross.toInt(), basePerTick);
+            assertEq(vamm.vars._ticks[tickUpper].liquidityGross.toInt(), basePerTick);
 
             // When moving left to right (right to left), basePerTick should be added (subtracted) at the lower tick and subtracted (added) at the upper tick 
             assertEq(vamm.vars._ticks[tickLower].liquidityNet, basePerTick);
@@ -528,12 +528,12 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
             assertEq(unfilledBaseLong - unfilledBaseShort, executedBaseAmount);
 
             // The current price is within both tick ranges, so we expect the accumulator to equal the sum of two basePerTick values
-            int128 basePerTick = VAMMBase.basePerTick(tickLower, tickUpper, executedBaseAmount.toInt128());
-            assertEq(vamm.vars.accumulator.toInt128(), basePerTick + lp1basePerTick);
+            int128 basePerTick = VAMMBase.basePerTick(tickLower, tickUpper, executedBaseAmount.to128());
+            assertEq(vamm.vars.accumulator.toInt(), basePerTick + lp1basePerTick);
 
             // We expect liquidityGross to equal basePerTick for both upper and lower ticks 
-            assertEq(vamm.vars._ticks[tickLower].liquidityGross.toInt128(), basePerTick);
-            assertEq(vamm.vars._ticks[tickUpper].liquidityGross.toInt128(), basePerTick);
+            assertEq(vamm.vars._ticks[tickLower].liquidityGross.toInt(), basePerTick);
+            assertEq(vamm.vars._ticks[tickUpper].liquidityGross.toInt(), basePerTick);
 
             // When moving left to right (right to left), basePerTick should be added (subtracted) at the lower tick and subtracted (added) at the upper tick 
             assertEq(vamm.vars._ticks[tickLower].liquidityNet, basePerTick);

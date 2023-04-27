@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pragma solidity >=0.8.13;
-import { UD60x18, convert } from "@prb/math/src/UD60x18.sol";
+import { UD60x18, convert } from "@prb/math/UD60x18.sol";
 
 library Time {
     uint256 public constant SECONDS_IN_A_DAY = 86400;

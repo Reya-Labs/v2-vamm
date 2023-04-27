@@ -1,0 +1,6 @@
+@prb/math/=./node_modules/@prb/math/src
+@voltz-protocol/util-contracts=./node_modules/@voltz-protocol/util-contracts
+@voltz-protocol/util-modules=./node_modules/@voltz-protocol/util-modules
+forge-std/=lib/forge-std/src/
+@openzeppelin/=./node_modules/@openzeppelin/
+ds-test/=lib/forge-std/lib/ds-test/src/

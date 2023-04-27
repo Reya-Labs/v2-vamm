@@ -2,16 +2,16 @@
 
 pragma solidity >=0.8.13;
 
-import "./SafeCastUni.sol";
-
 import "./FullMath.sol";
 import "./UnsafeMath.sol";
 import "./FixedPoint96.sol";
 
+import "@voltz-protocol/util-contracts/src/helpers/SafeCast.sol";
+
 /// @title Functions based on Q64.96 sqrt price and liquidity
 /// @notice Contains the math that uses square root of price as a Q64.96 and liquidity to compute deltas
 library SqrtPriceMath {
-    using SafeCastUni for uint256;
+    using SafeCastU256 for uint256;
 
     /// @notice Gets the next sqrt price given a delta of token0
     /// @dev Always rounds up, because in the exact output case (increasing price) we need to move the price at least
@@ -70,7 +70,7 @@ library SqrtPriceMath {
             return
                 FullMath
                     .mulDivRoundingUp(numerator1, sqrtPX96, denominator)
-                    .toUint160();
+                    .to160();
         }
     }
 
@@ -99,7 +99,7 @@ library SqrtPriceMath {
                     : FullMath.mulDiv(amount, FixedPoint96.Q96, liquidity)
             );
 
-            return sqrtPX96 + quotient.toUint160();
+            return sqrtPX96 + quotient.to160();
         } else {
             uint256 quotient = (
                 amount <= type(uint160).max
@@ -274,13 +274,13 @@ library SqrtPriceMath {
                     sqrtRatioBX96,
                     uint128(-liquidity),
                     false
-                ).toInt256()
+                ).toInt()
                 : getAmount0Delta(
                     sqrtRatioAX96,
                     sqrtRatioBX96,
                     uint128(liquidity),
                     true
-                ).toInt256();
+                ).toInt();
     }
 
     /// @notice Helper that gets signed token1 delta
@@ -300,12 +300,12 @@ library SqrtPriceMath {
                     sqrtRatioBX96,
                     uint128(-liquidity),
                     false
-                ).toInt256()
+                ).toInt()
                 : getAmount1Delta(
                     sqrtRatioAX96,
                     sqrtRatioBX96,
                     uint128(liquidity),
                     true
-                ).toInt256();
+                ).toInt();
     }
 }

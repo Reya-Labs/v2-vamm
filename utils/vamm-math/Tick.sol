@@ -3,15 +3,15 @@
 pragma solidity >=0.8.13;
 
 import "./LiquidityMath.sol";
+import "./TickMath.sol";
 
-import "../../utils/TickMath.sol";
-import "../../utils/SafeCastUni.sol";
+import "@voltz-protocol/util-contracts/src/helpers/SafeCast.sol";
 
 /// @title Tick
 /// @notice Contains functions for managing tick processes and relevant calculations
 library Tick {
-    using SafeCastUni for int256;
-    using SafeCastUni for uint256;
+    using SafeCastI256 for int256;
+    using SafeCastU256 for uint256;
 
     int24 public constant MAXIMUM_TICK_SPACING = 16384;
 
