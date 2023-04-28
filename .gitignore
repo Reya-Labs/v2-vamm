@@ -25,3 +25,5 @@ cache
 artifacts
 .DS_Store
 
+# Yarn files
+.yarn/install-state.gz
