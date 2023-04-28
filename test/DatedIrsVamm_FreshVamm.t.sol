@@ -406,8 +406,8 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
         // Absolute value of long and shorts should add up to executed amount
         assertAlmostEqual(unfilledBaseLong - unfilledBaseShort, baseAmount);
 
-        // The current price is within the tick range, so we expect the accumulator to equal liquidityDelta
-        assertEq(vamm.vars.accumulator.toInt(), liquidityDelta);
+        // The current price is within the tick range, so we expect the liquidity to equal liquidityDelta
+        assertEq(vamm.vars.liquidity.toInt(), liquidityDelta);
 
         // We also expect liquidityGross to equal liquidityPerTick for both upper and lower ticks 
         assertEq(vamm.vars._ticks[tickLower].liquidityGross.toInt(), liquidityDelta);
@@ -465,8 +465,8 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
             // Absolute value of long and shorts should add up to executed amount
             assertAlmostEqual(unfilledBaseLong - unfilledBaseShort, baseAmount);
 
-            // The current price is within the tick range, so we expect the accumulator to equal liquidityDelta
-            assertEq(vamm.vars.accumulator.toInt(), liquidityDelta);
+            // The current price is within the tick range, so we expect the liquidity to equal liquidityDelta
+            assertEq(vamm.vars.liquidity.toInt(), liquidityDelta);
 
             // We also expect liquidityGross to equal liquidityDelta for both upper and lower ticks 
             assertEq(vamm.vars._ticks[tickLower].liquidityGross.toInt(), liquidityDelta);
@@ -522,8 +522,8 @@ contract VammTest_FreshVamm is DatedIrsVammTest {
             // Absolute value of long and shorts should add up to executed amount
             assertAlmostEqual(unfilledBaseLong - unfilledBaseShort, baseAmount);
 
-            // The current price is within both tick ranges, so we expect the accumulator to equal the sum of two liquidityDelta values
-            assertEq(vamm.vars.accumulator.toInt(), liquidityDelta + lp1liquidity);
+            // The current price is within both tick ranges, so we expect the liquidity to equal the sum of two liquidityDelta values
+            assertEq(vamm.vars.liquidity.toInt(), liquidityDelta + lp1liquidity);
 
             // We expect liquidityGross to equal liquidityDelta for both upper and lower ticks 
             assertEq(vamm.vars._ticks[tickLower].liquidityGross.toInt(), liquidityDelta);

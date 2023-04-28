@@ -343,7 +343,7 @@ library DatedIrsVamm {
             VAMMBase.FlipTicksParams memory params;
             params.tickLower = tickLower;
             params.tickUpper = tickUpper;
-            params.accumulatorDelta = liquidityDelta;
+            params.liquidityDelta = liquidityDelta;
             (flippedLower, flippedUpper) = params.flipTicks(
                 self.vars._ticks,
                 self.vars._tickBitmap,
@@ -370,9 +370,9 @@ library DatedIrsVamm {
                 (self.vars.tick >= tickLower) && (self.vars.tick < tickUpper)
             ) {
                 // current tick is inside the passed range
-                uint128 liquidityBefore = self.vars.accumulator; // SLOAD for gas optimization
+                uint128 liquidityBefore = self.vars.liquidity; // SLOAD for gas optimization
 
-                self.vars.accumulator = LiquidityMath.addDelta(
+                self.vars.liquidity = LiquidityMath.addDelta(
                     liquidityBefore,
                     liquidityDelta
                 );
@@ -396,13 +396,13 @@ library DatedIrsVamm {
 
         VAMMBase.checksBeforeSwap(params, self.vars, params.baseAmountSpecified > 0);
 
-        uint128 accumulatorStart = self.vars.accumulator;
+        uint128 liquidityStart = self.vars.liquidity;
 
         VAMMBase.SwapState memory state = VAMMBase.SwapState({
             amountSpecifiedRemaining: params.baseAmountSpecified, // base ramaining
             sqrtPriceX96: self.vars.sqrtPriceX96,
             tick: self.vars.tick,
-            accumulator: accumulatorStart,
+            liquidity: liquidityStart,
             trackerFixedTokenGrowthGlobalX128: self.vars.trackerVariableTokenGrowthGlobalX128,
             trackerBaseTokenGrowthGlobalX128: self.vars.trackerVariableTokenGrowthGlobalX128,
             trackerFixedTokenDeltaCumulative: 0, // for Trader (user invoking the swap)
@@ -470,13 +470,13 @@ library DatedIrsVamm {
                 SwapMath.SwapStepParams({
                     sqrtRatioCurrentX96: state.sqrtPriceX96,
                     sqrtRatioTargetX96: sqrtRatioTargetX96,
-                    liquidity: state.accumulator,
+                    liquidity: state.liquidity,
                     amountRemaining: state.amountSpecifiedRemaining,
                     timeToMaturityInSeconds: secondsTillMaturity
                 })
             );
 
-            // console2.log("Post-step with liquidity", state.accumulator);
+            // console2.log("Post-step with liquidity", state.liquidity);
             // console2.log(" - amount in ", step.amountIn);
             // console2.log(" - amount out", step.amountOut);
             // console2.log(" - product   ", step.amountOut * step.amountIn);
@@ -494,7 +494,7 @@ library DatedIrsVamm {
             }
             state.amountSpecifiedRemaining += step.baseInStep;
 
-            if (state.accumulator > 0) {
+            if (state.liquidity > 0) {
                 (
                     state.trackerBaseTokenGrowthGlobalX128,
                     state.trackerFixedTokenGrowthGlobalX128,
@@ -516,15 +516,15 @@ library DatedIrsVamm {
             if (state.sqrtPriceX96 == step.sqrtPriceNextX96) {
                 // if the tick is initialized, run the tick transition
                 if (step.initialized) {
-                    int128 accumulatorNet = self.vars._ticks.cross(
+                    int128 liquidityNet = self.vars._ticks.cross(
                         step.tickNext,
                         state.trackerFixedTokenGrowthGlobalX128,
                         state.trackerBaseTokenGrowthGlobalX128
                     );
 
-                    state.accumulator = LiquidityMath.addDelta(
-                        state.accumulator,
-                        advanceRight ? accumulatorNet : -accumulatorNet
+                    state.liquidity = LiquidityMath.addDelta(
+                        state.liquidity,
+                        advanceRight ? liquidityNet : -liquidityNet
                     );
 
                 }
@@ -542,25 +542,6 @@ library DatedIrsVamm {
             //     console2.log(" - liquidityNet at tick", self.vars._ticks[state.tick].liquidityNet);
 
             // }
-            // console2.log(" - liquidity at current tick", state.accumulator);
-            // console2.log(" - liquidity at committed  tick", self.vars.accumulator);
-            // console2.log(" - state.sqrtPriceX96", state.sqrtPriceX96);
-            // console2.log("         limit: ", params.sqrtPriceLimitX96);
-            // console2.log(" - state.amountSpecifiedRemaining", state.amountSpecifiedRemaining);
-            // console2.log(" - state.trackerBaseTokenDeltaCumulative ", state.trackerBaseTokenDeltaCumulative);
-            // if(advanceRight) {
-            //     console2.log(" - sum ", state.amountSpecifiedRemaining + state.trackerBaseTokenDeltaCumulative);
-            // } else {
-            //     console2.log(" - sum ", state.amountSpecifiedRemaining - state.trackerBaseTokenDeltaCumulative);
-            // }
-        }
-
-            // console2.log("while loop ended");
-            // console2.log(" - state.tick", state.tick);
-            // if (self.vars._ticks[state.tick].initialized) {
-            //     console2.log(" - liquidityGross at tick", self.vars._ticks[state.tick].liquidityGross);
-            //     console2.log(" - liquidityNet at tick", self.vars._ticks[state.tick].liquidityNet);
-            // }
             // console2.log(" - liquidity at current tick", state.liquidity);
             // console2.log(" - liquidity at committed  tick", self.vars.liquidity);
             // console2.log(" - state.sqrtPriceX96", state.sqrtPriceX96);
@@ -572,6 +553,25 @@ library DatedIrsVamm {
             // } else {
             //     console2.log(" - sum ", state.amountSpecifiedRemaining - state.trackerBaseTokenDeltaCumulative);
             // }
+        }
+
+        // console2.log("while loop ended");
+        // console2.log(" - state.tick", state.tick);
+        // if (self.vars._ticks[state.tick].initialized) {
+        //     console2.log(" - liquidityGross at tick", self.vars._ticks[state.tick].liquidityGross);
+        //     console2.log(" - liquidityNet at tick", self.vars._ticks[state.tick].liquidityNet);
+        // }
+        // console2.log(" - liquidity at current tick", state.liquidity);
+        // console2.log(" - liquidity at committed  tick", self.vars.liquidity);
+        // console2.log(" - state.sqrtPriceX96", state.sqrtPriceX96);
+        // console2.log("         limit: ", params.sqrtPriceLimitX96);
+        // console2.log(" - state.amountSpecifiedRemaining", state.amountSpecifiedRemaining);
+        // console2.log(" - state.trackerBaseTokenDeltaCumulative ", state.trackerBaseTokenDeltaCumulative);
+        // if(advanceRight) {
+        //     console2.log(" - sum ", state.amountSpecifiedRemaining + state.trackerBaseTokenDeltaCumulative);
+        // } else {
+        //     console2.log(" - sum ", state.amountSpecifiedRemaining - state.trackerBaseTokenDeltaCumulative);
+        // }
 
         ///// UPDATE VAMM VARS AFTER SWAP /////
         if (state.tick != self.vars.tick) {
@@ -596,7 +596,7 @@ library DatedIrsVamm {
         }
 
         // update liquidity if it changed
-        if (accumulatorStart != state.accumulator) self.vars.accumulator = state.accumulator;
+        if (liquidityStart != state.liquidity) self.vars.liquidity = state.liquidity;
 
         self.vars.trackerVariableTokenGrowthGlobalX128 = state.trackerBaseTokenGrowthGlobalX128;
         self.vars.trackerVariableTokenGrowthGlobalX128 = state.trackerFixedTokenGrowthGlobalX128;
