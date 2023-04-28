@@ -36,8 +36,8 @@ jobs:
       - name: "Install the Node.js dependencies"
         run: "yarn install --immutable"
 
-      - name: "Bump versions"
-        run: "yarn bump"
+      - name: "Release"
+        run: "yarn release"
 
       - name: "Change npm registry server"
         run: "yarn config set npmRegistryServer https://npm.pkg.github.com"
