@@ -2,6 +2,7 @@
 
 - Node v18 and `yarn`/`pnpm`
 - [Foundry](https://book.getfoundry.sh/getting-started/installation)
+- Generate a Classic Personal Access Token on GitHub with the following permissions: `codespace, project, repo, workflow, write:packages`
 - Create global `.yarnrc.yml` file: `touch ~/.yarnrc.yml` and paste the following:
   ```
   npmRegistries:
