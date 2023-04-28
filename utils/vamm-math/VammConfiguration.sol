@@ -59,7 +59,7 @@ library VammConfiguration {
         mapping(uint128 => uint128[]) positionsInAccount;
         /// @notice The currently in range liquidity available to the pool
         /// @dev This value has no relationship to the total liquidity across all ticks
-        uint128 accumulator;
+        uint128 liquidity;
         /// @dev total amount of variable tokens in vamm
         int256 trackerVariableTokenGrowthGlobalX128;
         /// @dev total amount of base tokens in vamm

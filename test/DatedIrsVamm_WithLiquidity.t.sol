@@ -55,18 +55,18 @@ contract VammTest_WithLiquidity is DatedIrsVammTest {
         }
 
         // We know that the current price is within the range of both LPs, so to calculate base tokens available to trade to the left we add:
-        //    accumulator * distance_from_current_price_to_LP2_lower_tick
+        //    liquidity * distance_from_current_price_to_LP2_lower_tick
         // AND
         //    LP1_liquidity_value * distance_from_LP1_lower_tick_to_LP2_lower_tick
-        baseTradeableToLeft += VAMMBase.baseBetweenTicks(ACCOUNT_2_TICK_LOWER, vamm.vars.tick, vamm.vars.accumulator.toInt());
+        baseTradeableToLeft += VAMMBase.baseBetweenTicks(ACCOUNT_2_TICK_LOWER, vamm.vars.tick, vamm.vars.liquidity.toInt());
         baseTradeableToLeft += VAMMBase.baseBetweenTicks(ACCOUNT_1_TICK_LOWER, ACCOUNT_2_TICK_LOWER, vamm.vars._ticks[ACCOUNT_1_TICK_LOWER].liquidityNet);
         // console2.log("baseTradeableToLeft  ", baseTradeableToLeft);
 
         // We know that the current price is within the range of both LPs, so to calculate base tokens available to trade to the right we add:
-        //    accumulator * distance_from_current_price_to_LP1_upper_tick
+        //    liquidity * distance_from_current_price_to_LP1_upper_tick
         // AND
         //    LP2_per-tick_value * distance_from_LP1_lower_tick_to_LP2_lower_tick
-        baseTradeableToRight += VAMMBase.baseBetweenTicks(vamm.vars.tick, ACCOUNT_1_TICK_UPPER, vamm.vars.accumulator.toInt());
+        baseTradeableToRight += VAMMBase.baseBetweenTicks(vamm.vars.tick, ACCOUNT_1_TICK_UPPER, vamm.vars.liquidity.toInt());
         baseTradeableToRight += VAMMBase.baseBetweenTicks(ACCOUNT_1_TICK_UPPER, ACCOUNT_2_TICK_UPPER, -vamm.vars._ticks[ACCOUNT_2_TICK_UPPER].liquidityNet);
         // console2.log("baseTradeableToRight ", baseTradeableToRight);
     }

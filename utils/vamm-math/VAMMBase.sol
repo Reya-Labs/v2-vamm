@@ -88,7 +88,7 @@ library VAMMBase {
         /// @dev the global variable token growth
         int256 trackerBaseTokenGrowthGlobalX128;
         /// @dev the current liquidity in range
-        uint128 accumulator;
+        uint128 liquidity;
         /// @dev trackerFixedTokenDelta that will be applied to the fixed token balance of the position executing the swap (recipient)
         int256 trackerFixedTokenDeltaCumulative;
         /// @dev trackerBaseTokenDelta that will be applied to the variable token balance of the position executing the swap (recipient)
@@ -121,7 +121,7 @@ library VAMMBase {
         int24 tickLower;
         int24 tickUpper;
         // any change in liquidity
-        int128 accumulatorDelta;
+        int128 liquidityDelta;
     }
 
     /// @dev Computes the agregate amount of base between two ticks, given a tick range and the amount of liquidity per tick.
@@ -232,8 +232,8 @@ library VAMMBase {
         );
 
         // update global trackers
-        stateBaseTokenGrowthGlobalX128 = state.trackerBaseTokenGrowthGlobalX128 + FullMath.mulDivSigned(step.trackerBaseTokenDelta, FixedPoint128.Q128, state.accumulator);
-        stateFixedTokenGrowthGlobalX128 = state.trackerFixedTokenGrowthGlobalX128 + FullMath.mulDivSigned(fixedTokenDelta, FixedPoint128.Q128, state.accumulator);
+        stateBaseTokenGrowthGlobalX128 = state.trackerBaseTokenGrowthGlobalX128 + FullMath.mulDivSigned(step.trackerBaseTokenDelta, FixedPoint128.Q128, state.liquidity);
+        stateFixedTokenGrowthGlobalX128 = state.trackerFixedTokenGrowthGlobalX128 + FullMath.mulDivSigned(fixedTokenDelta, FixedPoint128.Q128, state.liquidity);
         // console2.log("returning", stateBaseTokenGrowthGlobalX128);
     }
 
@@ -287,7 +287,7 @@ library VAMMBase {
         flippedLower = _ticks.update(
             params.tickLower,
             _vammVars.tick,
-            params.accumulatorDelta,
+            params.liquidityDelta,
             _trackerVariableTokenGrowthGlobalX128,
             _trackerBaseTokenGrowthGlobalX128,
             false,
@@ -298,7 +298,7 @@ library VAMMBase {
         flippedUpper = _ticks.update(
             params.tickUpper,
             _vammVars.tick,
-            params.accumulatorDelta,
+            params.liquidityDelta,
             _trackerVariableTokenGrowthGlobalX128,
             _trackerBaseTokenGrowthGlobalX128,
             true,
