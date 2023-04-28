@@ -37,6 +37,7 @@ contract VammTest_WithLiquidity is DatedIrsVammTest {
 
     function setUp() public {
         DatedIrsVamm.create(initMarketId, initSqrtPriceX96, immutableConfig, mutableConfig);
+
         vammId = uint256(keccak256(abi.encodePacked(initMarketId, initMaturityTimestamp)));
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
 
@@ -95,10 +96,11 @@ contract VammTest_WithLiquidity is DatedIrsVammTest {
 
     function test_Swap_MovingRight() public {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
+        int256 baseAmount =  500_000_000;
 
         VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
             recipient: address(this),
-            baseAmountSpecified: 500_000_000_000, // There is not enough liquidity - swap should max out at baseTradeableToRight
+            baseAmountSpecified: baseAmount,
             sqrtPriceLimitX96: ACCOUNT_2_UPPER_SQRTPRICEX96
         });
 
@@ -106,20 +108,58 @@ contract VammTest_WithLiquidity is DatedIrsVammTest {
         vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
         (int256 trackerFixedTokenDelta, int256 trackerBaseTokenDelta) = vamm.vammSwap(params);
 
-        // assertEq(trackerBaseTokenDelta, baseTradeableToRight); // TOOD: check results are as expected
-        // TODO: verify that updated VAMM state is as expected
-        // TODO: what is the expected behaviour for orders that cannot be filled? If not "fail", how does the caller know how much was filled?
-        // console2.log("trackerFixedTokenDelta", trackerFixedTokenDelta);
-        // console2.log("trackerBaseTokenDelta", trackerBaseTokenDelta);
+        assertAlmostEqual(trackerBaseTokenDelta, -baseAmount);
+        // TODO: verify that VAMM state and trackerFixedTokenDelta is as expected
     }
 
     function test_Swap_MovingLeft() public {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
+        int256 baseAmount =  -500_000_000;
 
         VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
             recipient: address(this),
-            baseAmountSpecified: -500_000_000_000, // There is not enough liquidity - swap should max out at baseTradeableToLeft
+            baseAmountSpecified: baseAmount,
             sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(TickMath.MIN_TICK + 1)
+        });
+
+        // Mock the liquidity index that is read during a swap
+        vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
+        (int256 trackerFixedTokenDelta, int256 trackerBaseTokenDelta) = vamm.vammSwap(params);
+
+        assertAlmostEqual(trackerBaseTokenDelta, -baseAmount);
+        // TODO: verify that VAMM state and trackerFixedTokenDelta is as expected
+    }
+
+    function test_Swap_MovingMaxRight() public {
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
+
+        int24 tickLimit = ACCOUNT_2_TICK_UPPER + 1;
+
+        VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
+            recipient: address(this),
+            baseAmountSpecified: 500_000_000_000_000_000_000_000_000_000_000, // There is not enough liquidity - swap should max out at baseTradeableToRight
+            sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(tickLimit)
+        });
+
+        // Mock the liquidity index that is read during a swap
+        vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
+        (int256 trackerFixedTokenDelta, int256 trackerBaseTokenDelta) = vamm.vammSwap(params);
+
+        assertAlmostEqual(trackerBaseTokenDelta, -baseTradeableToRight);
+        assertEq(vamm.vars.tick, tickLimit);
+        assertEq(vamm.vars.sqrtPriceX96, TickMath.getSqrtRatioAtTick(tickLimit));
+        // TODO: verify that trackerFixedTokenDelta is as expected
+    }
+
+    function test_Swap_MovingMaxLeft() public {
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
+
+        int24 tickLimit = TickMath.MIN_TICK + 1;
+
+        VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
+            recipient: address(this),
+            baseAmountSpecified: -500_000_000_000_000_000_000_000_000_000_000, // There is not enough liquidity - swap should max out at baseTradeableToLeft
+            sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(tickLimit)
         });
 
         // Mock the liquidity index that is read during a swap
@@ -127,16 +167,17 @@ contract VammTest_WithLiquidity is DatedIrsVammTest {
 
         (int256 trackerFixedTokenDelta, int256 trackerBaseTokenDelta) = vamm.vammSwap(params);
 
-        // assertEq(trackerBaseTokenDelta, baseTradeableToLeft); // TOOD: check results are as expected
-        // TODO: verify that updated VAMM state is as expected
-        // TODO: what is the expected behaviour for orders that cannot be filled? If not "fail", how does the caller know how much was filled?
-        // console2.log("trackerFixedTokenDelta", trackerFixedTokenDelta);
-        // console2.log("trackerBaseTokenDelta", trackerBaseTokenDelta);
+        assertAlmostEqual(trackerBaseTokenDelta, baseTradeableToLeft);
+        assertEq(vamm.vars.tick, tickLimit);
+        assertEq(vamm.vars.sqrtPriceX96, TickMath.getSqrtRatioAtTick(tickLimit));
+        // TODO: verify that trackerFixedTokenDelta is as expected
     }
-
-    // TODO: smaller swaps
 
     // TODO: fully and partially unwind swaps
 
-    // TODO: verify that LPs cannot withdraw more liquidity than expected.
+    // TODO: verify that LPs can withdraw some or all of their liquidity
+
+    // TODO: verify that LPs cannot withdraw more liquidity than they have
+
+    // TODO: Verify that LPs depositing from/to already-used tick boundaries affects the tick state in expected way
 }
