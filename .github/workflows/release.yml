@@ -39,7 +39,7 @@ jobs:
       - name: "Release"
         run: "yarn release"
         env:
-          GITHUB_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.SEMANTIC_RELEASE_TOKEN }}
 
       - name: "Change npm registry server"
         run: "yarn config set npmRegistryServer https://npm.pkg.github.com"
