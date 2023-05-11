@@ -42,7 +42,6 @@ contract PoolModule is IPoolModule {
                         : TickMath.MAX_SQRT_RATIO - 1
                 )
                 : sqrtPriceLimitX96;
-        //todo: populate recipient field
 
         (executedBaseAmount, executedQuoteAmount) = vamm.vammSwap(swapParams);
     }

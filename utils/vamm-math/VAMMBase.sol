@@ -41,8 +41,6 @@ library VAMMBase {
     }
 
     struct SwapParams {
-        /// @dev Address of the trader initiating the swap
-        address recipient;
         /// @dev The amount of the swap in base tokens, which implicitly configures the swap as exact input (positive), or exact output (negative)
         int256 baseAmountSpecified;
         /// @dev The Q64.96 sqrt price limit. If !isFT, the price cannot be less than this
@@ -89,9 +87,9 @@ library VAMMBase {
         int256 trackerBaseTokenGrowthGlobalX128;
         /// @dev the current liquidity in range
         uint128 liquidity;
-        /// @dev trackerFixedTokenDelta that will be applied to the fixed token balance of the position executing the swap (recipient)
+        /// @dev trackerFixedTokenDelta that will be applied to the fixed token balance of the position executing the swap
         int256 trackerFixedTokenDeltaCumulative;
-        /// @dev trackerBaseTokenDelta that will be applied to the variable token balance of the position executing the swap (recipient)
+        /// @dev trackerBaseTokenDelta that will be applied to the variable token balance of the position executing the swap
         int256 trackerBaseTokenDeltaCumulative;
     }
 
