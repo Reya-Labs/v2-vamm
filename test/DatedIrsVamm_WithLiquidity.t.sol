@@ -99,7 +99,6 @@ contract VammTest_WithLiquidity is DatedIrsVammTest {
         int256 baseAmount =  500_000_000;
 
         VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
-            recipient: address(this),
             baseAmountSpecified: baseAmount,
             sqrtPriceLimitX96: ACCOUNT_2_UPPER_SQRTPRICEX96
         });
@@ -117,7 +116,6 @@ contract VammTest_WithLiquidity is DatedIrsVammTest {
         int256 baseAmount =  -500_000_000;
 
         VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
-            recipient: address(this),
             baseAmountSpecified: baseAmount,
             sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(TickMath.MIN_TICK + 1)
         });
@@ -136,7 +134,6 @@ contract VammTest_WithLiquidity is DatedIrsVammTest {
         int24 tickLimit = ACCOUNT_2_TICK_UPPER + 1;
 
         VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
-            recipient: address(this),
             baseAmountSpecified: 500_000_000_000_000_000_000_000_000_000_000, // There is not enough liquidity - swap should max out at baseTradeableToRight
             sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(tickLimit)
         });
@@ -157,7 +154,6 @@ contract VammTest_WithLiquidity is DatedIrsVammTest {
         int24 tickLimit = TickMath.MIN_TICK + 1;
 
         VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
-            recipient: address(this),
             baseAmountSpecified: -500_000_000_000_000_000_000_000_000_000_000, // There is not enough liquidity - swap should max out at baseTradeableToLeft
             sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(tickLimit)
         });
