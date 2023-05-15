@@ -2,15 +2,16 @@
 pragma solidity >=0.8.13;
 
 /// @title Interface a Pool needs to adhere.
-library PoolPauser {
+library PoolConfiguration {
     event PauseState(bool newPauseState);
 
     struct Data {
         bool paused;
+        address productAddress;
     }
 
     function load() internal pure returns (Data storage self) {
-        bytes32 s = keccak256(abi.encode("xyz.voltz.PoolPausers"));
+        bytes32 s = keccak256(abi.encode("xyz.voltz.PoolConfiguration"));
         assembly {
             self.slot := s
         }
@@ -21,7 +22,11 @@ library PoolPauser {
         emit PauseState(state);
     }
 
+    function setProductAddress(Data storage self, address _productAddress) internal {
+        self.productAddress = _productAddress;
+    }
+
     function whenNotPaused() internal view {
-        require(!PoolPauser.load().paused, "Paused");
+        require(!PoolConfiguration.load().paused, "Paused");
     }
 }

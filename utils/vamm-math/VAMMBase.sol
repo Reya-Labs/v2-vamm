@@ -134,13 +134,23 @@ library VAMMBase {
 
         uint160 sqrtRatioBX96 = TickMath.getSqrtRatioAtTick(_tickUpper);
 
+        return baseAmountFromLiquidity(_liquidityPerTick, sqrtRatioAX96, sqrtRatioBX96);
+    }
+
+    /// @notice Computes the amount of notional coresponding to an amount of liquidity and price range
+    /// @dev Calculates amount1 * (sqrt(upper) - sqrt(lower)).
+    /// @param liquidity Liquidity per tick
+    /// @param sqrtRatioAX96 A sqrt price representing the first tick boundary
+    /// @param sqrtRatioBX96 A sqrt price representing the second tick boundary
+    /// @return baseAmount The base amount of returned from liquidity
+    function baseAmountFromLiquidity(int128 liquidity, uint160 sqrtRatioAX96, uint160 sqrtRatioBX96) internal view returns (int256 baseAmount){
         if (sqrtRatioAX96 > sqrtRatioBX96)
             (sqrtRatioAX96, sqrtRatioBX96) = (sqrtRatioBX96, sqrtRatioAX96);
 
         uint256 absBase = FullMath
-                .mulDiv(uint128(_liquidityPerTick > 0 ? _liquidityPerTick : -_liquidityPerTick), sqrtRatioBX96 - sqrtRatioAX96, Q96);
+                .mulDiv(uint128(liquidity > 0 ? liquidity : -liquidity), sqrtRatioBX96 - sqrtRatioAX96, Q96);
 
-        return _liquidityPerTick > 0 ? absBase.toInt() : -(absBase.toInt());
+        baseAmount = liquidity > 0 ? absBase.toInt() : -(absBase.toInt());
     }
 
     function getPriceFromTick(int24 _tick) internal pure returns(UD60x18 price) {

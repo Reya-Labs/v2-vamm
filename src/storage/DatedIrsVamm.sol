@@ -25,12 +25,14 @@ library DatedIrsVamm {
     UD60x18 constant ZERO = UD60x18.wrap(0);
     using SafeCastU256 for uint256;
     using SafeCastI256 for int256;
+    using SafeCastU128 for uint128;
     using VAMMBase for VAMMBase.FlipTicksParams;
     using VAMMBase for bool;
     using Tick for mapping(int24 => Tick.Info);
     using TickBitmap for mapping(int16 => uint256);
     using Oracle for Oracle.Observation[65535];
     using LPPosition for LPPosition.Data;
+    using DatedIrsVamm for Data;
 
     /// @notice Emitted by the pool for increases to the number of observations that can be stored
     /// @dev observationCardinalityNext is not the observation cardinality until an observation is written at the index
@@ -300,10 +302,23 @@ library DatedIrsVamm {
         LPPosition.Data storage position = LPPosition._ensurePositionOpened(accountId, tickLower, tickUpper);
         self.vars.positionsInAccount[accountId].push(LPPosition.getPositionId(accountId, tickLower, tickUpper));
 
-        require(position.liquidity + liquidityDelta >= 0, "Burning too much"); // TODO: CustomError
+
+       (int256 unfilledShortBase, int256 unfilledLongBase) = _getUnfilledBaseTokenValues(
+                    self,
+                    position.tickLower,
+                    position.tickUpper,
+                    position.liquidity
+        );
+
+        self.updatePositionTokenBalances( // this also checks if there's enough to burn
+            position,
+            tickLower,
+            tickUpper,
+            true
+        );
+        position.updateLiquidity(liquidityDelta); // todo: this needs to update growth as well
 
         _updateLiquidity(self, accountId, tickLower, tickUpper, liquidityDelta);
-        position.updateLiquidity(liquidityDelta);
     }
 
     function configure(
@@ -677,7 +692,7 @@ library DatedIrsVamm {
         Data storage self,
         int24 tickLower,
         int24 tickUpper,
-        int128 liquidityPerTick
+        uint128 liquidityPerTick
     ) internal view returns(
         int256 unfilledBaseTokensLeft,
         int256 unfilledBaseTokensRight
@@ -692,7 +707,7 @@ library DatedIrsVamm {
         int256 unfilledBaseTokensLeft_ = VAMMBase.baseBetweenTicks(
             tickLower < self.vars.tick ? tickLower : self.vars.tick, // min(tickLower, currentTick)
             tickUpper < self.vars.tick ? tickUpper : self.vars.tick,  // min(tickUpper, currentTick)
-            liquidityPerTick
+            liquidityPerTick.toInt()
         );
         unfilledBaseTokensLeft = -unfilledBaseTokensLeft_;
 
@@ -702,7 +717,7 @@ library DatedIrsVamm {
         unfilledBaseTokensRight = VAMMBase.baseBetweenTicks(
             tickLower > self.vars.tick ? tickLower : self.vars.tick, // max(tickLower, currentTick)
             tickUpper > self.vars.tick ? tickUpper : self.vars.tick,  // max(tickUpper, currentTick)
-            liquidityPerTick
+            liquidityPerTick.toInt()
         );
         // console2.log("unfilledTokensRight: (%s, %s)", uint256(unfilledFixedTokensRight), uint256(unfilledBaseTokensRight)); // TODO_delete_log
     }
@@ -748,5 +763,87 @@ library DatedIrsVamm {
         trackerVariableTokenGrowthBetween = self.vars.trackerVariableTokenGrowthGlobalX128 - trackerVariableTokenBelowLowerTick - trackerVariableTokenAboveUpperTick;
         trackerBaseTokenGrowthBetween = self.vars.trackerVariableTokenGrowthGlobalX128 - trackerBaseTokenBelowLowerTick - trackerBaseTokenAboveUpperTick;
 
+    }
+
+    function computeGrowthInside(
+        Data storage self,
+        int24 tickLower,
+        int24 tickUpper
+    )
+        internal
+        view
+        returns (int256 fixedTokenGrowthInsideX128, int256 variableTokenGrowthInsideX128, uint256 feeGrowthInsideX128)
+    {
+
+        Tick.checkTicks(tickLower, tickUpper);
+
+        fixedTokenGrowthInsideX128 = self.vars._ticks.getFixedTokenGrowthInside(
+            Tick.FixedTokenGrowthInsideParams({
+                tickLower: tickLower,
+                tickUpper: tickUpper,
+                tickCurrent: self.vars.tick,
+                fixedTokenGrowthGlobalX128: self.vars.trackerBaseTokenGrowthGlobalX128
+            })
+        );
+
+        variableTokenGrowthInsideX128 = self.vars._ticks.getVariableTokenGrowthInside(
+            Tick.VariableTokenGrowthInsideParams({
+                tickLower: tickLower,
+                tickUpper: tickUpper,
+                tickCurrent: self.vars.tick,
+                variableTokenGrowthGlobalX128: self.vars.trackerVariableTokenGrowthGlobalX128
+            })
+        );
+
+    }
+
+    /// @notice update position token balances and account for fees
+    /// @dev if the _liquidity of the position supplied to this function is >0 then we
+    /// @dev 1. retrieve the fixed, variable and fee Growth variables from the vamm by invoking the computeGrowthInside function of the VAMM
+    /// @dev 2. calculate the deltas that need to be applied to the position's fixed and variable token balances by taking into account trades that took place in the VAMM since the last mint/poke/burn that invoked this function
+    /// @dev 3. update the fixed and variable token balances and the margin of the position to account for deltas (outlined above) and fees generated by the active liquidity supplied by the position
+    /// @dev 4. additionally, we need to update the last growth inside variables in the Position.Info struct so that we take a note that we've accounted for the changes up until this point
+    /// @dev if _liquidity of the position supplied to this function is zero, then we need to check if isMintBurn is set to true (if it is set to true) then we know this function was called post a mint/burn event,
+    /// @dev meaning we still need to correctly update the last fixed, variable and fee growth variables in the Position.Info struct
+    function updatePositionTokenBalances(
+        Data storage self,
+        LPPosition.Data storage position,
+        int24 tickLower,
+        int24 tickUpper,
+        bool isMintBurn
+    ) internal {
+        if (position.liquidity > 0) {
+            (
+                int256 _fixedTokenGrowthInsideX128,
+                int256 _variableTokenGrowthInsideX128,
+                uint256 _feeGrowthInsideX128
+            ) = self.computeGrowthInside(tickLower, tickUpper);
+            (int256 _fixedTokenDelta, int256 _variableTokenDelta) = position
+                .calculateFixedAndVariableDelta(
+                    _fixedTokenGrowthInsideX128,
+                    _variableTokenGrowthInsideX128
+                );
+            
+            position.updateTrackers(
+                _variableTokenGrowthInsideX128,
+                _fixedTokenGrowthInsideX128,
+                _variableTokenDelta - 1,
+                _fixedTokenDelta - 1
+            );
+        } else {
+            if (isMintBurn) {
+                (
+                    int256 _fixedTokenGrowthInsideX128,
+                    int256 _variableTokenGrowthInsideX128,
+                    uint256 _feeGrowthInsideX128
+                ) = self.computeGrowthInside(tickLower, tickUpper);
+                position.updateTrackers(
+                    _variableTokenGrowthInsideX128,
+                    _fixedTokenGrowthInsideX128,
+                    0,
+                    0
+                );
+            }
+        }
     }
 }

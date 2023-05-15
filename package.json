@@ -41,6 +41,8 @@
   "dependencies": {
     "@openzeppelin/contracts": "^4.8.3",
     "@prb/math": "3.3.0",
+    "@voltz-protocol/core": "^2.0.8",
+    "@voltz-protocol/products-dated-irs": "^2.0.7",
     "@voltz-protocol/util-contracts": "1.1.0",
     "@voltz-protocol/util-modules": "1.0.3"
   },
