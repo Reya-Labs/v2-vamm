@@ -2,12 +2,14 @@
 pragma solidity >=0.8.13;
 
 import "../../utils/vamm-math/VAMMBase.sol";
+import "@voltz-protocol/util-contracts/src/helpers/SafeCast.sol";
 
 /**
  * @title Tracks LP positions
  */
 library LPPosition {
     using LPPosition for LPPosition.Data;
+    using SafeCastU128 for uint128;
 
     error PositionNotFound();
     error PositionAlreadyExists(uint128 positionId);
@@ -20,7 +22,7 @@ library LPPosition {
         /** 
         * @dev amount of liquidity per tick in this position
         */
-        int128 liquidity;
+        uint128 liquidity;
         /** 
         * @dev lower tick boundary of the position
         */
@@ -84,29 +86,28 @@ library LPPosition {
     }
 
     // todo: currently not used
-    function setTrackers(
-        uint128 positionId,
+    function updateTrackers(
+        Data storage self,
         int256 trackerVariableTokenUpdatedGrowth,
         int256 trackerBaseTokenUpdatedGrowth,
-        int256 trackerVariableTokenAccumulated,
-        int256 trackerBaseTokenAccumulated
+        int256 deltaTrackerVariableTokenAccumulated,
+        int256 deltaTrackerBaseTokenAccumulated
     ) internal {
-        Data storage position = load(positionId);
 
-        if (position.accountId == 0) {
+        if (self.accountId == 0) {
             revert PositionNotFound();
         }
-        position.trackerVariableTokenUpdatedGrowth = trackerVariableTokenUpdatedGrowth;
-        position.trackerBaseTokenUpdatedGrowth = trackerBaseTokenUpdatedGrowth;
-        position.trackerVariableTokenAccumulated = trackerVariableTokenAccumulated;
-        position.trackerBaseTokenAccumulated = trackerBaseTokenAccumulated;
+        self.trackerVariableTokenUpdatedGrowth = trackerVariableTokenUpdatedGrowth;
+        self.trackerBaseTokenUpdatedGrowth = trackerBaseTokenUpdatedGrowth;
+        self.trackerVariableTokenAccumulated += deltaTrackerVariableTokenAccumulated;
+        self.trackerBaseTokenAccumulated += deltaTrackerBaseTokenAccumulated;
     }
 
     function updateLiquidity(Data storage self, int128 liquidityDelta) internal {
         if (self.accountId == 0) {
             revert PositionNotFound();
         }
-        self.liquidity += liquidityDelta;
+        self.liquidity = LiquidityMath.addDelta(self.liquidity, liquidityDelta);
     }
 
     /// @dev Private but labelled internal for testability.
@@ -126,7 +127,7 @@ library LPPosition {
             return position;
         }
 
-        position = create(accountId, tickLower, tickUpper);
+        return create(accountId, tickLower, tickUpper);
     }
 
     function getUpdatedPositionBalances(
@@ -150,8 +151,8 @@ library LPPosition {
         // );
 
         return (
-            self.trackerVariableTokenAccumulated + trackerVariableTokenDeltaGrowth * self.liquidity, // TODO: check if this is correcxt formula
-            self.trackerBaseTokenAccumulated + trackerBaseTokenDeltaGrowth * self.liquidity // TODO: check if this is correcxt formula
+            self.trackerVariableTokenAccumulated + trackerVariableTokenDeltaGrowth * self.liquidity.toInt(), // TODO: check if this is correcxt formula
+            self.trackerBaseTokenAccumulated + trackerBaseTokenDeltaGrowth * self.liquidity.toInt() // TODO: check if this is correcxt formula
         );
     }
 
@@ -168,5 +169,41 @@ library LPPosition {
         returns (uint128){
 
         return uint128(uint256(keccak256(abi.encodePacked(accountId, tickLower, tickUpper))));
+    }
+
+    /// @notice Returns Fixed and Variable Token Deltas
+    /// @param self position info struct represeting a liquidity provider
+    /// @param fixedTokenGrowthInsideX128 fixed token growth per unit of liquidity as of now (in wei)
+    /// @param variableTokenGrowthInsideX128 variable token growth per unit of liquidity as of now (in wei)
+    /// @return _fixedTokenDelta = (fixedTokenGrowthInside-fixedTokenGrowthInsideLast) * liquidity of a position
+    /// @return _variableTokenDelta = (variableTokenGrowthInside-variableTokenGrowthInsideLast) * liquidity of a position
+    function calculateFixedAndVariableDelta(
+        Data storage self,
+        int256 fixedTokenGrowthInsideX128,
+        int256 variableTokenGrowthInsideX128
+    )
+        internal
+        view
+        returns (int256 _fixedTokenDelta, int256 _variableTokenDelta)
+    {
+        Data memory _self = self;
+
+        int256 fixedTokenGrowthInsideDeltaX128 = fixedTokenGrowthInsideX128 -
+            _self.trackerBaseTokenUpdatedGrowth;
+
+        _fixedTokenDelta = FullMath.mulDivSigned(
+            fixedTokenGrowthInsideDeltaX128,
+            _self.liquidity,
+            FixedPoint128.Q128
+        );
+
+        int256 variableTokenGrowthInsideDeltaX128 = variableTokenGrowthInsideX128 -
+                _self.trackerVariableTokenUpdatedGrowth;
+
+        _variableTokenDelta = FullMath.mulDivSigned(
+            variableTokenGrowthInsideDeltaX128,
+            _self.liquidity,
+            FixedPoint128.Q128
+        );
     }
 }

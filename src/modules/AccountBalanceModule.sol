@@ -5,7 +5,7 @@ import "../interfaces/IAccountBalanceModule.sol";
 
 import "../storage/DatedIrsVamm.sol";
 
-import "@openzeppelin/contracts/utils/math/SignedMath.sol";
+import "oz/utils/math/SignedMath.sol";
 
 contract AccountBalanceModule is IAccountBalanceModule {
   using DatedIrsVamm for DatedIrsVamm.Data;
