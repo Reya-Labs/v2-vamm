@@ -46,13 +46,13 @@ contract VammTest_WithLiquidity is DatedIrsVammTest {
         {
             // LP 1
             int128 requestedLiquidityAmount = getLiquidityForBase(ACCOUNT_1_TICK_LOWER, ACCOUNT_1_TICK_UPPER, BASE_AMOUNT_PER_LP);
-            vamm.executeDatedMakerOrder(ACCOUNT_1,ACCOUNT_1_LOWER_SQRTPRICEX96,ACCOUNT_1_UPPER_SQRTPRICEX96, requestedLiquidityAmount);
+            vamm.executeDatedMakerOrder(ACCOUNT_1,ACCOUNT_1_TICK_LOWER,ACCOUNT_1_TICK_UPPER, requestedLiquidityAmount);
         }
         {
             // LP 2
             int128 requestedLiquidityAmount = getLiquidityForBase(ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, BASE_AMOUNT_PER_LP);
 
-            vamm.executeDatedMakerOrder(ACCOUNT_2,ACCOUNT_2_LOWER_SQRTPRICEX96,ACCOUNT_2_UPPER_SQRTPRICEX96, requestedLiquidityAmount);
+            vamm.executeDatedMakerOrder(ACCOUNT_2,ACCOUNT_2_TICK_LOWER,ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount);
         }
 
         // We know that the current price is within the range of both LPs, so to calculate base tokens available to trade to the left we add:

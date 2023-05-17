@@ -4,13 +4,13 @@ pragma solidity >=0.8.13;
 import "../../utils/vamm-math/VammConfiguration.sol";
 
 interface IVammModule {
-  /// @dev todo docs
+  /// @dev Emitted when vamm configurations are updated
   event VammConfigUpdated(
       uint128 _marketId,
       VammConfiguration.Mutable _config
   );
 
-  /// @dev todo docs
+  /// @dev Emitted when a new vamm is created and initialized
   event VammCreated(
       uint128 _marketId,
       int24 tick,
@@ -18,11 +18,16 @@ interface IVammModule {
       VammConfiguration.Mutable _mutableConfig
   );
 
-  /// @dev todo docs
+  /**
+    * @notice registers a new vamm with the specified configurationsa and initializes the price
+    */
   function createVamm(uint128 _marketId,  uint160 _sqrtPriceX96, VammConfiguration.Immutable calldata _config, VammConfiguration.Mutable calldata _mutableConfig)
     external;
 
-  /// @dev todo docs
+  /**
+    * @notice Configures an existing vamm 
+    * @dev Only configures mutable vamm variables
+    */
   function configureVamm(uint128 _marketId, uint256 _maturityTimestamp, VammConfiguration.Mutable calldata _config)
     external;
   

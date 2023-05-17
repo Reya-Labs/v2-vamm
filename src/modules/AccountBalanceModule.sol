@@ -40,11 +40,6 @@ contract AccountBalanceModule is IAccountBalanceModule {
         override
         returns (uint256 unfilledBaseLong, uint256 unfilledBaseShort) {      
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
-        (int256 _unfilledBaseLong, int256 _unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
-
-        // TODO: we decided to have the unfilled balances unsigned, considering the name already points to a direction
-        // to avoid abs(), adjustments are required to getAccountUnfilledBases
-        unfilledBaseLong = SignedMath.abs(_unfilledBaseLong);
-        unfilledBaseShort = SignedMath.abs(_unfilledBaseShort);
+        (unfilledBaseLong, unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
     }
 }

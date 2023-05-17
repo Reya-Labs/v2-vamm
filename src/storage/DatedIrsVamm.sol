@@ -9,7 +9,6 @@ import "../../utils/vamm-math/FixedAndVariableMath.sol";
 
 import "../../utils/CustomErrors.sol";
 
-//todo: why use this instead of prbmath helper?
 import { UD60x18, convert } from "@prb/math/UD60x18.sol";
 import { SD59x18 } from "@prb/math/SD59x18.sol";
 import { mulUDxInt } from "@voltz-protocol/util-contracts/src/helpers/PrbMathHelper.sol";
@@ -49,6 +48,16 @@ library DatedIrsVamm {
      */
     error IRSVammNotFound(uint128 vammId);
 
+    /**
+     * @dev Thrown when Twap order size is 0 and it tries to adjust for spread or price impact
+     */
+    error TwapNotAdjustable();
+
+    /**
+     * @dev Thrown when price impact configuration is larger than 1 in wad
+     */
+    error PriceImpactOutOfBounds();
+
     /// @dev Internal, frequently-updated state of the VAMM, which is compressed into one storage slot.
     struct Data {
         /// @dev vamm config set at initialization, can't be modified after creation
@@ -63,7 +72,9 @@ library DatedIrsVamm {
      * @dev Returns the vamm stored at the specified vamm id.
      */
     function load(uint256 id) internal pure returns (Data storage irsVamm) {
-        require(id != 0); // TODO: custom error
+        if (id == 0) {
+            revert IRSVammNotFound(0);
+        }
         bytes32 s = keccak256(abi.encode("xyz.voltz.DatedIRSVamm", id));
         assembly {
             irsVamm.slot := s
@@ -172,13 +183,17 @@ library DatedIrsVamm {
         UD60x18 priceImpactAsFraction = ZERO;
 
         if (adjustForSpread) {
-            require(orderSize != 0); // TODO: custom error
+            if (orderSize == 0) {
+                revert TwapNotAdjustable();
+            }
             // console2.log("GM",UD60x18.unwrap(self.mutableConfig.spread)); // TODO_delete_log
             spreadImpactDelta = self.mutableConfig.spread;
         }
 
         if (adjustForPriceImpact) {
-            require(orderSize != 0); // TODO: custom error
+            if (orderSize == 0) {
+                revert TwapNotAdjustable();
+            }
             priceImpactAsFraction = self.mutableConfig.priceImpactPhi.mul(
                 convert(uint256(orderSize > 0 ? orderSize : -orderSize)).pow(self.mutableConfig.priceImpactBeta)
             );
@@ -283,40 +298,30 @@ library DatedIrsVamm {
     /**
      * @notice Executes a dated maker order that provides liquidity to (or removes liquidty from) this VAMM
      * @param accountId Id of the `Account` with which the lp wants to provide liqudiity
-     * @param fixedRateLower Lower Fixed Rate of the range order
-     * @param fixedRateUpper Upper Fixed Rate of the range order
+     * @param tickLower Lower tick of the range order
+     * @param tickUpper Upper tick of the range order
      * @param liquidityDelta Liquidity to add (positive values) or remove (negative values) witin the tick range
      */
     function executeDatedMakerOrder(
         Data storage self,
         uint128 accountId,
-        uint160 fixedRateLower,
-        uint160 fixedRateUpper,
+        int24 tickLower,
+        int24 tickUpper,
         int128 liquidityDelta
     )
     internal
-    {      
-        int24 tickLower = TickMath.getTickAtSqrtRatio(fixedRateLower);
-        int24 tickUpper = TickMath.getTickAtSqrtRatio(fixedRateUpper);
-
+    { 
         LPPosition.Data storage position = LPPosition._ensurePositionOpened(accountId, tickLower, tickUpper);
         self.vars.positionsInAccount[accountId].push(LPPosition.getPositionId(accountId, tickLower, tickUpper));
 
-
-       (int256 unfilledShortBase, int256 unfilledLongBase) = _getUnfilledBaseTokenValues(
-                    self,
-                    position.tickLower,
-                    position.tickUpper,
-                    position.liquidity
-        );
-
-        self.updatePositionTokenBalances( // this also checks if there's enough to burn
+        // this also checks if the position has enough liquidity to burn
+        self.updatePositionTokenBalances( 
             position,
             tickLower,
             tickUpper,
             true
         );
-        position.updateLiquidity(liquidityDelta); // todo: this needs to update growth as well
+        position.updateLiquidity(liquidityDelta);
 
         _updateLiquidity(self, accountId, tickLower, tickUpper, liquidityDelta);
     }
@@ -325,7 +330,9 @@ library DatedIrsVamm {
         Data storage self,
         VammConfiguration.Mutable memory _config) internal {
 
-        // TODO: sanity check config - e.g. price impact calculated must never be >= 1
+        if (_config.priceImpactPhi.gt(ONE) || _config.priceImpactBeta.gt(ONE)) {
+            revert PriceImpactOutOfBounds();
+        }
 
         self.mutableConfig.priceImpactPhi = _config.priceImpactPhi;
         self.mutableConfig.priceImpactBeta = _config.priceImpactBeta;
@@ -346,7 +353,6 @@ library DatedIrsVamm {
     {
         VAMMBase.checkCurrentTimestampMaturityTimestampDelta(self.immutableConfig.maturityTimestamp);
 
-        // console2.log("_updateLiquidity: ticks = (%s, %s)", uint256(int256(tickLower)), uint256(int256(tickUpper))); // TODO_delete_log
         Tick.checkTicks(tickLower, tickUpper);
 
         bool flippedLower;
@@ -641,14 +647,14 @@ library DatedIrsVamm {
     )
         internal
         view
-        returns (int256 unfilledBaseLong, int256 unfilledBaseShort)
+        returns (uint256 unfilledBaseLong, uint256 unfilledBaseShort)
     {
         uint256 numPositions = self.vars.positionsInAccount[accountId].length;
         if (numPositions != 0) {
             for (uint256 i = 0; i < numPositions; i++) {
                 LPPosition.Data storage position = LPPosition.load(self.vars.positionsInAccount[accountId][i]);
                 // Get how liquidity is currently arranged. In particular, how much of the liquidity is avail to traders in each direction?
-                (int256 unfilledShortBase, int256 unfilledLongBase) = _getUnfilledBaseTokenValues(
+                (uint256 unfilledShortBase, uint256 unfilledLongBase) = _getUnfilledBaseTokenValues(
                     self,
                     position.tickLower,
                     position.tickUpper,
@@ -694,8 +700,8 @@ library DatedIrsVamm {
         int24 tickUpper,
         uint128 liquidityPerTick
     ) internal view returns(
-        int256 unfilledBaseTokensLeft,
-        int256 unfilledBaseTokensRight
+        uint256 unfilledBaseTokensLeft,
+        uint256 unfilledBaseTokensRight
     ) {
         if (tickLower == tickUpper) {
             return (0, 0);
@@ -709,7 +715,7 @@ library DatedIrsVamm {
             tickUpper < self.vars.tick ? tickUpper : self.vars.tick,  // min(tickUpper, currentTick)
             liquidityPerTick.toInt()
         );
-        unfilledBaseTokensLeft = -unfilledBaseTokensLeft_;
+        unfilledBaseTokensLeft = unfilledBaseTokensLeft_.toUint();
 
         // console2.log("unfilledTokensLeft: (%s, %s)", uint256(unfilledFixedTokensLeft), uint256(unfilledBaseTokensLeft)); // TODO_delete_log
 
@@ -718,7 +724,7 @@ library DatedIrsVamm {
             tickLower > self.vars.tick ? tickLower : self.vars.tick, // max(tickLower, currentTick)
             tickUpper > self.vars.tick ? tickUpper : self.vars.tick,  // max(tickUpper, currentTick)
             liquidityPerTick.toInt()
-        );
+        ).toUint();
         // console2.log("unfilledTokensRight: (%s, %s)", uint256(unfilledFixedTokensRight), uint256(unfilledBaseTokensRight)); // TODO_delete_log
     }
 
