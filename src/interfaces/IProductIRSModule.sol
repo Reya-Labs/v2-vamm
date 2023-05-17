@@ -59,9 +59,8 @@ interface IProductIRSModule {
      * @param accountId Id of the account that wants to initiate a taker order
      * @param marketId Id of the market in which the account wants to initiate a taker order (e.g. 1 for aUSDC lend)
      * @param annualizedBaseAmount The annualized notional of the order
-     * todo: pool propagates to product and product to core. allowing the
-     * pool to interact directly with the core would save gas.
-     * this means the Core should have knowledge about the pool for access
      */
     function propagateMakerOrder(uint128 accountId, uint128 marketId, int256 annualizedBaseAmount) external;
+
+    function getCoreProxyAddress() external returns (address);
 }

@@ -137,7 +137,9 @@ library LPPosition {
     )
         internal pure returns (int256, int256) {
 
-        require(self.accountId != 0, "Missing position"); // TODO: custom error
+        if (self.accountId == 0) {
+            revert PositionNotFound();
+        }
 
         int256 trackerVariableTokenDeltaGrowth =
                 trackerVariableTokenGlobalGrowth - self.trackerVariableTokenUpdatedGrowth;
@@ -151,8 +153,8 @@ library LPPosition {
         // );
 
         return (
-            self.trackerVariableTokenAccumulated + trackerVariableTokenDeltaGrowth * self.liquidity.toInt(), // TODO: check if this is correcxt formula
-            self.trackerBaseTokenAccumulated + trackerBaseTokenDeltaGrowth * self.liquidity.toInt() // TODO: check if this is correcxt formula
+            self.trackerVariableTokenAccumulated + trackerVariableTokenDeltaGrowth * self.liquidity.toInt(),
+            self.trackerBaseTokenAccumulated + trackerBaseTokenDeltaGrowth * self.liquidity.toInt()
         );
     }
 

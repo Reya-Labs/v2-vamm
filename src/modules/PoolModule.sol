@@ -7,6 +7,8 @@ import "../interfaces/IPoolModule.sol";
 import "../storage/DatedIrsVamm.sol";
 import "../storage/PoolConfiguration.sol";
 import "../interfaces/IProductIRSModule.sol"; // todo: replace with import after publish
+import "@voltz-protocol/core/src/interfaces/IAccountModule.sol";
+import "@voltz-protocol/core/src/storage/AccountRBAC.sol";
 
 import "@voltz-protocol/util-contracts/src/helpers/SafeCast.sol";
 
@@ -32,7 +34,9 @@ contract PoolModule is IPoolModule {
         external override
         returns (int256 executedBaseAmount, int256 executedQuoteAmount) {
         
-        // TODO: authentication!
+        if (msg.sender != PoolConfiguration.load().productAddress) {
+            revert NotAuthorized(msg.sender, "executeDatedTakerOrder");
+        }
         PoolConfiguration.whenNotPaused();
 
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
@@ -57,26 +61,35 @@ contract PoolModule is IPoolModule {
         uint128 accountId,
         uint128 marketId,
         uint256 maturityTimestamp,
-        uint160 fixedRateLower,  // TODO: use tick lower instead? 
-        uint160 fixedRateUpper, // TODO: use tick upper instead?
+        int24 tickLower,
+        int24 tickUpper,
         int128 liquidityDelta
     )
         external override
     {
+        address productAddress = PoolConfiguration.load().productAddress;
+
+        IProductIRSModule irsProduct = IProductIRSModule(productAddress);
+
+        IAccountModule(
+            irsProduct.getCoreProxyAddress()
+        ).onlyAuthorized(accountId, AccountRBAC._ADMIN_PERMISSION, msg.sender);
+
         PoolConfiguration.whenNotPaused();
-        // TODO: authentication!
         
        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
 
-       vamm.executeDatedMakerOrder(accountId, fixedRateLower, fixedRateUpper, liquidityDelta);
-
-       address productAddress = PoolConfiguration.load().productAddress;
+       vamm.executeDatedMakerOrder(accountId, tickLower, tickUpper, liquidityDelta);
 
        if ( liquidityDelta > 0) {
-        IProductIRSModule(productAddress).propagateMakerOrder(
+        irsProduct.propagateMakerOrder(
             accountId,
             marketId,
-            VAMMBase.baseAmountFromLiquidity(liquidityDelta, fixedRateLower, fixedRateUpper)
+            VAMMBase.baseAmountFromLiquidity(
+                liquidityDelta,
+                TickMath.getSqrtRatioAtTick(tickLower),
+                TickMath.getSqrtRatioAtTick(tickUpper)
+            )
         );
        }
        
@@ -93,7 +106,9 @@ contract PoolModule is IPoolModule {
         external override
         returns (int256 closeUnfilledBasePool) {
 
-        // TODO: authentication!
+        if (msg.sender != PoolConfiguration.load().productAddress) {
+            revert NotAuthorized(msg.sender, "executeDatedTakerOrder");
+        }
         PoolConfiguration.whenNotPaused();
 
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
@@ -102,13 +117,14 @@ contract PoolModule is IPoolModule {
 
         for (uint256 i = 0; i < positions.length; i++) {
             LPPosition.Data memory position = LPPosition.load(positions[i]);
+            // todo: double check if -position.liquidity.toInt() == unfilled
             vamm.executeDatedMakerOrder(
                 accountId, 
-                TickMath.getSqrtRatioAtTick(position.tickLower),
-                TickMath.getSqrtRatioAtTick(position.tickUpper),
+                position.tickLower,
+                position.tickUpper,
                 -position.liquidity.toInt()
             );
-            closeUnfilledBasePool -= position.liquidity.toInt();
+            closeUnfilledBasePool += position.liquidity.toInt();
         }
         
     }

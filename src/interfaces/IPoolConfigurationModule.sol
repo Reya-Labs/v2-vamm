@@ -2,8 +2,12 @@
 pragma solidity >=0.8.13;
 
 interface IPoolConfigurationModule {
-  /// @dev todo docs
+
+  /// @notice Pausing or unpausing trading activity on the vamm
+  /// @param paused True if the desire is to pause the vamm, and false inversely
   function setPauseState(bool paused) external;
 
+  /// @notice Setting the product (instrument) address
+  /// @param productAddress Address of the product proxy
   function setProductAddress(address productAddress) external;
 }
