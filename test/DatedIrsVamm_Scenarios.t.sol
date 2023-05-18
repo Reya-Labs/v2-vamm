@@ -2,7 +2,7 @@ pragma solidity >=0.8.13;
 
 import "forge-std/Test.sol";
 import "forge-std/console2.sol";
-import "./DatedIrsVammTest.sol";
+import "./DatedIrsVammTestUtil.sol";
 import "../src/storage/LPPosition.sol";
 import "../src/storage/DatedIrsVAMM.sol";
 import "../utils/CustomErrors.sol";
@@ -14,7 +14,8 @@ import "@voltz-protocol/util-contracts/src/helpers/SafeCast.sol";
 
 // Constants
 UD60x18 constant ONE = UD60x18.wrap(1e18);
-contract VammTest_WithLiquidity is DatedIrsVammTest {
+
+contract DatedIrsVammTest is DatedIrsVammTestUtil {
     using DatedIrsVamm for DatedIrsVamm.Data;
     using SafeCastU256 for uint256;
     using SafeCastU128 for uint128;
@@ -34,12 +35,13 @@ contract VammTest_WithLiquidity is DatedIrsVammTest {
     UD60x18 mockLiquidityIndex = convert(_mockLiquidityIndex);
     int256 baseTradeableToLeft;
     int256 baseTradeableToRight;
+    ExposedDatedIrsVamm vamm;
 
     function setUp() public {
-        DatedIrsVamm.create(initMarketId, initSqrtPriceX96, immutableConfig, mutableConfig);
 
         vammId = uint256(keccak256(abi.encodePacked(initMarketId, initMaturityTimestamp)));
-        DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
+        vamm = new ExposedDatedIrsVamm(vammId);
+        vamm.create(initMarketId, initSqrtPriceX96, immutableConfig, mutableConfig);
 
         // console2.log("requestedBaseAmount (per LP)  ", BASE_AMOUNT_PER_LP);
 
@@ -59,16 +61,16 @@ contract VammTest_WithLiquidity is DatedIrsVammTest {
         //    liquidity * distance_from_current_price_to_LP2_lower_tick
         // AND
         //    LP1_liquidity_value * distance_from_LP1_lower_tick_to_LP2_lower_tick
-        baseTradeableToLeft += VAMMBase.baseBetweenTicks(ACCOUNT_2_TICK_LOWER, vamm.vars.tick, vamm.vars.liquidity.toInt());
-        baseTradeableToLeft += VAMMBase.baseBetweenTicks(ACCOUNT_1_TICK_LOWER, ACCOUNT_2_TICK_LOWER, vamm.vars._ticks[ACCOUNT_1_TICK_LOWER].liquidityNet);
+        baseTradeableToLeft += VAMMBase.baseBetweenTicks(ACCOUNT_2_TICK_LOWER, vamm.tick(), vamm.liquidity().toInt());
+        baseTradeableToLeft += VAMMBase.baseBetweenTicks(ACCOUNT_1_TICK_LOWER, ACCOUNT_2_TICK_LOWER, vamm.ticks( ACCOUNT_1_TICK_LOWER).liquidityNet);
         // console2.log("baseTradeableToLeft  ", baseTradeableToLeft);
 
         // We know that the current price is within the range of both LPs, so to calculate base tokens available to trade to the right we add:
         //    liquidity * distance_from_current_price_to_LP1_upper_tick
         // AND
         //    LP2_per-tick_value * distance_from_LP1_lower_tick_to_LP2_lower_tick
-        baseTradeableToRight += VAMMBase.baseBetweenTicks(vamm.vars.tick, ACCOUNT_1_TICK_UPPER, vamm.vars.liquidity.toInt());
-        baseTradeableToRight += VAMMBase.baseBetweenTicks(ACCOUNT_1_TICK_UPPER, ACCOUNT_2_TICK_UPPER, -vamm.vars._ticks[ACCOUNT_2_TICK_UPPER].liquidityNet);
+        baseTradeableToRight += VAMMBase.baseBetweenTicks(vamm.tick(), ACCOUNT_1_TICK_UPPER, vamm.liquidity().toInt());
+        baseTradeableToRight += VAMMBase.baseBetweenTicks(ACCOUNT_1_TICK_UPPER, ACCOUNT_2_TICK_UPPER, -vamm.ticks(ACCOUNT_2_TICK_UPPER).liquidityNet);
         // console2.log("baseTradeableToRight ", baseTradeableToRight);
     }
 
@@ -76,9 +78,11 @@ contract VammTest_WithLiquidity is DatedIrsVammTest {
         assertAlmostEqual(BASE_AMOUNT_PER_LP * 2, baseTradeableToLeft + baseTradeableToRight);
     }
 
-    function test_GetAccountUnfilledBases() public {
-        DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
+    function test_CorrectCreation() public {
+        assertEq(vamm.tick(), TickMath.getTickAtSqrtRatio(initSqrtPriceX96));
+    }
 
+    function test_GetAccountUnfilledBases() public {
         // Positions just opened so no filled balances
         {
             // LP 1
@@ -95,8 +99,9 @@ contract VammTest_WithLiquidity is DatedIrsVammTest {
     }
 
     function test_Swap_MovingRight() public {
-        DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
         int256 baseAmount =  500_000_000;
+
+        console2.log(TickMath.getTickAtSqrtRatio(ACCOUNT_2_UPPER_SQRTPRICEX96));
 
         VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
             baseAmountSpecified: baseAmount,
@@ -112,7 +117,6 @@ contract VammTest_WithLiquidity is DatedIrsVammTest {
     }
 
     function test_Swap_MovingLeft() public {
-        DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
         int256 baseAmount =  -500_000_000;
 
         VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
@@ -129,8 +133,6 @@ contract VammTest_WithLiquidity is DatedIrsVammTest {
     }
 
     function test_Swap_MovingMaxRight() public {
-        DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
-
         int24 tickLimit = ACCOUNT_2_TICK_UPPER + 1;
 
         VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
@@ -143,14 +145,12 @@ contract VammTest_WithLiquidity is DatedIrsVammTest {
         (int256 trackerFixedTokenDelta, int256 trackerBaseTokenDelta) = vamm.vammSwap(params);
 
         assertAlmostEqual(trackerBaseTokenDelta, -baseTradeableToRight);
-        assertEq(vamm.vars.tick, tickLimit);
-        assertEq(vamm.vars.sqrtPriceX96, TickMath.getSqrtRatioAtTick(tickLimit));
+        assertEq(vamm.tick(), tickLimit);
+        assertEq(vamm.sqrtPriceX96(), TickMath.getSqrtRatioAtTick(tickLimit));
         // TODO: verify that trackerFixedTokenDelta is as expected
     }
 
     function test_Swap_MovingMaxLeft() public {
-        DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
-
         int24 tickLimit = TickMath.MIN_TICK + 1;
 
         VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
@@ -164,16 +164,8 @@ contract VammTest_WithLiquidity is DatedIrsVammTest {
         (int256 trackerFixedTokenDelta, int256 trackerBaseTokenDelta) = vamm.vammSwap(params);
 
         assertAlmostEqual(trackerBaseTokenDelta, baseTradeableToLeft);
-        assertEq(vamm.vars.tick, tickLimit);
-        assertEq(vamm.vars.sqrtPriceX96, TickMath.getSqrtRatioAtTick(tickLimit));
+        assertEq(vamm.tick(), tickLimit);
+        assertEq(vamm.sqrtPriceX96(), TickMath.getSqrtRatioAtTick(tickLimit));
         // TODO: verify that trackerFixedTokenDelta is as expected
     }
-
-    // TODO: fully and partially unwind swaps
-
-    // TODO: verify that LPs can withdraw some or all of their liquidity
-
-    // TODO: verify that LPs cannot withdraw more liquidity than they have
-
-    // TODO: Verify that LPs depositing from/to already-used tick boundaries affects the tick state in expected way
 }
