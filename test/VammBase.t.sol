@@ -12,6 +12,51 @@ import { UD60x18, convert, ud60x18, uMAX_UD60x18, uUNIT } from "@prb/math/UD60x1
 import { SD59x18, sd59x18, convert } from "@prb/math/SD59x18.sol";
 import "@voltz-protocol/util-contracts/src/helpers/SafeCast.sol";
 
+contract ExposedVammBase {
+    function baseBetweenTicks(
+        int24 _tickLower,
+        int24 _tickUpper,
+        int128 _liquidityPerTick
+    ) public view returns (int256){
+        return VAMMBase.baseBetweenTicks(_tickLower, _tickUpper, _liquidityPerTick);
+    }
+
+    function getPriceFromTick(
+        int24 _tick
+    ) public pure returns (UD60x18 price){
+        price = VAMMBase.getPriceFromTick(_tick);
+    }
+
+    function _sumOfAllPricesUpToPlus10k(
+        int24 _tick
+    ) public pure returns (UD60x18 price){
+        price = VAMMBase._sumOfAllPricesUpToPlus10k(_tick);
+    }
+
+    function averagePriceBetweenTicks(
+        int24 _tickLower,
+        int24 _tickUpper
+    ) public pure returns (UD60x18){
+        return VAMMBase.averagePriceBetweenTicks(_tickLower, _tickUpper);
+    }
+
+    function _fixedTokensInHomogeneousTickWindow(
+        int256 baseAmount,
+        int24 tickLower,
+        int24 tickUpper,
+        UD60x18 yearsUntilMaturity,
+        UD60x18 currentOracleValue
+    ) public view returns (int256){
+        return VAMMBase._fixedTokensInHomogeneousTickWindow(
+            baseAmount,
+            tickLower,
+            tickUpper,
+            yearsUntilMaturity,
+            currentOracleValue
+        );
+    }
+}
+
 // Constants
 UD60x18 constant ONE = UD60x18.wrap(1e18);
 
@@ -22,12 +67,10 @@ contract VammBaseTest is DatedIrsVammTestUtil {
     using SafeCastU128 for uint128;
     using SafeCastI256 for int256;
 
-    ExposedDatedIrsVamm vamm;
+    ExposedVammBase vammBase;
 
     function setUp() public {
-        vammId = uint256(keccak256(abi.encodePacked(initMarketId, initMaturityTimestamp)));
-        vamm = new ExposedDatedIrsVamm(vammId);
-        vamm.create(initMarketId, initSqrtPriceX96, immutableConfig, mutableConfig);
+        vammBase = new ExposedVammBase();
     }
 
     function testFuzz_BaseBetweenTicks(
@@ -38,7 +81,7 @@ contract VammBaseTest is DatedIrsVammTestUtil {
         (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
         // Check that baseBetweenTicks and getLiquidityForBase are symetric
         liquidity = boundNewPositionLiquidityAmount(type(uint128).max, tickLower, tickUpper, liquidity);
-        int256 baseAmount = VAMMBase.baseBetweenTicks(tickLower, tickUpper, liquidity);
+        int256 baseAmount = vammBase.baseBetweenTicks(tickLower, tickUpper, liquidity);
         assertOffByNoMoreThan2OrAlmostEqual(getLiquidityForBase(tickLower, tickUpper, baseAmount), liquidity); // TODO: can we do better than off-by-two for small values? is it important?
     }
 
@@ -54,11 +97,11 @@ contract VammBaseTest is DatedIrsVammTestUtil {
     function averagePriceBetweenTicksUsingLoop(
         int24 tickLower,
         int24 tickUpper)
-    internal pure returns (UD60x18)
+    internal returns (UD60x18)
     {
-        UD60x18 sumOfPrices = VAMMBase.getPriceFromTick(tickLower);
+        UD60x18 sumOfPrices = vammBase.getPriceFromTick(tickLower);
         for (int24 i = tickLower + 1; i <= tickUpper; i++) {
-            sumOfPrices = sumOfPrices.add(VAMMBase.getPriceFromTick(i));
+            sumOfPrices = sumOfPrices.add(vammBase.getPriceFromTick(i));
         }
         return sumOfPrices.div(convert(uint256(int256(1 + tickUpper - tickLower))));
     }
@@ -70,7 +113,7 @@ contract VammBaseTest is DatedIrsVammTestUtil {
         // a range of ~500 is sufficient to illustrate a diversion, but note that larger ranges have much larger diversions
         int24 tick = 1;
 
-        assertAlmostExactlyEqual(VAMMBase._sumOfAllPricesUpToPlus10k(tick), ud60x18(10000e18 + 20001e14));
+        assertAlmostExactlyEqual(vammBase._sumOfAllPricesUpToPlus10k(tick), ud60x18(10000e18 + 20001e14));
     }
 
     function test_AveragePriceBetweenTicks_SingleTick0()
@@ -79,7 +122,7 @@ contract VammBaseTest is DatedIrsVammTestUtil {
         // a range of ~500 is sufficient to illustrate a diversion, but note that larger ranges have much larger diversions
         int24 tickLower = 0;
         int24 tickUpper = 0;
-        assertEq(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), ud60x18(1e18));
+        assertEq(vammBase.averagePriceBetweenTicks(tickLower, tickUpper), ud60x18(1e18));
     }
 
     // TODO: move to separate VAMMBase test file (with others)
@@ -89,7 +132,7 @@ contract VammBaseTest is DatedIrsVammTestUtil {
         // a range of ~500 is sufficient to illustrate a diversion, but note that larger ranges have much larger diversions
         int24 tickLower = 1;
         int24 tickUpper = 1;
-        assertAlmostExactlyEqual(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), ud60x18(10001e14));
+        assertAlmostExactlyEqual(vammBase.averagePriceBetweenTicks(tickLower, tickUpper), ud60x18(10001e14));
     }
 
     function test_AveragePriceBetweenTicks_TwoTicks()
@@ -98,7 +141,7 @@ contract VammBaseTest is DatedIrsVammTestUtil {
         // a range of ~500 is sufficient to illustrate a diversion, but note that larger ranges have much larger diversions
         int24 tickLower = 0;
         int24 tickUpper = 1;
-        assertAlmostExactlyEqual(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), ud60x18(100005e13));
+        assertAlmostExactlyEqual(vammBase.averagePriceBetweenTicks(tickLower, tickUpper), ud60x18(100005e13));
     }
 
     function test_AveragePriceBetweenTicks()
@@ -108,7 +151,7 @@ contract VammBaseTest is DatedIrsVammTestUtil {
         int24 tickLower = 2;
         int24 tickUpper = 500;
         UD60x18 expected = averagePriceBetweenTicksUsingLoop(tickLower, tickUpper);
-        assertAlmostExactlyEqual(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), expected);
+        assertAlmostExactlyEqual(vammBase.averagePriceBetweenTicks(tickLower, tickUpper), expected);
     }
 
     function test_AveragePriceBetweenTicks2()
@@ -117,7 +160,7 @@ contract VammBaseTest is DatedIrsVammTestUtil {
         int24 tickLower = -10;
         int24 tickUpper = 10;
         UD60x18 expected = averagePriceBetweenTicksUsingLoop(tickLower, tickUpper);
-        assertAlmostExactlyEqual(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), expected);
+        assertAlmostExactlyEqual(vammBase.averagePriceBetweenTicks(tickLower, tickUpper), expected);
     }
 
     function testSlowFuzz_AveragePriceBetweenTicks(
@@ -126,7 +169,7 @@ contract VammBaseTest is DatedIrsVammTestUtil {
     public {
         (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
         UD60x18 expected = averagePriceBetweenTicksUsingLoop(tickLower, tickUpper);
-        assertAlmostEqual(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), expected);
+        assertAlmostEqual(vammBase.averagePriceBetweenTicks(tickLower, tickUpper), expected);
     }
 
     function test_FixedTokensInHomogeneousTickWindow() public {
@@ -137,11 +180,11 @@ contract VammBaseTest is DatedIrsVammTestUtil {
  
       UD60x18 currentLiquidityIndex = convert(mockLiquidityIndex);
 
-      (int256 trackedValue) = VAMMBase._fixedTokensInHomogeneousTickWindow(baseAmount, tickLower, tickUpper, convert(uint256(1)), currentLiquidityIndex);
+      (int256 trackedValue) = vammBase._fixedTokensInHomogeneousTickWindow(baseAmount, tickLower, tickUpper, convert(uint256(1)), currentLiquidityIndex);
 
       UD60x18 expectedAveragePrice = averagePriceBetweenTicksUsingLoop(tickLower, tickUpper);
-      assertAlmostEqual(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), ONE);
-      assertAlmostEqual(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), expectedAveragePrice);
+      assertAlmostEqual(vammBase.averagePriceBetweenTicks(tickLower, tickUpper), ONE);
+      assertAlmostEqual(vammBase.averagePriceBetweenTicks(tickLower, tickUpper), expectedAveragePrice);
 
       // We expect -baseTokens * liquidityIndex[current] * (1 + fixedRate[ofSpecifiedTicks] * timeInYearsTillMaturity)
       //         = -5e10       * mockLiquidityIndex      * (1 + expectedAveragePrice        * 1)         
@@ -157,9 +200,9 @@ contract VammBaseTest is DatedIrsVammTestUtil {
       uint256 mockLiquidityIndex = 1;
       UD60x18 currentLiquidityIndex = convert(mockLiquidityIndex);
 
-      (int256 trackedValue) = VAMMBase._fixedTokensInHomogeneousTickWindow(baseAmount, tickLower, tickUpper, convert(uint256(1)), currentLiquidityIndex);
+      (int256 trackedValue) = vammBase._fixedTokensInHomogeneousTickWindow(baseAmount, tickLower, tickUpper, convert(uint256(1)), currentLiquidityIndex);
 
-      UD60x18 averagePrice = VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper);
+      UD60x18 averagePrice = vammBase.averagePriceBetweenTicks(tickLower, tickUpper);
 
       // We expect -baseTokens * liquidityIndex[current] * (1 + fixedRate[ofSpecifiedTicks] * timeInYearsTillMaturity)
       //         = 9e30        * mockLiquidityIndex      * (1 + expectedAveragePrice        * 1)         
@@ -186,8 +229,8 @@ contract VammBaseTest is DatedIrsVammTestUtil {
  
       UD60x18 currentLiquidityIndex = convert(mockLiquidityIndex);
 
-      (int256 trackedValue) = VAMMBase._fixedTokensInHomogeneousTickWindow(baseAmount, tickLower, tickUpper, timeInYearsTillMaturity, currentLiquidityIndex);
-      assertAlmostExactlyEqual(VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper), ONE);
+      (int256 trackedValue) = vammBase._fixedTokensInHomogeneousTickWindow(baseAmount, tickLower, tickUpper, timeInYearsTillMaturity, currentLiquidityIndex);
+      assertAlmostExactlyEqual(vammBase.averagePriceBetweenTicks(tickLower, tickUpper), ONE);
 
       // We expect -baseTokens * liquidityIndex[current] * (1 + fixedRate[ofSpecifiedTicks] * timeInYearsTillMaturity)
       //         = 123e20        * mockLiquidityIndex      * (1 + ~1                          * timeInYearsTillMaturity)         

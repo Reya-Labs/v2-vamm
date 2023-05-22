@@ -171,9 +171,9 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
     //     assertEq(p.tickLower, tickLower);
     //     assertEq(p.tickUpper, tickUpper);
     //     assertEq(p.baseAmount, 0);
-    //     assertEq(p.trackerVariableTokenUpdatedGrowth, 0);
+    //     assertEq(p.trackerFixedTokenUpdatedGrowth, 0);
     //     assertEq(p.trackerBaseTokenUpdatedGrowth, 0);
-    //     assertEq(p.trackerVariableTokenAccumulated, 0);
+    //     assertEq(p.trackerFixedTokenAccumulated, 0);
     //     assertEq(p.trackerBaseTokenAccumulated, 0);
     //     //vamm.getRawPosition(positionId);
     // }
@@ -185,7 +185,6 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
     }
 
     function testFuzz_GetAccountUnfilledBasesUnusedAccount(uint128 accountId) public {
-        DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
         (uint256 unfilledBaseLong, uint256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
         assertEq(unfilledBaseLong, 0);
         assertEq(unfilledBaseShort, 0);

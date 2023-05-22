@@ -8,7 +8,7 @@ import "../src/storage/DatedIrsVAMM.sol";
 import "../utils/CustomErrors.sol";
 import "../src/storage/LPPosition.sol";
 import { mulUDxInt } from "@voltz-protocol/util-contracts/src/helpers/PrbMathHelper.sol";
-import { UD60x18, convert, ud60x18, uMAX_UD60x18, uUNIT } from "@prb/math/UD60x18.sol";
+import { UD60x18, convert, unwrap, ud60x18, uMAX_UD60x18, uUNIT } from "@prb/math/UD60x18.sol";
 import { SD59x18, sd59x18, convert } from "@prb/math/SD59x18.sol";
 import "@voltz-protocol/util-contracts/src/helpers/SafeCast.sol";
 
@@ -99,12 +99,10 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
     }
 
     function test_Swap_MovingRight() public {
-        int256 baseAmount =  500_000_000;
-
-        console2.log(TickMath.getTickAtSqrtRatio(ACCOUNT_2_UPPER_SQRTPRICEX96));
+        int256 amountSpecified =  500_000_000;
 
         VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
-            baseAmountSpecified: baseAmount,
+            amountSpecified: amountSpecified,
             sqrtPriceLimitX96: ACCOUNT_2_UPPER_SQRTPRICEX96
         });
 
@@ -112,15 +110,15 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
         (int256 trackerFixedTokenDelta, int256 trackerBaseTokenDelta) = vamm.vammSwap(params);
 
-        assertAlmostEqual(trackerBaseTokenDelta, -baseAmount);
+        assertAlmostEqual(trackerBaseTokenDelta, amountSpecified);
         // TODO: verify that VAMM state and trackerFixedTokenDelta is as expected
     }
 
     function test_Swap_MovingLeft() public {
-        int256 baseAmount =  -500_000_000;
+        int256 amountSpecified =  -500_000_000;
 
         VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
-            baseAmountSpecified: baseAmount,
+            amountSpecified: amountSpecified,
             sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(TickMath.MIN_TICK + 1)
         });
 
@@ -128,7 +126,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
         (int256 trackerFixedTokenDelta, int256 trackerBaseTokenDelta) = vamm.vammSwap(params);
 
-        assertAlmostEqual(trackerBaseTokenDelta, -baseAmount);
+        assertAlmostEqual(trackerBaseTokenDelta, amountSpecified);
         // TODO: verify that VAMM state and trackerFixedTokenDelta is as expected
     }
 
@@ -136,7 +134,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         int24 tickLimit = ACCOUNT_2_TICK_UPPER + 1;
 
         VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
-            baseAmountSpecified: 500_000_000_000_000_000_000_000_000_000_000, // There is not enough liquidity - swap should max out at baseTradeableToRight
+            amountSpecified: 500_000_000_000_000_000_000_000_000_000_000, // There is not enough liquidity - swap should max out at baseTradeableToRight
             sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(tickLimit)
         });
 
@@ -144,7 +142,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
         (int256 trackerFixedTokenDelta, int256 trackerBaseTokenDelta) = vamm.vammSwap(params);
 
-        assertAlmostEqual(trackerBaseTokenDelta, -baseTradeableToRight);
+        assertAlmostEqual(trackerBaseTokenDelta, baseTradeableToRight);
         assertEq(vamm.tick(), tickLimit);
         assertEq(vamm.sqrtPriceX96(), TickMath.getSqrtRatioAtTick(tickLimit));
         // TODO: verify that trackerFixedTokenDelta is as expected
@@ -154,7 +152,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         int24 tickLimit = TickMath.MIN_TICK + 1;
 
         VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
-            baseAmountSpecified: -500_000_000_000_000_000_000_000_000_000_000, // There is not enough liquidity - swap should max out at baseTradeableToLeft
+            amountSpecified: -500_000_000_000_000_000_000_000_000_000_000, // There is not enough liquidity - swap should max out at baseTradeableToLeft
             sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(tickLimit)
         });
 
@@ -163,9 +161,78 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
         (int256 trackerFixedTokenDelta, int256 trackerBaseTokenDelta) = vamm.vammSwap(params);
 
-        assertAlmostEqual(trackerBaseTokenDelta, baseTradeableToLeft);
+        assertAlmostEqual(trackerBaseTokenDelta, -baseTradeableToLeft);
         assertEq(vamm.tick(), tickLimit);
         assertEq(vamm.sqrtPriceX96(), TickMath.getSqrtRatioAtTick(tickLimit));
         // TODO: verify that trackerFixedTokenDelta is as expected
+    }
+
+    function test_FirstMint() public returns (int256, int24, int24, uint128) {
+        int256 baseAmount =  500_000_000;
+        int24 tickLower = -3300;
+        int24 tickUpper = -2940;
+        uint128 accountId = 738;
+
+        console2.log("TICK", vamm.ticks(tickLower).trackerBaseTokenGrowthOutsideX128);
+        console2.log("TICK", vamm.ticks(tickUpper).trackerBaseTokenGrowthOutsideX128);
+        console2.log(
+            vamm.trackerBaseTokenGrowthGlobalX128() 
+        );
+
+        int128 requestedLiquidityAmount = getLiquidityForBase(tickLower, tickUpper, baseAmount);
+        vamm.executeDatedMakerOrder(accountId, tickLower, tickUpper, requestedLiquidityAmount);
+
+        uint128 posId = LPPosition.getPositionId(accountId, tickLower, tickUpper);
+        LPPosition.Data memory position = vamm.position(posId);
+        assertEq(position.liquidity.toInt(), requestedLiquidityAmount);
+        assertEq(position.trackerFixedTokenAccumulated, 0);
+        assertEq(position.trackerBaseTokenAccumulated, 0);
+        assertEq(position.trackerBaseTokenUpdatedGrowth, 0);
+        assertEq(position.trackerFixedTokenUpdatedGrowth, 0);
+
+        // get global growth 
+        // given ticks, check g
+
+        return (baseAmount, tickLower, tickUpper, accountId);
+    }
+
+    function test_SecondMint_SameTicks() public {
+        (int256 baseAmount, int24 tickLower, int24 tickUpper, uint128 accountId) = test_FirstMint();
+
+        int128 requestedLiquidityAmount = getLiquidityForBase(tickLower, tickUpper, baseAmount);
+        vamm.executeDatedMakerOrder(accountId, tickLower, tickUpper, requestedLiquidityAmount);
+
+        uint128 posId = LPPosition.getPositionId(accountId, tickLower, tickUpper);
+        LPPosition.Data memory position = vamm.position(posId);
+        assertEq(position.liquidity.toInt(), requestedLiquidityAmount * 2);
+        assertEq(position.trackerFixedTokenAccumulated, 0);
+        assertEq(position.trackerBaseTokenAccumulated, 0);
+        assertEq(position.trackerBaseTokenUpdatedGrowth, 0);
+        assertEq(position.trackerFixedTokenUpdatedGrowth, 0);
+    }
+
+    function test_MintAndSwap_TrackerValue() public {
+        (int256 baseAmount, int24 tickLower, int24 tickUpper, uint128 accountId) = test_FirstMint();
+
+        int256 amountSwap =  -10;
+        console2.log("Liq", vamm.liquidity());
+
+        VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
+            amountSpecified: amountSwap,
+            sqrtPriceLimitX96: TickMath.MIN_SQRT_RATIO + 1
+        });
+
+        // Mock the liquidity index that is read during a swap
+        vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
+        (int256 trackerFixedTokenDelta, int256 trackerBaseTokenDelta) = vamm.vammSwap(params);
+
+        console2.log("FTs", trackerFixedTokenDelta);
+        console2.log("VTs", trackerBaseTokenDelta);
+
+        /*
+        ((1 + (1.0001 ^ 32095) * 1) * 2 * -base) * 2^128 / 916703985467
+         (1 + (1.0001 ^ midtick) * yearsToMaturity) * oracleINdex * -base * Q128 / liquidity = FT delta /liquidity
+            -------avg price----
+        */
     }
 }

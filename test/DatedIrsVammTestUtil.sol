@@ -114,7 +114,7 @@ contract DatedIrsVammTestUtil is VoltzTest {
         Tick.Info storage t = vamm.vars._ticks[_tick];
         console2.log("- liquidityGross", uint256(t.liquidityGross));
         console2.log("- liquidityNet", int256(t.liquidityNet));
-        console2.log("- trackerVariableTokenGrowthOutsideX128", t.trackerVariableTokenGrowthOutsideX128);
+        console2.log("- trackerFixedTokenGrowthOutsideX128", t.trackerFixedTokenGrowthOutsideX128);
         console2.log("- trackerBaseTokenGrowthOutsideX128", t.trackerBaseTokenGrowthOutsideX128);
         console2.log("- initialized", t.initialized);
     }
@@ -179,9 +179,9 @@ contract ExposedDatedIrsVamm {
         return vamm.observe(secondsAgo);
     }
 
-     function increaseObservationCardinalityNext( uint16 observationCardinalityNext) public{
+     function increaseObservationCardinalityNext( uint16 _observationCardinalityNext) public{
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
-        return vamm.increaseObservationCardinalityNext(observationCardinalityNext);
+        return vamm.increaseObservationCardinalityNext(_observationCardinalityNext);
     }
 
     function executeDatedMakerOrder(
@@ -267,6 +267,14 @@ contract ExposedDatedIrsVamm {
 
     function maxLiquidityPerTick() external view returns (uint128){
         return DatedIrsVamm.load(vammId).immutableConfig._maxLiquidityPerTick;
+    }
+
+    function trackerBaseTokenGrowthGlobalX128() external view returns (int256){
+        return DatedIrsVamm.load(vammId).vars.trackerBaseTokenGrowthGlobalX128;
+    }
+
+    function position(uint128 posId) external view returns (LPPosition.Data memory){
+        return LPPosition.load(posId);
     }
 
 }
