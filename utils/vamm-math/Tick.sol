@@ -4,7 +4,6 @@ pragma solidity >=0.8.13;
 
 import "./LiquidityMath.sol";
 import "./TickMath.sol";
-import "forge-std/console2.sol";
 
 import "@voltz-protocol/util-contracts/src/helpers/SafeCast.sol";
 
@@ -24,7 +23,7 @@ library Tick {
         int128 liquidityNet;
         /// @dev growth per unit of liquidity on the _other_ side of this tick (relative to the current tick)
         /// @dev only has relative meaning, not absolute — the value depends on when the tick is initialized
-        int256 trackerVariableTokenGrowthOutsideX128;
+        int256 trackerFixedTokenGrowthOutsideX128;
         int256 trackerBaseTokenGrowthOutsideX128;
         /// @dev true iff the tick is initialized, i.e. the value is exactly equivalent to the expression liquidityGross != 0
         /// @dev these 8 bits are set to prevent fresh sstores when crossing newly initialized ticks
@@ -50,7 +49,7 @@ library Tick {
     /// @dev Common checks for valid tick inputs.
     //function checkTicks(int24 tickLower, int24 tickUpper) internal pure { // TODO: restore pure
     function checkTicks(int24 tickLower, int24 tickUpper) internal view {
-        console2.log("checkTicks: ticks = (%s, %s)", uint256(int256(tickLower)), uint256(int256(tickUpper))); // TODO_delete_log
+        //console2.log("checkTicks: ticks = (%s, %s)", uint256(int256(tickLower)), uint256(int256(tickUpper))); // TODO_delete_log
         require(tickLower < tickUpper, "TLU");
         require(tickLower >= TickMath.MIN_TICK, "TLM");
         require(tickUpper <= TickMath.MAX_TICK, "TUM");
@@ -98,25 +97,25 @@ library Tick {
         return _growthInsideX128;
     }
 
-    struct VariableTokenGrowthInsideParams {
+    struct BaseTokenGrowthInsideParams {
         int24 tickLower;
         int24 tickUpper;
         int24 tickCurrent;
-        int256 variableTokenGrowthGlobalX128;
+        int256 baseTokenGrowthGlobalX128;
     }
 
-    function getVariableTokenGrowthInside(
+    function getBaseTokenGrowthInside(
         mapping(int24 => Tick.Info) storage self,
-        VariableTokenGrowthInsideParams memory params
-    ) internal view returns (int256 variableTokenGrowthInsideX128) {
+        BaseTokenGrowthInsideParams memory params
+    ) internal view returns (int256 baseTokenGrowthInsideX128) {
         Info storage lower = self[params.tickLower];
         Info storage upper = self[params.tickUpper];
 
-        variableTokenGrowthInsideX128 = _getGrowthInside(
+        baseTokenGrowthInsideX128 = _getGrowthInside(
             params.tickLower,
             params.tickUpper,
             params.tickCurrent,
-            params.variableTokenGrowthGlobalX128,
+            params.baseTokenGrowthGlobalX128,
             lower.trackerBaseTokenGrowthOutsideX128,
             upper.trackerBaseTokenGrowthOutsideX128
         );
@@ -142,8 +141,8 @@ library Tick {
             params.tickUpper,
             params.tickCurrent,
             params.fixedTokenGrowthGlobalX128,
-            lower.trackerVariableTokenGrowthOutsideX128,
-            upper.trackerVariableTokenGrowthOutsideX128
+            lower.trackerFixedTokenGrowthOutsideX128,
+            upper.trackerFixedTokenGrowthOutsideX128
         );
     }
 
@@ -153,7 +152,7 @@ library Tick {
     /// @param tickCurrent The current tick
     /// @param liquidityDelta A new amount of liquidity to be added (subtracted) when tick is crossed from left to right (right to left)
     /// @param fixedTokenGrowthGlobalX128 The fixed token growth accumulated per unit of liquidity for the entire life of the vamm
-    /// @param variableTokenGrowthGlobalX128 The variable token growth accumulated per unit of liquidity for the entire life of the vamm
+    /// @param baseTokenGrowthGlobalX128 The variable token growth accumulated per unit of liquidity for the entire life of the vamm
     /// @param upper true for updating a position's upper tick, or false for updating a position's lower tick
     /// @param maxLiquidity The maximum liquidity allocation for a single tick
     /// @return flipped Whether the tick was flipped from initialized to uninitialized, or vice versa
@@ -163,7 +162,7 @@ library Tick {
         int24 tickCurrent,
         int128 liquidityDelta,
         int256 fixedTokenGrowthGlobalX128,
-        int256 variableTokenGrowthGlobalX128,
+        int256 baseTokenGrowthGlobalX128,
         bool upper,
         uint128 maxLiquidity
     ) internal returns (bool flipped) {
@@ -188,10 +187,10 @@ library Tick {
             // by convention, we assume that all growth before a tick was initialized happened _below_ the tick
             if (tick <= tickCurrent) {
 
-                info.trackerVariableTokenGrowthOutsideX128 = fixedTokenGrowthGlobalX128;
+                info.trackerFixedTokenGrowthOutsideX128 = fixedTokenGrowthGlobalX128;
 
                 info
-                    .trackerBaseTokenGrowthOutsideX128 = variableTokenGrowthGlobalX128;
+                    .trackerBaseTokenGrowthOutsideX128 = baseTokenGrowthGlobalX128;
             }
 
             info.initialized = true;
@@ -221,22 +220,22 @@ library Tick {
     /// @param self The mapping containing all tick information for initialized ticks
     /// @param tick The destination tick of the transition
     /// @param fixedTokenGrowthGlobalX128 The fixed token growth accumulated per unit of liquidity for the entire life of the vamm
-    /// @param variableTokenGrowthGlobalX128 The variable token growth accumulated per unit of liquidity for the entire life of the vamm
+    /// @param baseTokenGrowthGlobalX128 The variable token growth accumulated per unit of liquidity for the entire life of the vamm
     /// @return liquidityNet The amount of liquidity added (subtracted) when tick is crossed from left to right (right to left)
     function cross(
         mapping(int24 => Tick.Info) storage self,
         int24 tick,
         int256 fixedTokenGrowthGlobalX128,
-        int256 variableTokenGrowthGlobalX128
+        int256 baseTokenGrowthGlobalX128
     ) internal returns (int128 liquidityNet) {
         Tick.Info storage info = self[tick];
 
-        info.trackerVariableTokenGrowthOutsideX128 =
+        info.trackerFixedTokenGrowthOutsideX128 =
             fixedTokenGrowthGlobalX128 -
-            info.trackerVariableTokenGrowthOutsideX128;
+            info.trackerFixedTokenGrowthOutsideX128;
 
         info.trackerBaseTokenGrowthOutsideX128 =
-            variableTokenGrowthGlobalX128 -
+            baseTokenGrowthGlobalX128 -
             info.trackerBaseTokenGrowthOutsideX128;
 
         liquidityNet = info.liquidityNet;

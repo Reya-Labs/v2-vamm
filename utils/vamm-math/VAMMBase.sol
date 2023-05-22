@@ -15,7 +15,9 @@ import "./FixedPoint128.sol";
 import "../CustomErrors.sol";
 import "../Time.sol";
 
-import { UD60x18, convert as convert_ud } from "@prb/math/UD60x18.sol";
+import "forge-std/console2.sol";
+
+import { UD60x18, unwrap, convert as convert_ud } from "@prb/math/UD60x18.sol";
 import { SD59x18, convert as convert_sd } from "@prb/math/SD59x18.sol";
 
 import { ud60x18, mulUDxInt } from "@voltz-protocol/util-contracts/src/helpers/PrbMathHelper.sol";
@@ -42,7 +44,7 @@ library VAMMBase {
 
     struct SwapParams {
         /// @dev The amount of the swap in base tokens, which implicitly configures the swap as exact input (positive), or exact output (negative)
-        int256 baseAmountSpecified;
+        int256 amountSpecified;
         /// @dev The Q64.96 sqrt price limit. If !isFT, the price cannot be less than this
         uint160 sqrtPriceLimitX96;
     }
@@ -122,6 +124,13 @@ library VAMMBase {
         int128 liquidityDelta;
     }
 
+    struct VammData {
+        int256 _trackerFixedTokenGrowthGlobalX128;
+        int256 _trackerBaseTokenGrowthGlobalX128;
+        uint128 _maxLiquidityPerTick;
+        int24 _tickSpacing;
+    }
+
     /// @dev Computes the agregate amount of base between two ticks, given a tick range and the amount of liquidity per tick.
     /// The answer must be a valid `int256`. Reverts on overflow.
     function baseBetweenTicks(
@@ -199,13 +208,20 @@ library VAMMBase {
       UD60x18 currentOracleValue
     )
         internal
-        pure
+        view
         returns (
             int256 trackedValue
         )
     {
+        console2.log("TL", tickLower);
+        console2.log("TU", tickUpper);
         UD60x18 averagePrice = VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper);
         UD60x18 timeComponent = ONE.add(averagePrice.mul(yearsUntilMaturity)); // (1 + fixedRate * timeInYearsTillMaturity)
+        console2.log("averagePrice", unwrap(averagePrice));
+        console2.log("yearsUntilMaturity", unwrap(yearsUntilMaturity));
+        //1 .040 379 851 960 473 926
+        console2.log("currentOracleValue", unwrap(currentOracleValue));
+        console2.log("baseAmount", baseAmount);
         trackedValue = mulUDxInt(
             currentOracleValue.mul(timeComponent),
             -baseAmount
@@ -232,7 +248,7 @@ library VAMMBase {
         // This calculation assumes that the trade is uniformly distributed within the given tick range, which is only
         // true because there are no changes in liquidity between `state.tick` and `step.tickNext`.
         fixedTokenDelta = VAMMBase._fixedTokensInHomogeneousTickWindow(
-            step.baseInStep,
+            step.trackerBaseTokenDelta,
             state.tick < step.tickNext ? state.tick : step.tickNext,
             state.tick > step.tickNext ? state.tick : step.tickNext,
             yearsUntilMaturity,
@@ -269,7 +285,13 @@ library VAMMBase {
         int24 _tickUpper
     ) internal pure returns(UD60x18) {
         // As both of the below results are 10k too large, the difference between them will be correct
-        return _sumOfAllPricesUpToPlus10k(_tickUpper).sub(_sumOfAllPricesUpToPlus10k(_tickLower - 1)).div(convert_ud(uint256(int256(1 + _tickUpper - _tickLower))));
+        // The division is inversed because price = 1.0001^-tick
+        return (convert_ud(uint256(
+                int256(1 + _tickUpper - _tickLower)
+            )))
+            .div(_sumOfAllPricesUpToPlus10k(_tickUpper)
+                .sub(_sumOfAllPricesUpToPlus10k(_tickLower - 1))
+            );
     }
 
     function flipTicks(
@@ -277,10 +299,7 @@ library VAMMBase {
         mapping(int24 => Tick.Info) storage _ticks,
         mapping(int16 => uint256) storage _tickBitmap,
         VammConfiguration.State storage _vammVars,
-        int256 _trackerVariableTokenGrowthGlobalX128,
-        int256 _trackerBaseTokenGrowthGlobalX128,
-        uint128 _maxLiquidityPerTick,
-        int24 _tickSpacing
+        VammData memory data
     )
         internal
         returns (
@@ -296,10 +315,10 @@ library VAMMBase {
             params.tickLower,
             _vammVars.tick,
             params.liquidityDelta,
-            _trackerVariableTokenGrowthGlobalX128,
-            _trackerBaseTokenGrowthGlobalX128,
+            data._trackerFixedTokenGrowthGlobalX128,
+            data._trackerBaseTokenGrowthGlobalX128,
             false,
-            _maxLiquidityPerTick
+            data._maxLiquidityPerTick
         );
 
         /// @dev isUpper = true
@@ -307,18 +326,18 @@ library VAMMBase {
             params.tickUpper,
             _vammVars.tick,
             params.liquidityDelta,
-            _trackerVariableTokenGrowthGlobalX128,
-            _trackerBaseTokenGrowthGlobalX128,
+            data._trackerFixedTokenGrowthGlobalX128,
+            data._trackerBaseTokenGrowthGlobalX128,
             true,
-            _maxLiquidityPerTick
+            data._maxLiquidityPerTick
         );
 
         if (flippedLower) {
-            _tickBitmap.flipTick(params.tickLower, _tickSpacing);
+            _tickBitmap.flipTick(params.tickLower, data._tickSpacing);
         }
 
         if (flippedUpper) {
-            _tickBitmap.flipTick(params.tickUpper, _tickSpacing);
+            _tickBitmap.flipTick(params.tickUpper, data._tickSpacing);
         }
     }
 
@@ -328,7 +347,7 @@ library VAMMBase {
         bool isFT
     ) internal view {
 
-        if (params.baseAmountSpecified == 0) {
+        if (params.amountSpecified == 0) {
             revert CustomErrors.IRSNotionalAmountSpecifiedMustBeNonZero();
         }
 
