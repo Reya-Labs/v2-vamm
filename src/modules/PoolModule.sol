@@ -117,7 +117,6 @@ contract PoolModule is IPoolModule {
 
         for (uint256 i = 0; i < positions.length; i++) {
             LPPosition.Data memory position = LPPosition.load(positions[i]);
-            // todo: double check if -position.liquidity.toInt() == unfilled
             vamm.executeDatedMakerOrder(
                 accountId, 
                 position.tickLower,

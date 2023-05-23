@@ -119,6 +119,9 @@ contract VoltzTest is Test {
     function assertAlmostEqual(int256 a, int256 b) internal {
         assertAlmostEqual(SD59x18.wrap(a), SD59x18.wrap(b));
     }
+    function assertAlmostEqual(int256 a, int256 b, uint256 deltaAsFractionOfA) internal {
+        assertAlmostEqual(SD59x18.wrap(a), SD59x18.wrap(b), SD59x18.wrap(deltaAsFractionOfA.toInt()));
+    }
     function assertOffByNoMoreThan2OrAlmostEqual(int256 a, int256 b) internal {
         if (abs(a-b) > 2) {
             assertAlmostEqual(SD59x18.wrap(a), SD59x18.wrap(b));

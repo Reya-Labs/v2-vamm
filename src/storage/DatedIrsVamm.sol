@@ -326,8 +326,10 @@ library DatedIrsVamm {
     )
     internal
     { 
-        LPPosition.Data storage position = LPPosition._ensurePositionOpened(accountId, tickLower, tickUpper);
-        self.vars.positionsInAccount[accountId].push(LPPosition.getPositionId(accountId, tickLower, tickUpper));
+        (LPPosition.Data storage position, bool newlyCreated) = LPPosition._ensurePositionOpened(accountId, tickLower, tickUpper);
+        if (newlyCreated) {
+            self.vars.positionsInAccount[accountId].push(LPPosition.getPositionId(accountId, tickLower, tickUpper));
+        }
 
         // this also checks if the position has enough liquidity to burn
         self.updatePositionTokenBalances( 
@@ -379,7 +381,6 @@ library DatedIrsVamm {
                     int256 _fixedTokenGrowthInsideX128,
                     int256 _baseTokenGrowthInsideX128
                 ) = self.computeGrowthInside(tickLower, tickUpper);
-                console2.log("Actual growth", _fixedTokenGrowthInsideX128);
                 position.updateTrackers(
                     _fixedTokenGrowthInsideX128,
                     _baseTokenGrowthInsideX128,
@@ -550,12 +551,8 @@ library DatedIrsVamm {
             // console2.log("Post-step with liquidity", state.liquidity);
             // console2.log(" - amount in ", step.amountIn);
             // console2.log(" - amount out", step.amountOut);
-            // console2.log(" - product   ", step.amountOut * step.amountIn);
 
             ///// UPDATE TRACKERS /////
-            console2.log("step.amountIn", step.amountIn);
-            console2.log("step.amountOut", step.amountOut);
-            console2.log("params.amountSpecified", params.amountSpecified);
             if(params.amountSpecified > 0) {
                 step.baseInStep -= step.amountIn.toInt();
                 // LP is a Variable Taker
@@ -581,11 +578,11 @@ library DatedIrsVamm {
 
                 state.trackerFixedTokenDeltaCumulative -= step.trackerFixedTokenDelta; // fixedTokens; opposite sign from that of the LP's
                 state.trackerBaseTokenDeltaCumulative -= step.trackerBaseTokenDelta; // opposite sign from that of the LP's
-                console2.log("At tick", state.tick);
-                console2.log("state.trackerFixedTokenDeltaCumulative", state.trackerFixedTokenDeltaCumulative);
-                console2.log("state.trackerBaseTokenDeltaCumulative", state.trackerBaseTokenDeltaCumulative);
-                console2.log("state.trackerFixedTokenGrowthGlobalX128", state.trackerFixedTokenGrowthGlobalX128);
-                console2.log("state.trackerBaseTokenGrowthGlobalX128", state.trackerBaseTokenGrowthGlobalX128);
+                // console2.log("At tick", state.tick);
+                // console2.log("state.trackerFixedTokenDeltaCumulative", state.trackerFixedTokenDeltaCumulative);
+                // console2.log("state.trackerBaseTokenDeltaCumulative", state.trackerBaseTokenDeltaCumulative);
+                // console2.log("state.trackerFixedTokenGrowthGlobalX128", state.trackerFixedTokenGrowthGlobalX128);
+                // console2.log("state.trackerBaseTokenGrowthGlobalX128", state.trackerBaseTokenGrowthGlobalX128);
             }
 
             ///// UPDATE TICK AFTER SWAP STEP /////
@@ -613,12 +610,35 @@ library DatedIrsVamm {
                 state.tick = TickMath.getTickAtSqrtRatio(state.sqrtPriceX96);
             }
         
-            // console2.log("while loop end");
+            {
+                // console2.log("while loop end");
+                // console2.log(" - state.tick", state.tick);
+                // if (self.vars._ticks[state.tick].initialized) {
+                //     console2.log(" - liquidityGross at tick", self.vars._ticks[state.tick].liquidityGross);
+                //     console2.log(" - liquidityNet at tick", self.vars._ticks[state.tick].liquidityNet);
+
+                // }
+                // console2.log(" - liquidity at current tick", state.liquidity);
+                // console2.log(" - liquidity at committed  tick", self.vars.liquidity);
+                // console2.log(" - state.sqrtPriceX96", state.sqrtPriceX96);
+                // console2.log("         limit: ", params.sqrtPriceLimitX96);
+                // console2.log(" - state.amountSpecifiedRemaining", state.amountSpecifiedRemaining);
+                // console2.log(" - state.trackerBaseTokenDeltaCumulative ", state.trackerBaseTokenDeltaCumulative);
+                // if(advanceRight) {
+                //     console2.log(" - sum ", state.amountSpecifiedRemaining + state.trackerBaseTokenDeltaCumulative);
+                // } else {
+                //     console2.log(" - sum ", state.amountSpecifiedRemaining - state.trackerBaseTokenDeltaCumulative);
+                // }
+            }
+            
+        }
+
+        {
+            // console2.log("while loop ended");
             // console2.log(" - state.tick", state.tick);
             // if (self.vars._ticks[state.tick].initialized) {
             //     console2.log(" - liquidityGross at tick", self.vars._ticks[state.tick].liquidityGross);
             //     console2.log(" - liquidityNet at tick", self.vars._ticks[state.tick].liquidityNet);
-
             // }
             // console2.log(" - liquidity at current tick", state.liquidity);
             // console2.log(" - liquidity at committed  tick", self.vars.liquidity);
@@ -632,24 +652,6 @@ library DatedIrsVamm {
             //     console2.log(" - sum ", state.amountSpecifiedRemaining - state.trackerBaseTokenDeltaCumulative);
             // }
         }
-
-        // console2.log("while loop ended");
-        // console2.log(" - state.tick", state.tick);
-        // if (self.vars._ticks[state.tick].initialized) {
-        //     console2.log(" - liquidityGross at tick", self.vars._ticks[state.tick].liquidityGross);
-        //     console2.log(" - liquidityNet at tick", self.vars._ticks[state.tick].liquidityNet);
-        // }
-        // console2.log(" - liquidity at current tick", state.liquidity);
-        // console2.log(" - liquidity at committed  tick", self.vars.liquidity);
-        // console2.log(" - state.sqrtPriceX96", state.sqrtPriceX96);
-        // console2.log("         limit: ", params.sqrtPriceLimitX96);
-        // console2.log(" - state.amountSpecifiedRemaining", state.amountSpecifiedRemaining);
-        // console2.log(" - state.trackerBaseTokenDeltaCumulative ", state.trackerBaseTokenDeltaCumulative);
-        // if(advanceRight) {
-        //     console2.log(" - sum ", state.amountSpecifiedRemaining + state.trackerBaseTokenDeltaCumulative);
-        // } else {
-        //     console2.log(" - sum ", state.amountSpecifiedRemaining - state.trackerBaseTokenDeltaCumulative);
-        // }
 
         ///// UPDATE VAMM VARS AFTER SWAP /////
         if (state.tick != self.vars.tick) {
@@ -738,8 +740,8 @@ library DatedIrsVamm {
                 growthBetweenTicks(self, position.tickLower, position.tickUpper);
             (int256 trackerFixedTokenAccumulated, int256 trackerBaseTokenAccumulated) = position.getUpdatedPositionBalances(trackerFixedTokenGlobalGrowth, trackerBaseTokenGlobalGrowth); 
 
-            baseBalancePool += trackerFixedTokenAccumulated;
-            quoteBalancePool += trackerBaseTokenAccumulated;
+            baseBalancePool += trackerBaseTokenAccumulated;
+            quoteBalancePool += trackerFixedTokenAccumulated;
         }
 
     }

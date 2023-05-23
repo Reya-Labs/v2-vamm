@@ -117,44 +117,39 @@ library LPPosition {
         int24 tickUpper
     ) 
         internal
-        returns (Data storage position){
+        returns (Data storage position, bool newlyCreated){
 
         uint128 positionId = getPositionId(accountId, tickLower, tickUpper);
 
         position = load(positionId);
 
         if(position.accountId != 0) {
-            return position;
+            return (position, false);
         }
 
-        return create(accountId, tickLower, tickUpper);
+        return (create(accountId, tickLower, tickUpper), true);
     }
 
     function getUpdatedPositionBalances(
         Data memory self,
-        int256 trackerFixedTokenGlobalGrowth,
-        int256 trackerBaseTokenGlobalGrowth
+        int256 fixedTokenGrowthInsideX128,
+        int256 baseTokenGrowthInsideX128
     )
-        internal pure returns (int256, int256) {
+        internal view returns (int256, int256) {
 
         if (self.accountId == 0) {
             revert PositionNotFound();
         }
 
-        int256 trackerFixedTokenDeltaGrowth =
-                trackerFixedTokenGlobalGrowth - self.trackerFixedTokenUpdatedGrowth;
-        int256 trackerBaseTokenDeltaGrowth =
-                trackerBaseTokenGlobalGrowth - self.trackerBaseTokenUpdatedGrowth;
-
-        // int256 averageBase = VAMMBase.liquidityPerTick(
-        //     self.tickLower,
-        //     self.tickUpper,
-        //     self.baseAmount
-        // );
+        (int256 fixedTokenDelta, int256 baseTokenDelta) = calculateFixedAndVariableDelta(
+            self,
+            fixedTokenGrowthInsideX128,
+            baseTokenGrowthInsideX128
+        );
 
         return (
-            self.trackerFixedTokenAccumulated + trackerFixedTokenDeltaGrowth * self.liquidity.toInt(),
-            self.trackerBaseTokenAccumulated + trackerBaseTokenDeltaGrowth * self.liquidity.toInt()
+            self.trackerFixedTokenAccumulated + fixedTokenDelta,
+            self.trackerBaseTokenAccumulated + baseTokenDelta
         );
     }
 
@@ -180,7 +175,7 @@ library LPPosition {
     /// @return _fixedTokenDelta = (fixedTokenGrowthInside-fixedTokenGrowthInsideLast) * liquidity of a position
     /// @return _baseTokenDelta = (baseTokenGrowthInside-baseTokenGrowthInsideLast) * liquidity of a position
     function calculateFixedAndVariableDelta(
-        Data storage self,
+        Data memory self,
         int256 fixedTokenGrowthInsideX128,
         int256 baseTokenGrowthInsideX128
     )
@@ -188,23 +183,22 @@ library LPPosition {
         view
         returns (int256 _fixedTokenDelta, int256 _baseTokenDelta)
     {
-        Data memory _self = self;
 
         int256 fixedTokenGrowthInsideDeltaX128 = fixedTokenGrowthInsideX128 -
-            _self.trackerBaseTokenUpdatedGrowth;
+            self.trackerFixedTokenUpdatedGrowth;
 
         _fixedTokenDelta = FullMath.mulDivSigned(
             fixedTokenGrowthInsideDeltaX128,
-            _self.liquidity,
+            self.liquidity,
             FixedPoint128.Q128
         );
 
         int256 baseTokenGrowthInsideDeltaX128 = baseTokenGrowthInsideX128 -
-                _self.trackerBaseTokenUpdatedGrowth;
+                self.trackerBaseTokenUpdatedGrowth;
 
         _baseTokenDelta = FullMath.mulDivSigned(
             baseTokenGrowthInsideDeltaX128,
-            _self.liquidity,
+            self.liquidity,
             FixedPoint128.Q128
         );
     }

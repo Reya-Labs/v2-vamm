@@ -213,15 +213,8 @@ library VAMMBase {
             int256 trackedValue
         )
     {
-        console2.log("TL", tickLower);
-        console2.log("TU", tickUpper);
         UD60x18 averagePrice = VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper);
         UD60x18 timeComponent = ONE.add(averagePrice.mul(yearsUntilMaturity)); // (1 + fixedRate * timeInYearsTillMaturity)
-        console2.log("averagePrice", unwrap(averagePrice));
-        console2.log("yearsUntilMaturity", unwrap(yearsUntilMaturity));
-        //1 .040 379 851 960 473 926
-        console2.log("currentOracleValue", unwrap(currentOracleValue));
-        console2.log("baseAmount", baseAmount);
         trackedValue = mulUDxInt(
             currentOracleValue.mul(timeComponent),
             -baseAmount
@@ -238,8 +231,8 @@ library VAMMBase {
         internal
         view
         returns (
-            int256 stateBaseTokenGrowthGlobalX128,
             int256 stateFixedTokenGrowthGlobalX128,
+            int256 stateBaseTokenGrowthGlobalX128,
             int256 fixedTokenDelta
         )
     {
@@ -256,9 +249,12 @@ library VAMMBase {
         );
 
         // update global trackers
+        // note this calculation is not precise with very small trackerBaseTokenDelta values 
         stateBaseTokenGrowthGlobalX128 = state.trackerBaseTokenGrowthGlobalX128 + FullMath.mulDivSigned(step.trackerBaseTokenDelta, FixedPoint128.Q128, state.liquidity);
         stateFixedTokenGrowthGlobalX128 = state.trackerFixedTokenGrowthGlobalX128 + FullMath.mulDivSigned(fixedTokenDelta, FixedPoint128.Q128, state.liquidity);
-        // console2.log("returning", stateBaseTokenGrowthGlobalX128);
+        // console2.log("COMP state.liquidity", state.liquidity);
+        // console2.log("COMP state.fixedTokenGrowthGlobalX128", state.trackerFixedTokenGrowthGlobalX128);
+        // console2.log("COMP stateFixedTokenGrowthGlobalX128", stateFixedTokenGrowthGlobalX128);
     }
 
     /// @dev Private but labelled internal for testability.
