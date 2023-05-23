@@ -103,7 +103,7 @@ contract VammBaseTest is DatedIrsVammTestUtil {
         for (int24 i = tickLower + 1; i <= tickUpper; i++) {
             sumOfPrices = sumOfPrices.add(vammBase.getPriceFromTick(i));
         }
-        return sumOfPrices.div(convert(uint256(int256(1 + tickUpper - tickLower))));
+        return convert(uint256(int256(1 + tickUpper - tickLower))).div(sumOfPrices);
     }
 
     // TODO: move to separate VAMMBase test file (with others)
@@ -132,7 +132,7 @@ contract VammBaseTest is DatedIrsVammTestUtil {
         // a range of ~500 is sufficient to illustrate a diversion, but note that larger ranges have much larger diversions
         int24 tickLower = 1;
         int24 tickUpper = 1;
-        assertAlmostExactlyEqual(vammBase.averagePriceBetweenTicks(tickLower, tickUpper), ud60x18(10001e14));
+        assertAlmostExactlyEqual(vammBase.averagePriceBetweenTicks(tickLower, tickUpper), ud60x18(9999e14));
     }
 
     function test_AveragePriceBetweenTicks_TwoTicks()
@@ -141,7 +141,7 @@ contract VammBaseTest is DatedIrsVammTestUtil {
         // a range of ~500 is sufficient to illustrate a diversion, but note that larger ranges have much larger diversions
         int24 tickLower = 0;
         int24 tickUpper = 1;
-        assertAlmostExactlyEqual(vammBase.averagePriceBetweenTicks(tickLower, tickUpper), ud60x18(100005e13));
+        assertAlmostExactlyEqual(vammBase.averagePriceBetweenTicks(tickLower, tickUpper), ud60x18(99995e13));
     }
 
     function test_AveragePriceBetweenTicks()

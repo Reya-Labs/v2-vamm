@@ -215,6 +215,27 @@ contract ExposedDatedIrsVamm {
         return vamm.vammSwap(params);
     }
 
+    function computeGrowthInside(int24 tickLower, int24 tickUpper) public view returns (int256, int256) {
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
+        return vamm.computeGrowthInside(tickLower, tickUpper);
+    }
+
+    function updatePositionTokenBalances(
+        uint128 accountId,
+        int24 tickLower,
+        int24 tickUpper,
+        bool isMintBurn
+    ) public returns (LPPosition.Data memory position) {
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
+        LPPosition.Data storage position = LPPosition.load(LPPosition.getPositionId(accountId, tickLower, tickUpper));
+        if (position.accountId == 0) {
+            position = LPPosition.create(accountId, tickLower, tickUpper);
+        }
+        vamm.updatePositionTokenBalances(position, tickLower, tickUpper, isMintBurn);
+
+        return position;
+    }
+
     ///// GETTERS
 
     function tick() external view returns (int24){
@@ -271,6 +292,10 @@ contract ExposedDatedIrsVamm {
 
     function trackerBaseTokenGrowthGlobalX128() external view returns (int256){
         return DatedIrsVamm.load(vammId).vars.trackerBaseTokenGrowthGlobalX128;
+    }
+
+    function trackerFixedTokenGrowthGlobalX128() external view returns (int256){
+        return DatedIrsVamm.load(vammId).vars.trackerFixedTokenGrowthGlobalX128;
     }
 
     function position(uint128 posId) external view returns (LPPosition.Data memory){
