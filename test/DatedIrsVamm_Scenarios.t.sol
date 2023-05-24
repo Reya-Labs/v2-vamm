@@ -112,11 +112,10 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         // Mock the liquidity index that is read during a swap
         vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
         (int256 trackerFixedTokenDelta, int256 trackerBaseTokenDelta) = vamm.vammSwap(params);
-        console2.log("SWAP 1 FT D", trackerFixedTokenDelta);
-        console2.log("SWAP 1 BT D", trackerBaseTokenDelta);
+        // console2.log("SWAP 1 FT D", trackerFixedTokenDelta);
+        // console2.log("SWAP 1 BT D", trackerBaseTokenDelta);
 
         assertAlmostEqual(trackerBaseTokenDelta, -amountSpecified);
-        // TODO: verify that VAMM state and trackerFixedTokenDelta is as expected
     }
 
     function test_Swap_MovingLeft() public {
@@ -132,7 +131,6 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         (int256 trackerFixedTokenDelta, int256 trackerBaseTokenDelta) = vamm.vammSwap(params);
 
         assertAlmostEqual(trackerBaseTokenDelta, -amountSpecified);
-        // TODO: verify that VAMM state and trackerFixedTokenDelta is as expected
     }
 
     function test_Swap_MovingMaxRight() public {
@@ -150,8 +148,6 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         assertAlmostEqual(trackerBaseTokenDelta, -baseTradeableToRight);
         assertEq(vamm.tick(), tickLimit);
         assertEq(vamm.sqrtPriceX96(), TickMath.getSqrtRatioAtTick(tickLimit));
-        // TODO: verify that trackerFixedTokenDelta is as expected
-        // TODO: verify tick liquidity
     }
 
     function test_Swap_MovingMaxLeft() public {
@@ -170,7 +166,6 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         assertAlmostEqual(trackerBaseTokenDelta, baseTradeableToLeft);
         assertEq(vamm.tick(), tickLimit);
         assertEq(vamm.sqrtPriceX96(), TickMath.getSqrtRatioAtTick(tickLimit));
-        // TODO: verify that trackerFixedTokenDelta is as expected
     }
 
     function test_FirstMint() public returns (int256, int24, int24, uint128) {
@@ -180,7 +175,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         uint128 accountId = 738;
 
         int128 requestedLiquidityAmount = getLiquidityForBase(tickLower, tickUpper, baseAmount);
-        console2.log("REQUESSTED LIQ", requestedLiquidityAmount);
+        // console2.log("REQUESSTED LIQ", requestedLiquidityAmount);
         vamm.executeDatedMakerOrder(accountId, tickLower, tickUpper, requestedLiquidityAmount);
 
         uint128 posId = LPPosition.getPositionId(accountId, tickLower, tickUpper);
@@ -299,9 +294,9 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
         LPPosition.Data memory position = vamm.updatePositionTokenBalances(accountId, tickLower, tickUpper, true);
 
-        console2.log("TICK L G O", vamm.ticks(tickLower).trackerFixedTokenGrowthOutsideX128);
-        console2.log("TICK U G O", vamm.ticks(tickUpper).trackerFixedTokenGrowthOutsideX128);
-        console2.log(currentTick);
+        // console2.log("TICK L G O", vamm.ticks(tickLower).trackerFixedTokenGrowthOutsideX128);
+        // console2.log("TICK U G O", vamm.ticks(tickUpper).trackerFixedTokenGrowthOutsideX128);
+        // console2.log(currentTick);
 
         assertEq(position.trackerFixedTokenUpdatedGrowth, vamm.trackerFixedTokenGrowthGlobalX128());
         assertEq(position.trackerBaseTokenUpdatedGrowth, vamm.trackerBaseTokenGrowthGlobalX128());
@@ -320,9 +315,9 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
         LPPosition.Data memory position = vamm.updatePositionTokenBalances(accountId, tickLower, tickUpper, true);
 
-        console2.log("TICK L G O", vamm.ticks(tickLower).trackerFixedTokenGrowthOutsideX128);
-        console2.log("TICK U G O", vamm.ticks(tickUpper).trackerFixedTokenGrowthOutsideX128);
-        console2.log(currentTick);
+        // console2.log("TICK L G O", vamm.ticks(tickLower).trackerFixedTokenGrowthOutsideX128);
+        // console2.log("TICK U G O", vamm.ticks(tickUpper).trackerFixedTokenGrowthOutsideX128);
+        // console2.log(currentTick);
 
         assertEq(position.trackerFixedTokenUpdatedGrowth, 0);
         assertEq(position.trackerBaseTokenUpdatedGrowth, 0);
@@ -350,11 +345,11 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         // pos liq 500019035536
 
         // = growth inside = global - (below + above)
-        assertEq(position.trackerFixedTokenUpdatedGrowth, -9563955266460236972249037344102921491);
+        assertEq(position.trackerFixedTokenUpdatedGrowth, -9564234701398189942557392418894572033);
         assertEq(position.trackerBaseTokenUpdatedGrowth, 185601007694750624584923956706400286);
 
         // = (growth inside - position.growth) * liquidity / 2^128
-        assertEq(position.trackerFixedTokenAccumulated, -14053504245);
+        assertEq(position.trackerFixedTokenAccumulated, -14053914854);
         assertEq(position.trackerBaseTokenAccumulated, 272726552);
     }
 
@@ -390,11 +385,11 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
         // = growth inside = global - (below + above)
         LPPosition.Data memory position = vamm.position(LPPosition.getPositionId(ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER));
-        assertEq(position.trackerFixedTokenUpdatedGrowth, -9563955266460236972249037344102921491);
+        assertEq(position.trackerFixedTokenUpdatedGrowth, -9564234701398189942557392418894572033);
         assertEq(position.trackerBaseTokenUpdatedGrowth, 185601007694750624584923956706400286);
 
         // = (growth inside - position.growth) * liquidity / 2^128
-        assertEq(position.trackerFixedTokenAccumulated, -14053504245);
+        assertEq(position.trackerFixedTokenAccumulated, -14053914854);
         assertEq(position.trackerBaseTokenAccumulated, 272726552);
 
         assertEq(position.liquidity.toInt(), 500019035536 + requestedLiquidityAmount);
@@ -419,8 +414,8 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
         int24 currentTick = vamm.tick(); // -27727
         uint128 vammLiquidityBefore = vamm.liquidity(); // -> 0 all consumed
-        console2.log("CURRENT TICK", currentTick);
-        console2.log("VAMM LIQ BEFORE", vammLiquidityBefore);
+        // console2.log("CURRENT TICK", currentTick);
+        // console2.log("VAMM LIQ BEFORE", vammLiquidityBefore);
         uint128 newAccount = 653;
 
         int128 requestedLiquidityAmount = getLiquidityForBase(ACCOUNT_1_TICK_LOWER, ACCOUNT_1_TICK_UPPER, 1000000);
@@ -429,20 +424,20 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         emit VAMMBase.LiquidityChange(address(this), newAccount, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount);
         vamm.executeDatedMakerOrder(newAccount, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount);
         
-        console2.log("TICK L G O", vamm.ticks(ACCOUNT_2_TICK_LOWER).trackerFixedTokenGrowthOutsideX128); // 0 -> not crossed
-        console2.log("TICK U G O", vamm.ticks(ACCOUNT_2_TICK_UPPER).trackerFixedTokenGrowthOutsideX128); // 0 -> -714582490963231596174269836035950460541
+        // console2.log("TICK L G O", vamm.ticks(ACCOUNT_2_TICK_LOWER).trackerFixedTokenGrowthOutsideX128); // 0 -> not crossed
+        // console2.log("TICK U G O", vamm.ticks(ACCOUNT_2_TICK_UPPER).trackerFixedTokenGrowthOutsideX128); // 0 -> -714582490963231596174269836035950460541
 
-        console2.log("TICK L BASE G O", vamm.ticks(ACCOUNT_2_TICK_LOWER).trackerBaseTokenGrowthOutsideX128); // 0 -> not crossed
-        console2.log("TICK U BASE G O", vamm.ticks(ACCOUNT_2_TICK_UPPER).trackerBaseTokenGrowthOutsideX128); // 0 -> 17013179946607015586200609783278514987
+        // console2.log("TICK L BASE G O", vamm.ticks(ACCOUNT_2_TICK_LOWER).trackerBaseTokenGrowthOutsideX128); // 0 -> not crossed
+        // console2.log("TICK U BASE G O", vamm.ticks(ACCOUNT_2_TICK_UPPER).trackerBaseTokenGrowthOutsideX128); // 0 -> 17013179946607015586200609783278514987
 
-        console2.log("BASE G GLobal", vamm.trackerBaseTokenGrowthGlobalX128()); // 17013179946607015586200609783278514987
-        console2.log("FIXED G GLobal", vamm.trackerFixedTokenGrowthGlobalX128()); // -714582490963231596174269836035950460541
+        // console2.log("BASE G GLobal", vamm.trackerBaseTokenGrowthGlobalX128()); // 17013179946607015586200609783278514987
+        // console2.log("FIXED G GLobal", vamm.trackerFixedTokenGrowthGlobalX128()); // -714582490963231596174269836035950460541
         
         // pos liq 500019035536
 
         // = growth inside = global - (L G O + GLOBAL - U G O)
         LPPosition.Data memory position = vamm.position(LPPosition.getPositionId(newAccount, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER));
-        assertEq(position.trackerFixedTokenUpdatedGrowth, -714582490963231596174269836035950460541);
+        assertEq(position.trackerFixedTokenUpdatedGrowth, -714617096729198643702920601548795967095);
         assertEq(position.trackerBaseTokenUpdatedGrowth, 17013179946607015586200609783278514987);
 
         // // = (growth inside - position.growth) * liquidity / 2^128
@@ -473,7 +468,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         uint128 vammLiquidityBefore = vamm.liquidity();
 
         int128 requestedLiquidityAmount = getLiquidityForBase(ACCOUNT_1_TICK_LOWER, ACCOUNT_1_TICK_UPPER, -1000000);
-        console2.log("REQUESTED", requestedLiquidityAmount);
+        // console2.log("REQUESTED", requestedLiquidityAmount);
         // expect event 
         vm.expectEmit(true, true, false, true);
         emit VAMMBase.LiquidityChange(address(this), ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount);
@@ -493,11 +488,11 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
         // = growth inside = global - (below + above)
         LPPosition.Data memory position = vamm.position(LPPosition.getPositionId(ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER));
-        assertEq(position.trackerFixedTokenUpdatedGrowth, -9563955266460236972249037344102921491);
+        assertEq(position.trackerFixedTokenUpdatedGrowth, -9564234701398189942557392418894572033);
         assertEq(position.trackerBaseTokenUpdatedGrowth, 185601007694750624584923956706400286);
 
         // = (growth inside - position.growth) * liquidity / 2^128
-        assertEq(position.trackerFixedTokenAccumulated, -14053504245);
+        assertEq(position.trackerFixedTokenAccumulated, -14053914854);
         assertEq(position.trackerBaseTokenAccumulated, 272726552);
 
         assertEq(position.liquidity.toInt(), 500019035536 + requestedLiquidityAmount);
@@ -543,11 +538,11 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
         // = growth inside = global - (below + above)
         LPPosition.Data memory position = vamm.position(LPPosition.getPositionId(ACCOUNT_1, ACCOUNT_1_TICK_LOWER, ACCOUNT_1_TICK_UPPER));
-        assertEq(position.trackerFixedTokenUpdatedGrowth, -9563955266460236972249037344102921491);
+        assertEq(position.trackerFixedTokenUpdatedGrowth, -9564234701398189942557392418894572033);
         assertEq(position.trackerBaseTokenUpdatedGrowth, 185601007694750624584923956706400286);
 
         // = (growth inside - position.growth) * pos.liquidity / 2^128
-        assertEq(position.trackerFixedTokenAccumulated, -11711321563);
+        assertEq(position.trackerFixedTokenAccumulated, -11711663738);
         assertEq(position.trackerBaseTokenAccumulated, 227273447);
 
         assertEq(position.liquidity.toInt(), 416684949931 + requestedLiquidityAmount);
@@ -631,11 +626,11 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         uint128 vammLiquidityBefore = vamm.liquidity();
 
         (int256 baseBalancePool0, int256 quoteBalancePool0) = vamm.getAccountFilledBalances(ACCOUNT_2);
-        console2.log("baseBalancePool0000", baseBalancePool0);
-        console2.log("quoteBalancePool0000", quoteBalancePool0);
+        // console2.log("baseBalancePool", baseBalancePool0);
+        // console2.log("quoteBalancePool", quoteBalancePool0);
 
         int128 requestedLiquidityAmount = -getLiquidityForBase(ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, BASE_AMOUNT_PER_LP);
-        console2.log("REQUESTED", requestedLiquidityAmount);
+        // console2.log("REQUESTED", requestedLiquidityAmount);
         // expect event 
         vm.expectEmit(true, true, false, true);
         emit VAMMBase.LiquidityChange(address(this), ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount);
@@ -643,8 +638,8 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
         // CLOSE FILLED BALANCES
         (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(ACCOUNT_2);
-        console2.log("baseBalancePool", baseBalancePool);
-        console2.log("quoteBalancePool", quoteBalancePool);
+        // console2.log("baseBalancePool", baseBalancePool);
+        // console2.log("quoteBalancePool", quoteBalancePool);
 
         VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
             amountSpecified: baseBalancePool, 
@@ -652,8 +647,8 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         });
         vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
         (int256 trackerFixedTokenDelta, int256 trackerBaseTokenDelta) = vamm.vammSwap(params);
-        console2.log("trackerFixedTokenDelta", trackerFixedTokenDelta);
-        console2.log("trackerBaseTokenDelta", trackerBaseTokenDelta);
+        // console2.log("trackerFixedTokenDelta", trackerFixedTokenDelta);
+        // console2.log("trackerBaseTokenDelta", trackerBaseTokenDelta);
         assertEq(trackerBaseTokenDelta, -baseBalancePool);
 
         // CHECK UNFILLED BALANCES = 0
