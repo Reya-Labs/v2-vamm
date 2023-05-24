@@ -6,7 +6,6 @@ import "./VoltzTest.sol";
 import "../src/storage/LPPosition.sol";
 import "../src/storage/DatedIrsVAMM.sol";
 import "../utils/CustomErrors.sol";
-import "../src/storage/LPPosition.sol";
 import "../utils/vamm-math/Tick.sol";
 
 import "@voltz-protocol/util-contracts/src/helpers/SafeCast.sol";

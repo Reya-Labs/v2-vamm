@@ -17,8 +17,8 @@ contract PoolConfigurationModule is IPoolConfigurationModule {
     PoolConfiguration.load().setPauseState(paused);
   }
 
-  function setProductAddress(address poolAddress) external override {
+  function setProductAddress(address productAddress) external override {
     OwnableStorage.onlyOwner();
-    PoolConfiguration.load().setProductAddress(poolAddress);
+    PoolConfiguration.load().setProductAddress(productAddress);
   }
 }
