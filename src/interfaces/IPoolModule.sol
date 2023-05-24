@@ -13,7 +13,7 @@ interface IPoolModule is IERC165 {
     error NotAuthorized(address caller, bytes32 functionName);
 
     /// @notice returns a human-readable name for a given pool
-    function name(uint128 poolId) external view returns (string memory);
+    function name() external view returns (string memory);
 
     /**
      * @notice Initiates a taker order for a given account by consuming liquidity provided by the pool

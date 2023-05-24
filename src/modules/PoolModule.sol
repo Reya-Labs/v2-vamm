@@ -18,7 +18,7 @@ contract PoolModule is IPoolModule {
     using SafeCastU128 for uint128;
 
     /// @notice returns a human-readable name for a given pool
-    function name(uint128 poolId) external view override returns (string memory) {
+    function name() external view override returns (string memory) {
         return "Dated Irs Pool";
     }
 
@@ -51,7 +51,7 @@ contract PoolModule is IPoolModule {
                 )
                 : sqrtPriceLimitX96;
 
-        (executedBaseAmount, executedQuoteAmount) = vamm.vammSwap(swapParams);
+        (executedQuoteAmount, executedBaseAmount) = vamm.vammSwap(swapParams);
     }
 
     /**
@@ -77,20 +77,20 @@ contract PoolModule is IPoolModule {
 
         PoolConfiguration.whenNotPaused();
         
-       DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
 
-       vamm.executeDatedMakerOrder(accountId, tickLower, tickUpper, liquidityDelta);
+        vamm.executeDatedMakerOrder(accountId, tickLower, tickUpper, liquidityDelta);
 
-       if ( liquidityDelta > 0) {
-        irsProduct.propagateMakerOrder(
-            accountId,
-            marketId,
-            VAMMBase.baseAmountFromLiquidity(
-                liquidityDelta,
-                TickMath.getSqrtRatioAtTick(tickLower),
-                TickMath.getSqrtRatioAtTick(tickUpper)
-            )
-        );
+        if ( liquidityDelta > 0) {
+            irsProduct.propagateMakerOrder(
+                accountId,
+                marketId,
+                VAMMBase.baseAmountFromLiquidity(
+                    liquidityDelta,
+                    TickMath.getSqrtRatioAtTick(tickLower),
+                    TickMath.getSqrtRatioAtTick(tickUpper)
+                )
+            );
        }
        
     }
