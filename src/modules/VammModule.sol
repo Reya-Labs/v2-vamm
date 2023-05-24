@@ -53,7 +53,7 @@ contract VammModule is IVammModule {
     /**
      * @inheritdoc IVammModule
      */
-    function getDatedIRSTwap(uint128 marketId, uint32 maturityTimestamp, uint32 lookbackWindow, int256 orderSize, bool adjustForPriceImpact,  bool adjustForSpread) 
+    function getDatedIRSTwap(uint128 marketId, uint32 maturityTimestamp, int256 orderSize, uint32 lookbackWindow, bool adjustForPriceImpact,  bool adjustForSpread) 
         external view override returns (UD60x18 datedIRSTwap) 
     {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);

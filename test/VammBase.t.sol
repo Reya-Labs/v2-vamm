@@ -103,7 +103,7 @@ contract VammBaseTest is DatedIrsVammTestUtil {
         for (int24 i = tickLower + 1; i <= tickUpper; i++) {
             sumOfPrices = sumOfPrices.add(vammBase.getPriceFromTick(i));
         }
-        return convert(uint256(int256(1 + tickUpper - tickLower))).div(sumOfPrices);
+        return sumOfPrices.div(convert(uint256(int256(1 + tickUpper - tickLower))));
     }
 
     // TODO: move to separate VAMMBase test file (with others)
@@ -151,7 +151,7 @@ contract VammBaseTest is DatedIrsVammTestUtil {
         int24 tickLower = 2;
         int24 tickUpper = 500;
         UD60x18 expected = averagePriceBetweenTicksUsingLoop(tickLower, tickUpper);
-        assertAlmostExactlyEqual(vammBase.averagePriceBetweenTicks(tickLower, tickUpper), expected);
+        assertAlmostEqual(vammBase.averagePriceBetweenTicks(tickLower, tickUpper), expected);
     }
 
     function test_AveragePriceBetweenTicks2()

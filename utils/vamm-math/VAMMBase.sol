@@ -162,10 +162,10 @@ library VAMMBase {
         baseAmount = liquidity > 0 ? absBase.toInt() : -(absBase.toInt());
     }
 
-    function getPriceFromTick(int24 _tick) internal pure returns(UD60x18 price) {
+    function getPriceFromTick(int24 _tick) internal pure returns (UD60x18 price) {
         uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(_tick);
         uint256 priceX96 = FullMath.mulDiv(sqrtPriceX96, sqrtPriceX96, FixedPoint96.Q96);
-        return UD60x18.wrap(FullMath.mulDiv(priceX96, 1e18, FixedPoint96.Q96));
+        return UD60x18.wrap(FullMath.mulDiv(1e18, FixedPoint96.Q96, priceX96));
     }
 
     /// @dev Private but labelled internal for testability.
@@ -282,11 +282,12 @@ library VAMMBase {
     ) internal pure returns(UD60x18) {
         // As both of the below results are 10k too large, the difference between them will be correct
         // The division is inversed because price = 1.0001^-tick
-        return (convert_ud(uint256(
-                int256(1 + _tickUpper - _tickLower)
-            )))
-            .div(_sumOfAllPricesUpToPlus10k(_tickUpper)
-                .sub(_sumOfAllPricesUpToPlus10k(_tickLower - 1))
+        return _sumOfAllPricesUpToPlus10k(-_tickLower)
+            .sub(_sumOfAllPricesUpToPlus10k(-_tickUpper - 1))
+            .div(
+                (convert_ud(uint256(
+                    int256(1 + _tickUpper - _tickLower)
+                )))
             );
     }
 

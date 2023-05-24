@@ -55,7 +55,7 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
         // no lookback, no adjustments
         UD60x18 geometricMeanPrice = vamm.twap(0, 0, false, false);
         assertEq(geometricMeanPrice, VAMMBase.getPriceFromTick(tick)); 
-        assertAlmostEqual(geometricMeanPrice, ud60x18(4e16)); // Approx 0.04. Not exact cos snaps to tick boundary.
+        assertAlmostEqual(geometricMeanPrice, ud60x18(25e18)); // Approx 0.04. Not exact cos snaps to tick boundary.
     }
 
     function test_Init_Twap_WithSpread() public {
