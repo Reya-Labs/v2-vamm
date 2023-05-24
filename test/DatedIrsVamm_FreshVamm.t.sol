@@ -15,7 +15,6 @@ import "@voltz-protocol/util-contracts/src/helpers/SafeCast.sol";
 // Constants
 UD60x18 constant ONE = UD60x18.wrap(1e18);
 
-// TODO: Break up this growing test contract into more multiple separate tests for increased readability
 contract VammTest_FreshVamm is DatedIrsVammTestUtil {
     using DatedIrsVamm for DatedIrsVamm.Data;
     using SafeCastU256 for uint256;

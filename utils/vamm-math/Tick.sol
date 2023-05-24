@@ -47,9 +47,7 @@ library Tick {
     }
 
     /// @dev Common checks for valid tick inputs.
-    //function checkTicks(int24 tickLower, int24 tickUpper) internal pure { // TODO: restore pure
-    function checkTicks(int24 tickLower, int24 tickUpper) internal view {
-        //console2.log("checkTicks: ticks = (%s, %s)", uint256(int256(tickLower)), uint256(int256(tickUpper))); // TODO_delete_log
+    function checkTicks(int24 tickLower, int24 tickUpper) internal pure {
         require(tickLower < tickUpper, "TLU");
         require(tickLower >= TickMath.MIN_TICK, "TLM");
         require(tickUpper <= TickMath.MAX_TICK, "TUM");
@@ -177,7 +175,6 @@ library Tick {
             liquidityGrossBefore,
             liquidityDelta
         );
-        // console2.log("update", liquidityGrossAfter, maxLiquidity); // TODO_delete_log
 
         require(liquidityGrossAfter <= maxLiquidity, "LO");
 

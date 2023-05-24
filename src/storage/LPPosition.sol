@@ -85,7 +85,6 @@ library LPPosition {
         position.tickLower = tickLower;
     }
 
-    // todo: currently not used
     function updateTrackers(
         Data storage self,
         int256 trackerFixedTokenUpdatedGrowth,
