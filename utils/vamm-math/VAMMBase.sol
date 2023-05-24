@@ -5,7 +5,6 @@ pragma solidity >=0.8.13;
 import "./Tick.sol";
 import "./TickBitmap.sol";
 import "./VammConfiguration.sol";
-import "forge-std/console2.sol"; // TODO: remove
 
 
 import "./FullMath.sol";
@@ -14,8 +13,6 @@ import "./FixedPoint128.sol";
 
 import "../CustomErrors.sol";
 import "../Time.sol";
-
-import "forge-std/console2.sol";
 
 import { UD60x18, unwrap, convert as convert_ud } from "@prb/math/UD60x18.sol";
 import { SD59x18, convert as convert_sd } from "@prb/math/SD59x18.sol";
@@ -236,7 +233,6 @@ library VAMMBase {
             int256 fixedTokenDelta
         )
     {
-        // console2.log("accumulating", state.liquidity); // TODO_delete_log
         // Get the numder of fixed tokens for the current section of our swap's tick range
         // This calculation assumes that the trade is uniformly distributed within the given tick range, which is only
         // true because there are no changes in liquidity between `state.tick` and `step.tickNext`.
@@ -252,9 +248,6 @@ library VAMMBase {
         // note this calculation is not precise with very small trackerBaseTokenDelta values 
         stateBaseTokenGrowthGlobalX128 = state.trackerBaseTokenGrowthGlobalX128 + FullMath.mulDivSigned(step.trackerBaseTokenDelta, FixedPoint128.Q128, state.liquidity);
         stateFixedTokenGrowthGlobalX128 = state.trackerFixedTokenGrowthGlobalX128 + FullMath.mulDivSigned(fixedTokenDelta, FixedPoint128.Q128, state.liquidity);
-        // console2.log("COMP state.liquidity", state.liquidity);
-        // console2.log("COMP state.fixedTokenGrowthGlobalX128", state.trackerFixedTokenGrowthGlobalX128);
-        // console2.log("COMP stateFixedTokenGrowthGlobalX128", stateFixedTokenGrowthGlobalX128);
     }
 
     /// @dev Private but labelled internal for testability.
@@ -304,7 +297,6 @@ library VAMMBase {
             bool flippedUpper
         )
     {
-        // console2.log("flipTicks: ticks = (%s, %s)", uint256(int256(params.tickLower)), uint256(int256(params.tickUpper))); // TODO_delete_log
         Tick.checkTicks(params.tickLower, params.tickUpper);
 
         /// @dev isUpper = false

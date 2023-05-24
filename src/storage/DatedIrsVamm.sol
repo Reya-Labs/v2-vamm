@@ -8,7 +8,6 @@ import "../../utils/vamm-math/SwapMath.sol";
 import "../../utils/vamm-math/FixedAndVariableMath.sol";
 
 import "../../utils/CustomErrors.sol";
-import "forge-std/console2.sol";
 
 import { UD60x18, convert } from "@prb/math/UD60x18.sol";
 import { SD59x18 } from "@prb/math/SD59x18.sol";
@@ -201,7 +200,6 @@ library DatedIrsVamm {
             if (orderSize == 0) {
                 revert TwapNotAdjustable();
             }
-            // console2.log("GM",UD60x18.unwrap(self.mutableConfig.spread)); // TODO_delete_log
             spreadImpactDelta = self.mutableConfig.spread;
         }
 
@@ -216,9 +214,6 @@ library DatedIrsVamm {
 
         // The projected price impact and spread of a trade will move the price up for buys, down for sells
         if (orderSize > 0) {
-            // console2.log("GM",UD60x18.unwrap(geometricMeanPrice)); // TODO_delete_log
-            // console2.log("SID",UD60x18.unwrap(spreadImpactDelta)); // TODO_delete_log
-            // console2.log("PIF",UD60x18.unwrap(priceImpactAsFraction)); // TODO_delete_log
             geometricMeanPrice = geometricMeanPrice.add(spreadImpactDelta).mul(ONE.add(priceImpactAsFraction));
         } else {
             if (spreadImpactDelta.gte(geometricMeanPrice)) {
@@ -229,9 +224,6 @@ library DatedIrsVamm {
                 // The model suggests that the price will drop below zero after price impact
                 return ZERO;
             }
-            // console2.log("GM",UD60x18.unwrap(geometricMeanPrice)); // TODO_delete_log
-            // console2.log("SID",UD60x18.unwrap(spreadImpactDelta)); // TODO_delete_log
-            // console2.log("PIF",UD60x18.unwrap(priceImpactAsFraction)); // TODO_delete_log
             geometricMeanPrice = geometricMeanPrice.sub(spreadImpactDelta).mul(ONE.sub(priceImpactAsFraction));
         }
 
@@ -466,8 +458,6 @@ library DatedIrsVamm {
     {
         VAMMBase.checkCurrentTimestampMaturityTimestampDelta(self.immutableConfig.maturityTimestamp);
 
-        // console2.log("Checking ticks in vammSwap"); // TODO_delete_log
-
         VAMMBase.checksBeforeSwap(params, self.vars, params.amountSpecified > 0);
 
         uint128 liquidityStart = self.vars.liquidity;
@@ -492,8 +482,6 @@ library DatedIrsVamm {
             state.amountSpecifiedRemaining != 0 &&
             state.sqrtPriceX96 != params.sqrtPriceLimitX96
         ) {
-            // console2.log("while loop start");
-            // console2.log(" - params.sqrtPriceLimitX96", params.sqrtPriceLimitX96);
             VAMMBase.StepComputations memory step;
 
             ///// GET NEXT TICK /////
@@ -505,8 +493,6 @@ library DatedIrsVamm {
             /// add a test for the statement that checks for the above two conditions
             (step.tickNext, step.initialized) = self.vars._tickBitmap
                 .nextInitializedTickWithinOneWord(state.tick, self.immutableConfig._tickSpacing, !(params.amountSpecified > 0));
-
-            // console2.log(" - state.trackerBaseTokenDeltaCumulative ", state.trackerBaseTokenDeltaCumulative); // TODO_delete_log
 
             // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
             if (params.amountSpecified > 0 && step.tickNext > TickMath.MAX_TICK) {
@@ -548,10 +534,6 @@ library DatedIrsVamm {
                 })
             );
 
-            // console2.log("Post-step with liquidity", state.liquidity);
-            // console2.log(" - amount in ", step.amountIn);
-            // console2.log(" - amount out", step.amountOut);
-
             ///// UPDATE TRACKERS /////
             if(params.amountSpecified > 0) {
                 step.baseInStep -= step.amountIn.toInt();
@@ -578,11 +560,6 @@ library DatedIrsVamm {
 
                 state.trackerFixedTokenDeltaCumulative -= step.trackerFixedTokenDelta; // fixedTokens; opposite sign from that of the LP's
                 state.trackerBaseTokenDeltaCumulative -= step.trackerBaseTokenDelta; // opposite sign from that of the LP's
-                // console2.log("At tick", state.tick);
-                // console2.log("state.trackerFixedTokenDeltaCumulative", state.trackerFixedTokenDeltaCumulative);
-                // console2.log("state.trackerBaseTokenDeltaCumulative", state.trackerBaseTokenDeltaCumulative);
-                // console2.log("state.trackerFixedTokenGrowthGlobalX128", state.trackerFixedTokenGrowthGlobalX128);
-                // console2.log("state.trackerBaseTokenGrowthGlobalX128", state.trackerBaseTokenGrowthGlobalX128);
             }
 
             ///// UPDATE TICK AFTER SWAP STEP /////
@@ -609,48 +586,6 @@ library DatedIrsVamm {
                 // recompute unless we're on a lower tick boundary (i.e. already transitioned ticks), and haven't moved
                 state.tick = TickMath.getTickAtSqrtRatio(state.sqrtPriceX96);
             }
-        
-            {
-                // console2.log("while loop end");
-                // console2.log(" - state.tick", state.tick);
-                // if (self.vars._ticks[state.tick].initialized) {
-                //     console2.log(" - liquidityGross at tick", self.vars._ticks[state.tick].liquidityGross);
-                //     console2.log(" - liquidityNet at tick", self.vars._ticks[state.tick].liquidityNet);
-
-                // }
-                // console2.log(" - liquidity at current tick", state.liquidity);
-                // console2.log(" - liquidity at committed  tick", self.vars.liquidity);
-                // console2.log(" - state.sqrtPriceX96", state.sqrtPriceX96);
-                // console2.log("         limit: ", params.sqrtPriceLimitX96);
-                // console2.log(" - state.amountSpecifiedRemaining", state.amountSpecifiedRemaining);
-                // console2.log(" - state.trackerBaseTokenDeltaCumulative ", state.trackerBaseTokenDeltaCumulative);
-                // if(advanceRight) {
-                //     console2.log(" - sum ", state.amountSpecifiedRemaining + state.trackerBaseTokenDeltaCumulative);
-                // } else {
-                //     console2.log(" - sum ", state.amountSpecifiedRemaining - state.trackerBaseTokenDeltaCumulative);
-                // }
-            }
-            
-        }
-
-        {
-            // console2.log("while loop ended");
-            // console2.log(" - state.tick", state.tick);
-            // if (self.vars._ticks[state.tick].initialized) {
-            //     console2.log(" - liquidityGross at tick", self.vars._ticks[state.tick].liquidityGross);
-            //     console2.log(" - liquidityNet at tick", self.vars._ticks[state.tick].liquidityNet);
-            // }
-            // console2.log(" - liquidity at current tick", state.liquidity);
-            // console2.log(" - liquidity at committed  tick", self.vars.liquidity);
-            // console2.log(" - state.sqrtPriceX96", state.sqrtPriceX96);
-            // console2.log("         limit: ", params.sqrtPriceLimitX96);
-            // console2.log(" - state.amountSpecifiedRemaining", state.amountSpecifiedRemaining);
-            // console2.log(" - state.trackerBaseTokenDeltaCumulative ", state.trackerBaseTokenDeltaCumulative);
-            // if(advanceRight) {
-            //     console2.log(" - sum ", state.amountSpecifiedRemaining + state.trackerBaseTokenDeltaCumulative);
-            // } else {
-            //     console2.log(" - sum ", state.amountSpecifiedRemaining - state.trackerBaseTokenDeltaCumulative);
-            // }
         }
 
         ///// UPDATE VAMM VARS AFTER SWAP /////
@@ -763,8 +698,6 @@ library DatedIrsVamm {
             return (0, 0);
         }
 
-        // int128 averageBase = VAMMBase.liquidityPerTick(tickLower, tickUpper, baseAmount);
-        // console2.log("_getUnfilledTokenValues: averageBase = %s", uint256(int256(averageBase))); // TODO_delete_log // TODO: how does rounding work here? If we round down to zero has all liquidity vanished? What checks should be in place?
         // Compute unfilled tokens in our range and to the left of the current tick
         int256 unfilledBaseTokensLeft_ = VAMMBase.baseBetweenTicks(
             tickLower < self.vars.tick ? tickLower : self.vars.tick, // min(tickLower, currentTick)
@@ -773,15 +706,12 @@ library DatedIrsVamm {
         );
         unfilledBaseTokensLeft = unfilledBaseTokensLeft_.toUint();
 
-        // console2.log("unfilledTokensLeft: (%s, %s)", uint256(unfilledFixedTokensLeft), uint256(unfilledBaseTokensLeft)); // TODO_delete_log
-
         // Compute unfilled tokens in our range and to the right of the current tick
         unfilledBaseTokensRight = VAMMBase.baseBetweenTicks(
             tickLower > self.vars.tick ? tickLower : self.vars.tick, // max(tickLower, currentTick)
             tickUpper > self.vars.tick ? tickUpper : self.vars.tick,  // max(tickUpper, currentTick)
             liquidityPerTick.toInt()
         ).toUint();
-        // console2.log("unfilledTokensRight: (%s, %s)", uint256(unfilledFixedTokensRight), uint256(unfilledBaseTokensRight)); // TODO_delete_log
     }
 
     function growthBetweenTicks(
@@ -793,7 +723,6 @@ library DatedIrsVamm {
         int256 trackerBaseTokenGrowthBetween
     )
     {
-        // console2.log("Checking ticks in growthBetweenTicks"); // TODO_delete_log
         Tick.checkTicks(tickLower, tickUpper);
 
         int256 trackerFixedTokenBelowLowerTick;
