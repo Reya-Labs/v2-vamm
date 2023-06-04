@@ -14,10 +14,10 @@ interface CustomErrors {
    error Unauthorized(address unauthorizedAddr);
 
    /// Only one VAMM can exist for any given {market, maturity}
-   error MarketAndMaturityCombinaitonAlreadyExists(uint128 marketId, uint256 maturityTimestamp);
+   error MarketAndMaturityCombinaitonAlreadyExists(uint128 marketId, uint32 maturityTimestamp);
 
    /// No VAMM currently exists for the specified {market, maturity}
-   error MarketAndMaturityCombinaitonNotSupported(uint128 marketId, uint256 maturityTimestamp);
+   error MarketAndMaturityCombinaitonNotSupported(uint128 marketId, uint32 maturityTimestamp);
 //
 //    /// Margin delta must not equal zero
 //    error InvalidMarginDelta();

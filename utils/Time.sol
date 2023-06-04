@@ -26,7 +26,7 @@ library Time {
         require((timestamp = uint32(_timestamp)) == _timestamp, "TSOFLOW");
     }
 
-    function isCloseToMaturityOrBeyondMaturity(uint256 maturityTimestamp)
+    function isCloseToMaturityOrBeyondMaturity(uint32 maturityTimestamp)
         internal
         view
         returns (bool vammInactive)

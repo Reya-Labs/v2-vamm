@@ -28,7 +28,7 @@ contract DatedIrsVammTestUtil is VoltzTest {
     uint160 initSqrtPriceX96 = TickMath.getSqrtRatioAtTick(-32191); // price = ~0.04 = ~4%
     uint128 initMarketId = 1;
     int24 initTickSpacing = 1; // TODO: test with different tick spacing; need to adapt boundTicks()
-    uint256 initMaturityTimestamp = block.timestamp + convert(FixedAndVariableMath.SECONDS_IN_YEAR);
+    uint32 initMaturityTimestamp = uint32(block.timestamp + convert(FixedAndVariableMath.SECONDS_IN_YEAR));
     VammConfiguration.Mutable internal mutableConfig = VammConfiguration.Mutable({
         priceImpactPhi: ud60x18(1e17), // 0.1
         priceImpactBeta: ud60x18(125e15), // 0.125
@@ -39,7 +39,8 @@ contract DatedIrsVammTestUtil is VoltzTest {
     VammConfiguration.Immutable internal immutableConfig = VammConfiguration.Immutable({
         maturityTimestamp: initMaturityTimestamp,
         _maxLiquidityPerTick: type(uint128).max,
-        _tickSpacing: initTickSpacing
+        _tickSpacing: initTickSpacing,
+        marketId: initMarketId
     });
 
     /// @notice Computes the amount of liquidity per tick to use for a given base amount and price range
@@ -224,15 +225,15 @@ contract ExposedDatedIrsVamm {
         int24 tickLower,
         int24 tickUpper,
         bool isMintBurn
-    ) public returns (LPPosition.Data memory position) {
+    ) public returns (LPPosition.Data memory) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
-        LPPosition.Data storage position = LPPosition.load(LPPosition.getPositionId(accountId, tickLower, tickUpper));
-        if (position.accountId == 0) {
-            position = LPPosition.create(accountId, tickLower, tickUpper);
+        LPPosition.Data storage _position = LPPosition.load(LPPosition.getPositionId(accountId, tickLower, tickUpper));
+        if (_position.accountId == 0) {
+            _position = LPPosition.create(accountId, tickLower, tickUpper);
         }
-        vamm.updatePositionTokenBalances(position, tickLower, tickUpper, isMintBurn);
+        vamm.updatePositionTokenBalances(_position, tickLower, tickUpper, isMintBurn);
 
-        return position;
+        return _position;
     }
 
     ///// GETTERS

@@ -26,11 +26,13 @@ library VammConfiguration {
 
     struct Immutable {
         /// @dev UNIX timestamp in seconds marking swap maturity
-        uint256 maturityTimestamp;
+        uint32 maturityTimestamp;
         /// @dev Maximun liquidity amount per tick
         uint128 _maxLiquidityPerTick;
         /// @dev Granularity of ticks
         int24 _tickSpacing;
+        /// @dev market id used to identify vamm alongside maturity timestamp
+        uint128 marketId;
     }
 
     /// @dev frequently-updated state of the VAMM

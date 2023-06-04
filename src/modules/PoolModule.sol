@@ -60,7 +60,7 @@ contract PoolModule is IPoolModule {
     function initiateDatedMakerOrder(
         uint128 accountId,
         uint128 marketId,
-        uint256 maturityTimestamp,
+        uint32 maturityTimestamp,
         int24 tickLower,
         int24 tickUpper,
         int128 liquidityDelta

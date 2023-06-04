@@ -74,9 +74,9 @@ contract ExtendedVammModule is VammModule {
         return vamm.vars.trackerBaseTokenGrowthGlobalX128;
     }
 
-    function ticks(uint128 marketId, uint32 maturityTimestamp, int24 tick) external returns (Tick.Info memory) {
+    function ticks(uint128 marketId, uint32 maturityTimestamp, int24 _tick) external returns (Tick.Info memory) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
-        return vamm.vars._ticks[tick];
+        return vamm.vars._ticks[_tick];
     }
 
     function tickBitmap(uint128 marketId, uint32 maturityTimestamp, int16 index) external returns (uint256) {
@@ -121,7 +121,8 @@ contract VammModuleTest is VoltzTest {
     VammConfiguration.Immutable internal immutableConfig = VammConfiguration.Immutable({
         maturityTimestamp: initMaturityTimestamp,
         _maxLiquidityPerTick: type(uint128).max,
-        _tickSpacing: initTickSpacing
+        _tickSpacing: initTickSpacing,
+        marketId: initMarketId
     });
 
     function setUp() public {
@@ -145,23 +146,16 @@ contract VammModuleTest is VoltzTest {
 
         assertEq(vammConfig.sqrtPriceX96(2, initMaturityTimestamp), initSqrtPriceX96);
         assertEq(vammConfig.tick(2, initMaturityTimestamp), -32191);
-        console2.log("obs");
         assertEq(vammConfig.observationIndex(2, initMaturityTimestamp), 0);
-        console2.log("obs card");
         assertEq(vammConfig.observationCardinality(2, initMaturityTimestamp), 1);
         assertEq(vammConfig.observationCardinalityNext(2, initMaturityTimestamp), 1);
         assertEq(vammConfig.unlocked(2, initMaturityTimestamp), true);
         assertEq(vammConfig.observations(2, initMaturityTimestamp, 0).initialized, true);
         assertEq(vammConfig.observations(2, initMaturityTimestamp, 1).initialized, false);
-        console2.log("pos");
         assertEq(vammConfig.positionsInAccount(2, initMaturityTimestamp, 1).length, 0);
-        console2.log("liq");
         assertEq(vammConfig.liquidity(2, initMaturityTimestamp), 0);
-        console2.log("g");
         assertEq(vammConfig.trackerFixedTokenGrowthGlobalX128(2, initMaturityTimestamp), 0);
-        console2.log("g");
         assertEq(vammConfig.trackerBaseTokenGrowthGlobalX128(2, initMaturityTimestamp), 0);
-        console2.log("t");
         assertEq(vammConfig.ticks(2, initMaturityTimestamp, -32191).initialized, false);
         assertEq(vammConfig.ticks(2, initMaturityTimestamp, -32190).initialized, false);
     }
