@@ -49,6 +49,7 @@ library VAMMBase {
     // ==================== EVENTS ======================
     /// @dev emitted after a successful swap transaction
     event Swap(
+        VammConfiguration.Immutable immutableConfig,
         address sender,
         int256 desiredBaseAmount,
         uint160 sqrtPriceLimitX96,
@@ -57,10 +58,17 @@ library VAMMBase {
     );
 
     /// @dev emitted after a given vamm is successfully initialized
-    event VAMMInitialization(uint160 sqrtPriceX96, int24 tick);
+    event VAMMInitialization(
+        uint128 indexed marketId,
+        uint32 indexed maturityTimestamp,
+        uint160 sqrtPriceX96,
+        int24 tick
+    );
 
     /// @dev emitted after a successful mint or burn of liquidity on a given LP position
     event LiquidityChange(
+        uint128 marketId,
+        uint32 maturityTimestamp,
         address sender,
         uint128 indexed accountId,
         int24 indexed tickLower,
@@ -68,7 +76,7 @@ library VAMMBase {
         int128 liquidityDelta
     );
 
-    event VAMMPriceChange(int24 tick);
+    event VAMMPriceChange(uint128 indexed marketId, uint32 indexed maturityTimestamp, int24 tick);
 
     // STRUCTS
 
@@ -357,7 +365,7 @@ library VAMMBase {
 
     /// @dev Modifier that ensures new LP positions cannot be minted after one day before the maturity of the vamm
     /// @dev also ensures new swaps cannot be conducted after one day before maturity of the vamm
-    function checkCurrentTimestampMaturityTimestampDelta(uint256 maturityTimestamp) internal view {
+    function checkCurrentTimestampMaturityTimestampDelta(uint32 maturityTimestamp) internal view {
         if (Time.isCloseToMaturityOrBeyondMaturity(maturityTimestamp)) {
             revert("closeToOrBeyondMaturity");
         }

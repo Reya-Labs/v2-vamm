@@ -72,7 +72,8 @@ contract PoolModuleTest is VoltzTest {
     VammConfiguration.Immutable internal immutableConfig = VammConfiguration.Immutable({
         maturityTimestamp: initMaturityTimestamp,
         _maxLiquidityPerTick: type(uint128).max,
-        _tickSpacing: initTickSpacing
+        _tickSpacing: initTickSpacing,
+        marketId: initMarketId
     });
 
     function setUp() public {

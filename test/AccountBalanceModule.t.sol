@@ -3,7 +3,6 @@ pragma solidity >=0.8.13;
 
 import "../src/modules/AccountBalanceModule.sol";
 import "./VoltzTest.sol";
-import "forge-std/console2.sol";
 
 contract ExtendedAccountBalanceModule is AccountBalanceModule, VoltzTest {
     using DatedIrsVamm for DatedIrsVamm.Data;
@@ -97,7 +96,8 @@ contract AccountBalanceModuleTest is VoltzTest {
     VammConfiguration.Immutable internal immutableConfig = VammConfiguration.Immutable({
         maturityTimestamp: initMaturityTimestamp,
         _maxLiquidityPerTick: type(uint128).max,
-        _tickSpacing: initTickSpacing
+        _tickSpacing: initTickSpacing,
+        marketId: initMarketId
     });
 
     function setUp() public {

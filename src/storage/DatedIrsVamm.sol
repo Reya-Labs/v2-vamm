@@ -39,6 +39,8 @@ library DatedIrsVamm {
     /// @param observationCardinalityNextOld The previous value of the next observation cardinality
     /// @param observationCardinalityNextNew The updated value of the next observation cardinality
     event IncreaseObservationCardinalityNext(
+        uint128 marketId,
+        uint32 maturityTimestamp,
         uint16 observationCardinalityNextOld,
         uint16 observationCardinalityNextNew
     );
@@ -85,7 +87,7 @@ library DatedIrsVamm {
      * @dev Finds the vamm id using market id and maturity and
      * returns the vamm stored at the specified vamm id. Reverts if no such VAMM is found.
      */
-    function loadByMaturityAndMarket(uint128 marketId, uint256 maturityTimestamp) internal view returns (Data storage irsVamm) {
+    function loadByMaturityAndMarket(uint128 marketId, uint32 maturityTimestamp) internal view returns (Data storage irsVamm) {
         uint256 id = uint256(keccak256(abi.encodePacked(marketId, maturityTimestamp)));
         irsVamm = load(id);
         if (irsVamm.immutableConfig.maturityTimestamp == 0) {
@@ -122,6 +124,7 @@ library DatedIrsVamm {
         irsVamm.immutableConfig.maturityTimestamp = _config.maturityTimestamp;
         irsVamm.immutableConfig._maxLiquidityPerTick = _config._maxLiquidityPerTick;
         irsVamm.immutableConfig._tickSpacing = _config._tickSpacing;
+        irsVamm.immutableConfig.marketId = _marketId;
         
         configure(irsVamm, _mutableConfig);
 
@@ -299,7 +302,7 @@ library DatedIrsVamm {
         );
          self.vars.observationCardinalityNext = observationCardinalityNextNew;
         if (observationCardinalityNextOld != observationCardinalityNextNew)
-            emit IncreaseObservationCardinalityNext(observationCardinalityNextOld, observationCardinalityNextNew);
+            emit IncreaseObservationCardinalityNext(self.immutableConfig.marketId, self.immutableConfig.maturityTimestamp, observationCardinalityNextOld, observationCardinalityNextNew);
     }
 
     /**
@@ -445,7 +448,7 @@ library DatedIrsVamm {
             }
         }
 
-        emit VAMMBase.LiquidityChange(msg.sender, accountId, tickLower, tickUpper, liquidityDelta);
+        emit VAMMBase.LiquidityChange(self.immutableConfig.marketId, self.immutableConfig.maturityTimestamp, msg.sender, accountId, tickLower, tickUpper, liquidityDelta);
     }
 
     function vammSwap(
@@ -614,9 +617,10 @@ library DatedIrsVamm {
         self.vars.trackerBaseTokenGrowthGlobalX128 = state.trackerBaseTokenGrowthGlobalX128;
         self.vars.trackerFixedTokenGrowthGlobalX128 = state.trackerFixedTokenGrowthGlobalX128;
 
-        emit VAMMBase.VAMMPriceChange(self.vars.tick);
+        emit VAMMBase.VAMMPriceChange(self.immutableConfig.marketId, self.immutableConfig.maturityTimestamp, self.vars.tick);
 
         emit VAMMBase.Swap(
+            self.immutableConfig,
             msg.sender,
             params.amountSpecified,
             params.sqrtPriceLimitX96,

@@ -28,7 +28,7 @@ interface IVammModule {
     * @notice Configures an existing vamm 
     * @dev Only configures mutable vamm variables
     */
-  function configureVamm(uint128 _marketId, uint256 _maturityTimestamp, VammConfiguration.Mutable calldata _config)
+  function configureVamm(uint128 _marketId, uint32 _maturityTimestamp, VammConfiguration.Mutable calldata _config)
     external;
   
   /**
