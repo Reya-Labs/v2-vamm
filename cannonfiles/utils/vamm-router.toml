@@ -11,7 +11,7 @@ artifact = "PoolPauserModule"
 artifact = "VammModule"
 
 # Deploys VAMM Router
-[router.VAMMRouter]
+[router.VammRouter]
 contracts = [
   "OwnerUpgradeModule",
   "FeatureFlagModule",

@@ -9,7 +9,7 @@ import "@voltz-protocol/util-contracts/src/interfaces/IOwnable.sol";
 import "@voltz-protocol/util-modules/src/interfaces/IBaseOwnerModule.sol";
 import "@voltz-protocol/util-contracts/src/interfaces/IUUPSImplementation.sol";
 
-interface IVAMMProxy is 
+interface IVammProxy is 
   IOwnable,
   IBaseOwnerModule,
   IUUPSImplementation,
