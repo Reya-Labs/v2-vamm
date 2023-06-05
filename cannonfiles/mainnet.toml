@@ -1,5 +1,4 @@
 include = [
   "utils/commons.toml",
   "utils/vamm-router.toml",
-  "utils/vamm-proxy.toml"
 ]

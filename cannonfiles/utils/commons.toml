@@ -2,7 +2,7 @@ name = "voltz-vamm"
 version = "0.0.4"
 description = "Voltz V2 VAMM"
 
-# `salt` here only affects the InitialModuleBunde and CoreProxy contracts
+# `salt` here only affects the InitialModuleBunde and VammProxy contracts
 [setting.salt]
 description = "Change this to a unique string when deploying multiple instances of the protocol. Note that only the proxy contract will be unique."
 defaultValue = "main"

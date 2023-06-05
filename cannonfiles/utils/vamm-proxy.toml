@@ -2,8 +2,8 @@
 # re-deployed every time we deploy a new router. Implementation is
 # then upgraded to the correct Router implementation in the
 # invoke.upgrade_vamm_proxy command below.
-[contract.InitialVAMMProxy]
-artifact = "VAMMProxy"
+[contract.InitialVammProxy]
+artifact = "VammProxy"
 args = ["<%= contracts.OwnerUpgradeModule.address %>", "<%= settings.owner %>"]
 abiOf = ["OwnerUpgradeModule"]
 salt = "<%= settings.salt %>"
@@ -13,15 +13,15 @@ depends = ["contract.OwnerUpgradeModule"]
 # Upgrades implementation of VAMM Proxy to point to the new 
 # router implementation.
 [invoke.upgrade_vamm_proxy]
-target = ["InitialVAMMProxy"]
+target = ["InitialVammProxy"]
 abi = "UpgradeModule"
 from = "<%= settings.owner %>"
 func = "upgradeTo"
-args = ["<%= contracts.VAMMRouter.address %>"]
-factory.CoreProxy.abiOf = ["VAMMRouter"]
-factory.CoreProxy.event = "Upgraded"
-factory.CoreProxy.arg = 0
+args = ["<%= contracts.VammRouter.address %>"]
+factory.VammProxy.abiOf = ["VammRouter"]
+factory.VammProxy.event = "Upgraded"
+factory.VammProxy.arg = 0
 depends = [
-  "contract.InitialVAMMProxy",
-  "router.VAMMRouter"
+  "contract.InitialVammProxy",
+  "router.VammRouter"
 ]
