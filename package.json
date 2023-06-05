@@ -39,7 +39,6 @@
     "typescript": ">=4.5.0"
   },
   "dependencies": {
-    "@morenabarboni/sumo": "^1.0.0",
     "@openzeppelin/contracts": "^4.8.3",
     "@prb/math": "3.3.0",
     "@voltz-protocol/util-contracts": "1.1.0",
