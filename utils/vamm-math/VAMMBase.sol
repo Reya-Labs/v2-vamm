@@ -49,20 +49,14 @@ library VAMMBase {
     // ==================== EVENTS ======================
     /// @dev emitted after a successful swap transaction
     event Swap(
-        VammConfiguration.Immutable immutableConfig,
+        uint128 marketId,
+        uint32 maturityTimestamp,
         address sender,
         int256 desiredBaseAmount,
         uint160 sqrtPriceLimitX96,
         int256 trackerFixedTokenDelta,
-        int256 trackerBaseTokenDelta
-    );
-
-    /// @dev emitted after a given vamm is successfully initialized
-    event VAMMInitialization(
-        uint128 indexed marketId,
-        uint32 indexed maturityTimestamp,
-        uint160 sqrtPriceX96,
-        int24 tick
+        int256 trackerBaseTokenDelta,
+        uint256 blockTimestamp
     );
 
     /// @dev emitted after a successful mint or burn of liquidity on a given LP position
@@ -73,10 +67,11 @@ library VAMMBase {
         uint128 indexed accountId,
         int24 indexed tickLower,
         int24 indexed tickUpper,
-        int128 liquidityDelta
+        int128 liquidityDelta,
+        uint256 blockTimestamp
     );
 
-    event VAMMPriceChange(uint128 indexed marketId, uint32 indexed maturityTimestamp, int24 tick);
+    event VAMMPriceChange(uint128 indexed marketId, uint32 indexed maturityTimestamp, int24 tick, uint256 blockTimestamp);
 
     // STRUCTS
 

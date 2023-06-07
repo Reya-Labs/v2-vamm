@@ -42,7 +42,8 @@ library DatedIrsVamm {
         uint128 marketId,
         uint32 maturityTimestamp,
         uint16 observationCardinalityNextOld,
-        uint16 observationCardinalityNextNew
+        uint16 observationCardinalityNextNew,
+        uint256 blockTimestamp
     );
 
     /**
@@ -302,7 +303,7 @@ library DatedIrsVamm {
         );
          self.vars.observationCardinalityNext = observationCardinalityNextNew;
         if (observationCardinalityNextOld != observationCardinalityNextNew)
-            emit IncreaseObservationCardinalityNext(self.immutableConfig.marketId, self.immutableConfig.maturityTimestamp, observationCardinalityNextOld, observationCardinalityNextNew);
+            emit IncreaseObservationCardinalityNext(self.immutableConfig.marketId, self.immutableConfig.maturityTimestamp, observationCardinalityNextOld, observationCardinalityNextNew, block.timestamp);
     }
 
     /**
@@ -333,9 +334,12 @@ library DatedIrsVamm {
             tickUpper,
             true
         );
+
         position.updateLiquidity(liquidityDelta);
 
-        _updateLiquidity(self, accountId, tickLower, tickUpper, liquidityDelta);
+        _updateLiquidity(self, tickLower, tickUpper, liquidityDelta);
+
+        emit VAMMBase.LiquidityChange(self.immutableConfig.marketId, self.immutableConfig.maturityTimestamp, msg.sender, accountId, tickLower, tickUpper, liquidityDelta, block.timestamp);
     }
 
     /// @notice update position token balances and account for fees
@@ -390,7 +394,6 @@ library DatedIrsVamm {
     /// Mints (`liquidityDelta > 0`) or burns (`liquidityDelta < 0`) `liquidityDelta` liquidity for the specified `accountId`, uniformly between the specified ticks.
     function _updateLiquidity(
         Data storage self,
-        uint128 accountId,
         int24 tickLower,
         int24 tickUpper,
         int128 liquidityDelta
@@ -447,8 +450,6 @@ library DatedIrsVamm {
                 );
             }
         }
-
-        emit VAMMBase.LiquidityChange(self.immutableConfig.marketId, self.immutableConfig.maturityTimestamp, msg.sender, accountId, tickLower, tickUpper, liquidityDelta);
     }
 
     function vammSwap(
@@ -617,15 +618,17 @@ library DatedIrsVamm {
         self.vars.trackerBaseTokenGrowthGlobalX128 = state.trackerBaseTokenGrowthGlobalX128;
         self.vars.trackerFixedTokenGrowthGlobalX128 = state.trackerFixedTokenGrowthGlobalX128;
 
-        emit VAMMBase.VAMMPriceChange(self.immutableConfig.marketId, self.immutableConfig.maturityTimestamp, self.vars.tick);
+        emit VAMMBase.VAMMPriceChange(self.immutableConfig.marketId, self.immutableConfig.maturityTimestamp, self.vars.tick, block.timestamp);
 
         emit VAMMBase.Swap(
-            self.immutableConfig,
+            self.immutableConfig.marketId,
+            self.immutableConfig.maturityTimestamp,
             msg.sender,
             params.amountSpecified,
             params.sqrtPriceLimitX96,
             trackerFixedTokenDelta,
-            trackerBaseTokenDelta
+            trackerBaseTokenDelta,
+            block.timestamp
         );
 
         return (state.trackerFixedTokenDeltaCumulative, state.trackerBaseTokenDeltaCumulative);

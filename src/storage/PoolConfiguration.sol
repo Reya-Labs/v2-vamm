@@ -3,7 +3,7 @@ pragma solidity >=0.8.13;
 
 /// @title Interface a Pool needs to adhere.
 library PoolConfiguration {
-    event PauseState(bool newPauseState);
+    event PauseState(bool newPauseState, uint256 blockTimestamp);
 
     struct Data {
         bool paused;
@@ -19,7 +19,7 @@ library PoolConfiguration {
 
     function setPauseState(Data storage self, bool state) internal {
         self.paused = state;
-        emit PauseState(state);
+        emit PauseState(state, block.timestamp);
     }
 
     function setProductAddress(Data storage self, address _productAddress) internal {

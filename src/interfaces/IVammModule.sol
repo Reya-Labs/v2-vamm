@@ -7,7 +7,8 @@ interface IVammModule {
   /// @dev Emitted when vamm configurations are updated
   event VammConfigUpdated(
       uint128 _marketId,
-      VammConfiguration.Mutable _config
+      VammConfiguration.Mutable _config,
+      uint256 blockTimestamp
   );
 
   /// @dev Emitted when a new vamm is created and initialized
@@ -15,7 +16,8 @@ interface IVammModule {
       uint128 _marketId,
       int24 tick,
       VammConfiguration.Immutable _config,
-      VammConfiguration.Mutable _mutableConfig
+      VammConfiguration.Mutable _mutableConfig,
+      uint256 blockTimestamp
   );
 
   /**

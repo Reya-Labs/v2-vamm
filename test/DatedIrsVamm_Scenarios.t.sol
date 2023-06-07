@@ -368,7 +368,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         int128 requestedLiquidityAmount = getLiquidityForBase(ACCOUNT_1_TICK_LOWER, ACCOUNT_1_TICK_UPPER, 1000000);
         // expect event 
         vm.expectEmit(true, true, false, true);
-        emit VAMMBase.LiquidityChange(initMarketId, uint32(initMaturityTimestamp), address(this), ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount);
+        emit VAMMBase.LiquidityChange(initMarketId, uint32(initMaturityTimestamp), address(this), ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount, block.timestamp);
         vamm.executeDatedMakerOrder(ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount);
 
         // growth is 0 because ticks were never crossed
@@ -421,7 +421,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         int128 requestedLiquidityAmount = getLiquidityForBase(ACCOUNT_1_TICK_LOWER, ACCOUNT_1_TICK_UPPER, 1000000);
         // expect event 
         vm.expectEmit(true, true, false, true);
-        emit VAMMBase.LiquidityChange(initMarketId, uint32(initMaturityTimestamp), address(this), newAccount, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount);
+        emit VAMMBase.LiquidityChange(initMarketId, uint32(initMaturityTimestamp), address(this), newAccount, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount, block.timestamp);
         vamm.executeDatedMakerOrder(newAccount, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount);
         
         // console2.log("TICK L G O", vamm.ticks(ACCOUNT_2_TICK_LOWER).trackerFixedTokenGrowthOutsideX128); // 0 -> not crossed
@@ -471,7 +471,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         // console2.log("REQUESTED", requestedLiquidityAmount);
         // expect event 
         vm.expectEmit(true, true, false, true);
-        emit VAMMBase.LiquidityChange(initMarketId, uint32(initMaturityTimestamp), address(this), ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount);
+        emit VAMMBase.LiquidityChange(initMarketId, uint32(initMaturityTimestamp), address(this), ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount, block.timestamp);
         vamm.executeDatedMakerOrder(ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount);
 
         // growth is 0 because ticks were never crossed
@@ -521,7 +521,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         int128 requestedLiquidityAmount = -getLiquidityForBase(ACCOUNT_1_TICK_LOWER, ACCOUNT_1_TICK_UPPER, BASE_AMOUNT_PER_LP);
         // expect event 
         vm.expectEmit(true, true, false, true);
-        emit VAMMBase.LiquidityChange(initMarketId, uint32(initMaturityTimestamp), address(this), ACCOUNT_1, ACCOUNT_1_TICK_LOWER, ACCOUNT_1_TICK_UPPER, requestedLiquidityAmount);
+        emit VAMMBase.LiquidityChange(initMarketId, uint32(initMaturityTimestamp), address(this), ACCOUNT_1, ACCOUNT_1_TICK_LOWER, ACCOUNT_1_TICK_UPPER, requestedLiquidityAmount, block.timestamp);
         vamm.executeDatedMakerOrder(ACCOUNT_1, ACCOUNT_1_TICK_LOWER, ACCOUNT_1_TICK_UPPER, requestedLiquidityAmount);
 
         // growth is 0 because ticks were never crossed
@@ -633,7 +633,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         // console2.log("REQUESTED", requestedLiquidityAmount);
         // expect event 
         vm.expectEmit(true, true, false, true);
-        emit VAMMBase.LiquidityChange(initMarketId, uint32(initMaturityTimestamp), address(this), ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount);
+        emit VAMMBase.LiquidityChange(initMarketId, uint32(initMaturityTimestamp), address(this), ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount, block.timestamp);
         vamm.executeDatedMakerOrder(ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount);
 
         // CLOSE FILLED BALANCES
