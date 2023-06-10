@@ -65,7 +65,7 @@ contract PoolModule is IPoolModule {
         int24 tickUpper,
         int128 liquidityDelta
     )
-        external override
+        external override returns (uint256 fee, uint256 im)
     {
         address productAddress = PoolConfiguration.load().productAddress;
 
@@ -82,7 +82,7 @@ contract PoolModule is IPoolModule {
         vamm.executeDatedMakerOrder(accountId, tickLower, tickUpper, liquidityDelta);
 
         if ( liquidityDelta > 0) {
-            irsProduct.propagateMakerOrder(
+            (fee, im) = irsProduct.propagateMakerOrder(
                 accountId,
                 marketId,
                 VAMMBase.baseAmountFromLiquidity(

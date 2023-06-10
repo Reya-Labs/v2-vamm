@@ -51,7 +51,7 @@ interface IPoolModule is IERC165 {
         int24 tickUpper,
         int128 liquidityDelta
     )
-        external;
+        external returns (uint256 fee, uint256 im);
 
     /**
      * @notice Attempts to close all the unfilled and filled positions of a given account in the specified market
