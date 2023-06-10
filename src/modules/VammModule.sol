@@ -59,4 +59,73 @@ contract VammModule is IVammModule {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
         datedIRSTwap = vamm.twap(lookbackWindow, orderSize, adjustForPriceImpact, adjustForSpread);
     }
+
+
+    ////////// GETTERS //////////
+
+    function getVammConfig(uint128 _marketId, uint32 _maturityTimestamp)
+        external view override returns (
+        VammConfiguration.Immutable memory _config,
+        VammConfiguration.Mutable memory _mutableConfig
+    ) {
+         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(_marketId, _maturityTimestamp);
+         _config = vamm.immutableConfig;
+         _mutableConfig = vamm.mutableConfig;
+    }
+
+    function getVammSqrtPriceX96(uint128 _marketId, uint32 _maturityTimestamp)
+        external view override returns (uint160) {
+
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(_marketId, _maturityTimestamp);
+        return vamm.vars.sqrtPriceX96;
+    }
+
+    function getVammTick(uint128 _marketId, uint32 _maturityTimestamp)
+        external view override returns (int24) {
+
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(_marketId, _maturityTimestamp);
+        return vamm.vars.tick;
+    }
+
+    function getVammTickInfo(uint128 _marketId, uint32 _maturityTimestamp, int24 tick)
+        external view override returns (Tick.Info memory) {
+
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(_marketId, _maturityTimestamp);
+        return vamm.vars._ticks[tick];
+    }
+
+    function getVammTickBitmap(uint128 _marketId, uint32 _maturityTimestamp, int16 wordPosition)
+        external view override returns (uint256) {
+        
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(_marketId, _maturityTimestamp);
+        return vamm.vars._tickBitmap[wordPosition];
+    }
+    
+    function getVammLiquidity(uint128 _marketId, uint32 _maturityTimestamp)
+        external view override returns (uint128) {
+        
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(_marketId, _maturityTimestamp);
+        return vamm.vars.liquidity;
+    }
+
+    function getVammPositionsInAccount(uint128 _marketId, uint32 _maturityTimestamp, uint128 accountId)
+        external view override returns (uint128[] memory) {
+
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(_marketId, _maturityTimestamp);
+        return vamm.vars.positionsInAccount[accountId];
+    }
+
+    function getVammTrackerFixedTokenGrowthGlobalX128(uint128 _marketId, uint32 _maturityTimestamp)
+        external view override returns (int256) {
+        
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(_marketId, _maturityTimestamp);
+        return vamm.vars.trackerFixedTokenGrowthGlobalX128;
+    }
+    
+    function getVammTrackerBaseTokenGrowthGlobalX128(uint128 _marketId, uint32 _maturityTimestamp)
+        external view override returns (int256) {
+        
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(_marketId, _maturityTimestamp);
+        return vamm.vars.trackerBaseTokenGrowthGlobalX128;
+    }
 }

@@ -54,4 +54,39 @@ interface IVammModule {
     */
   function getDatedIRSTwap(uint128 marketId, uint32 maturityTimestamp, int256 orderSize, uint32 lookbackWindow, bool adjustForPriceImpact,  bool adjustForSpread) 
     external view returns (UD60x18 datedIRSTwap);
+
+  ///////////// GETTERS /////////////
+
+  /**
+    * @notice Returns vamm configuration
+    */
+  function getVammConfig(uint128 _marketId, uint32 _maturityTimestamp)
+    external view returns (
+      VammConfiguration.Immutable memory _config,
+      VammConfiguration.Mutable memory _mutableConfig
+    );
+
+  function getVammSqrtPriceX96(uint128 _marketId, uint32 _maturityTimestamp)
+    external view returns (uint160 sqrtPriceX96);
+
+  function getVammTick(uint128 _marketId, uint32 _maturityTimestamp)
+    external view returns (int24 tick);
+
+  function getVammTickInfo(uint128 _marketId, uint32 _maturityTimestamp, int24 tick)
+    external view returns (Tick.Info memory tickInfo);
+
+  function getVammTickBitmap(uint128 _marketId, uint32 _maturityTimestamp, int16 wordPosition)
+    external view returns (uint256);
+  
+  function getVammLiquidity(uint128 _marketId, uint32 _maturityTimestamp)
+    external view returns (uint128 liquidity);
+
+  function getVammPositionsInAccount(uint128 _marketId, uint32 _maturityTimestamp, uint128 accountId)
+    external view returns (uint128[] memory positionsInAccount);
+
+  function getVammTrackerFixedTokenGrowthGlobalX128(uint128 _marketId, uint32 _maturityTimestamp)
+    external view returns (int256 trackerFixedTokenGrowthGlobalX128);
+  
+  function getVammTrackerBaseTokenGrowthGlobalX128(uint128 _marketId, uint32 _maturityTimestamp)
+    external view returns (int256 trackerBaseTokenGrowthGlobalX128);
 }
