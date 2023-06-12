@@ -6,17 +6,17 @@ import "../../utils/vamm-math/VammConfiguration.sol";
 interface IVammModule {
   /// @dev Emitted when vamm configurations are updated
   event VammConfigUpdated(
-      uint128 _marketId,
-      VammConfiguration.Mutable _config,
+      uint128 marketId,
+      VammConfiguration.Mutable config,
       uint256 blockTimestamp
   );
 
   /// @dev Emitted when a new vamm is created and initialized
   event VammCreated(
-      uint128 _marketId,
+      uint128 marketId,
       int24 tick,
-      VammConfiguration.Immutable _config,
-      VammConfiguration.Mutable _mutableConfig,
+      VammConfiguration.Immutable config,
+      VammConfiguration.Mutable mutableConfig,
       uint256 blockTimestamp
   );
 
