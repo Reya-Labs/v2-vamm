@@ -161,7 +161,7 @@ contract PoolModuleTest is VoltzTest {
         vm.mockCall(
             address(0),
             abi.encodeWithSelector(IProductIRSModule.propagateMakerOrder.selector, accountId, initMarketId, baseAmount),
-            abi.encode(0)
+            abi.encode(0, 0)
         );
         pool.initiateDatedMakerOrder(accountId, initMarketId, initMaturityTimestamp, tickLower, tickUpper, requestedLiquidityAmount);
 

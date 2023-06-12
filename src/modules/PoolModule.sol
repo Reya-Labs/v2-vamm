@@ -6,7 +6,7 @@ import { UD60x18, ZERO } from "@prb/math/UD60x18.sol";
 import "../interfaces/IPoolModule.sol";
 import "../storage/DatedIrsVamm.sol";
 import "../storage/PoolConfiguration.sol";
-import "../interfaces/IProductIRSModule.sol"; // todo: replace with import after publish
+import "@voltz-protocol/products-dated-irs/src/interfaces/IProductIRSModule.sol";
 import "@voltz-protocol/core/src/interfaces/IAccountModule.sol";
 import "@voltz-protocol/core/src/storage/AccountRBAC.sol";
 
