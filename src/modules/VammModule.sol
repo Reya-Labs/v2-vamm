@@ -24,7 +24,8 @@ contract VammModule is IVammModule {
             _marketId,
             vamm.vars.tick,
             _config,
-            _mutableConfig
+            _mutableConfig,
+            block.timestamp
         );
     }
 
@@ -37,7 +38,7 @@ contract VammModule is IVammModule {
         OwnableStorage.onlyOwner();
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(_marketId, _maturityTimestamp);
         vamm.configure(_config);
-        emit VammConfigUpdated(_marketId, _config);
+        emit VammConfigUpdated(_marketId, _config, block.timestamp);
     }
 
     /**
