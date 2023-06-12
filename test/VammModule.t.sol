@@ -14,11 +14,6 @@ contract ExtendedVammModule is VammModule {
         ownable.owner = account;
     }
 
-    function getVammConfig(uint128 marketId, uint32 maturityTimestamp) external returns (VammConfiguration.Mutable memory, VammConfiguration.Immutable memory) {
-        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
-        return (vamm.mutableConfig, vamm.immutableConfig);
-    }
-
     function sqrtPriceX96(uint128 marketId, uint32 maturityTimestamp) external returns (uint160) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
         return vamm.vars.sqrtPriceX96;
@@ -134,7 +129,7 @@ contract VammModuleTest is VoltzTest {
     function test_CreateVamm() public {
         vammConfig.createVamm(2, initSqrtPriceX96, immutableConfig, mutableConfig);
 
-       (VammConfiguration.Mutable memory _mutableConfig, VammConfiguration.Immutable memory config) = vammConfig.getVammConfig(2, initMaturityTimestamp);
+        (VammConfiguration.Immutable memory config, VammConfiguration.Mutable memory _mutableConfig) = vammConfig.getVammConfig(2, initMaturityTimestamp);
         assertEq(_mutableConfig.priceImpactPhi, ud60x18(1e17));
         assertEq(_mutableConfig.priceImpactBeta, ud60x18(125e15));
         assertEq(_mutableConfig.spread, ud60x18(3e15));
@@ -177,7 +172,7 @@ contract VammModuleTest is VoltzTest {
 
         vammConfig.configureVamm(initMarketId, initMaturityTimestamp, __mutableConfig);
 
-       (VammConfiguration.Mutable memory _mutableConfig, VammConfiguration.Immutable memory config) = vammConfig.getVammConfig(initMarketId, initMaturityTimestamp);
+        (VammConfiguration.Immutable memory config, VammConfiguration.Mutable memory _mutableConfig) = vammConfig.getVammConfig(initMarketId, initMaturityTimestamp);
         assertEq(_mutableConfig.priceImpactPhi, ud60x18(12e16));
         assertEq(_mutableConfig.priceImpactBeta, ud60x18(123e15));
         assertEq(_mutableConfig.spread, ud60x18(5e15));
