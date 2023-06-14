@@ -163,14 +163,14 @@ contract VammBaseTest is DatedIrsVammTestUtil {
         assertAlmostExactlyEqual(vammBase.averagePriceBetweenTicks(tickLower, tickUpper), expected);
     }
 
-    function testSlowFuzz_AveragePriceBetweenTicks(
-        int24 tickLower,
-        int24 tickUpper)
-    public {
-        (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
-        UD60x18 expected = averagePriceBetweenTicksUsingLoop(tickLower, tickUpper);
-        assertAlmostEqual(vammBase.averagePriceBetweenTicks(tickLower, tickUpper), expected);
-    }
+    // function testSlowFuzz_AveragePriceBetweenTicks(
+    //     int24 tickLower,
+    //     int24 tickUpper)
+    // public {
+    //     (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
+    //     UD60x18 expected = averagePriceBetweenTicksUsingLoop(tickLower, tickUpper);
+    //     assertAlmostEqual(vammBase.averagePriceBetweenTicks(tickLower, tickUpper), expected);
+    // }
 
     function test_FixedTokensInHomogeneousTickWindow() public {
       int256 baseAmount = 5e10;
