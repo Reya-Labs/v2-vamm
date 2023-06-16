@@ -1831,17 +1831,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@voltz-protocol/products-dated-irs@npm:2.1.1":
-  version: 2.1.1
-  resolution: "@voltz-protocol/products-dated-irs@npm:2.1.1::__archiveUrl=https%3A%2F%2Fnpm.pkg.github.com%2Fdownload%2F%40voltz-protocol%2Fproducts-dated-irs%2F2.1.1%2F8623cb7b24bd4a52b165bfb2d3695af5a1a04f83"
+"@voltz-protocol/products-dated-irs@npm:2.2.1":
+  version: 2.2.1
+  resolution: "@voltz-protocol/products-dated-irs@npm:2.2.1::__archiveUrl=https%3A%2F%2Fnpm.pkg.github.com%2Fdownload%2F%40voltz-protocol%2Fproducts-dated-irs%2F2.2.1%2F0f1b22a11464d3168bf964a910e9028e2004688f"
   dependencies:
     "@openzeppelin/contracts": 4.9.0
     "@prb/math": 3.3.0
     "@prb/test": ^0.6.0
     "@voltz-protocol/core": ^2.1.1
-    "@voltz-protocol/util-contracts": ^1.1.0
-    "@voltz-protocol/util-modules": ^1.0.2
-  checksum: 14dc7324274608117b475d9f23d41bcecedd6fd67134d51a68bf4c9b4d0181b3ba8d3d5651027abf9cae5c6cb6bf068a0130446bc8acce7c3e147fe9ec2d8893
+    "@voltz-protocol/util-contracts": ^1.2.0
+    "@voltz-protocol/util-modules": ^1.1.0
+  checksum: 074a34ab15906db9af2738be6f6bb9e3e55daff0f7a3d525cea7811a2717681a56a53a16961049b3794d2a7b39e2a0cbb07c33564d0387145638bc2cffdab204
   languageName: node
   linkType: hard
 
@@ -1854,10 +1854,26 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@voltz-protocol/util-contracts@npm:^1.2.0":
+  version: 1.3.0
+  resolution: "@voltz-protocol/util-contracts@npm:1.3.0::__archiveUrl=https%3A%2F%2Fnpm.pkg.github.com%2Fdownload%2F%40voltz-protocol%2Futil-contracts%2F1.3.0%2Fdbaf6784e11d2a7e480e74bc2345d767fdb88b34"
+  dependencies:
+    "@prb/math": 3.0.0
+  checksum: d77877e493ef0627f7197e4007858aa97f3d2b879b7ec6e43349de7dbbdc79ee89ddf3125099edb5dc2e92502fef19bff6acf1c84e2cce30d561009ed9acacf0
+  languageName: node
+  linkType: hard
+
 "@voltz-protocol/util-modules@npm:1.1.0, @voltz-protocol/util-modules@npm:^1.0.2":
   version: 1.1.0
   resolution: "@voltz-protocol/util-modules@npm:1.1.0::__archiveUrl=https%3A%2F%2Fnpm.pkg.github.com%2Fdownload%2F%40voltz-protocol%2Futil-modules%2F1.1.0%2Fb5a64a3e11d374deb84adbca8d9bae8018f6543e"
   checksum: dce9122af69094c9d44b1299280a9a79c6bdc08a37f61431c9f9c30541c11411c918e61000c299ceb1febed531a86456dad6ad0e9e13154e1cf43fe3f71a2587
+  languageName: node
+  linkType: hard
+
+"@voltz-protocol/util-modules@npm:^1.1.0":
+  version: 1.2.0
+  resolution: "@voltz-protocol/util-modules@npm:1.2.0::__archiveUrl=https%3A%2F%2Fnpm.pkg.github.com%2Fdownload%2F%40voltz-protocol%2Futil-modules%2F1.2.0%2Fb20238cfd3bd206b5e0f6c3a13e4fc15e2563fa8"
+  checksum: 8e9109734b03f99ac352c78c71c08d74c889d49d68671b0bc40a5a0cb367a5c919460cb590ddbe21af46530d3894c1839e1579ffb2b5f786701b73cf626d286c
   languageName: node
   linkType: hard
 
@@ -1883,7 +1899,7 @@ __metadata:
     "@types/mocha": ">=9.1.0"
     "@types/node": ">=12.0.0"
     "@voltz-protocol/core": 2.1.1
-    "@voltz-protocol/products-dated-irs": 2.1.1
+    "@voltz-protocol/products-dated-irs": 2.2.1
     "@voltz-protocol/util-contracts": 1.2.0
     "@voltz-protocol/util-modules": 1.1.0
     chai: ^4.2.0

@@ -1,4 +1,4 @@
-name = "voltz-vamm"
+name = "voltz-exchange-dated-irs-vamm"
 version = "2.0.0"
 description = "Voltz V2 Dated IRS VAMM"
 
@@ -6,10 +6,6 @@ description = "Voltz V2 Dated IRS VAMM"
 [setting.salt]
 description = "Change this to a unique string when deploying multiple instances of the protocol. Note that only the proxy contract will be unique."
 defaultValue = "main"
-
-# owner is required and must be overridden
-[setting.owner]
-description = "Admin user for the protocol"
 
 # Deploys OwnerUpgradeModule, which inherits from OwnerModule and 
 # UpgradeModule; it essentially represents an UUPSUpgradeable 

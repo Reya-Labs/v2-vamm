@@ -5,8 +5,8 @@
 artifact = "AccountBalanceModule"
 [contract.FeatureFlagModule]
 artifact = "FeatureFlagModule"
-[contract.PoolConfiguration]
-artifact = "PoolConfiguration"
+[contract.PoolConfigurationModule]
+artifact = "PoolConfigurationModule"
 [contract.PoolModule]
 artifact = "PoolModule"
 [contract.VammModule]
@@ -18,7 +18,7 @@ contracts = [
   "OwnerUpgradeModule",
   "AccountBalanceModule",
   "FeatureFlagModule",
-  "PoolConfiguration",
+  "PoolConfigurationModule",
   "PoolModule",
   "VammModule"
 ]
@@ -26,7 +26,7 @@ depends = [
   "contract.OwnerUpgradeModule",
   "contract.AccountBalanceModule",
   "contract.FeatureFlagModule",
-  "contract.PoolConfiguration",
+  "contract.PoolConfigurationModule",
   "contract.PoolModule",
   "contract.VammModule"
 ]
