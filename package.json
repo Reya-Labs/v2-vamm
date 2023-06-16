@@ -1,6 +1,6 @@
 {
   "name": "@voltz-protocol/v2-vamm",
-  "version": "1.7.1",
+  "version": "1.8.0",
   "description": "V2 VAMM smart contracts",
   "publishConfig": {
     "access": "restricted",
