@@ -85,6 +85,7 @@ contract PoolModule is IPoolModule {
             (fee, im) = irsProduct.propagateMakerOrder(
                 accountId,
                 marketId,
+                maturityTimestamp,
                 VAMMBase.baseAmountFromLiquidity(
                     liquidityDelta,
                     TickMath.getSqrtRatioAtTick(tickLower),

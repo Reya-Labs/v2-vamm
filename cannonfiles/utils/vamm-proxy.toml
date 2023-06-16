@@ -1,3 +1,7 @@
+# owner is required and must be overridden
+[setting.owner]
+description = "Admin user for the protocol"
+
 # Deploys an initial VAMM Proxy so that a new VAMM Proxy is not 
 # re-deployed every time we deploy a new router. Implementation is
 # then upgraded to the correct Router implementation in the

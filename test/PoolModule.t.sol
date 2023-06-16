@@ -129,7 +129,7 @@ contract PoolModuleTest is VoltzTest {
         
         vm.mockCall(
             address(0),
-            abi.encodeWithSelector(IProductIRSModule.propagateMakerOrder.selector, accountId, initMarketId, baseAmount - 1),
+            abi.encodeWithSelector(IProductIRSModule.propagateMakerOrder.selector, accountId, initMarketId, initMaturityTimestamp, baseAmount - 1),
             abi.encode(1002, 20020)
         );
         pool.initiateDatedMakerOrder(accountId, initMarketId, initMaturityTimestamp, tickLower, tickUpper, requestedLiquidityAmount);
@@ -160,7 +160,7 @@ contract PoolModuleTest is VoltzTest {
         
         vm.mockCall(
             address(0),
-            abi.encodeWithSelector(IProductIRSModule.propagateMakerOrder.selector, accountId, initMarketId, baseAmount - 1),
+            abi.encodeWithSelector(IProductIRSModule.propagateMakerOrder.selector, accountId, initMarketId, initMaturityTimestamp, baseAmount - 1),
             abi.encode(0, 0)
         );
         pool.initiateDatedMakerOrder(accountId, initMarketId, initMaturityTimestamp, tickLower, tickUpper, requestedLiquidityAmount);
