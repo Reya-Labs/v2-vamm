@@ -48,7 +48,9 @@ contract VammModule is IVammModule {
         external view override returns (UD60x18 datedIRSTwap) 
     {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
-        datedIRSTwap = vamm.twap(lookbackWindow, orderSize, true, true);
+        
+        bool nonZeroOrderSize = orderSize != 0;
+        datedIRSTwap = vamm.twap(lookbackWindow, orderSize, nonZeroOrderSize, nonZeroOrderSize);
     }
 
     /**
