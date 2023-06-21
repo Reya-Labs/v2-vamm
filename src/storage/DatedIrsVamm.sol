@@ -359,29 +359,29 @@ library DatedIrsVamm {
     ) internal {
         if (position.liquidity > 0) {
             (
-                int256 _fixedTokenGrowthInsideX128,
+                int256 _quoteTokenGrowthInsideX128,
                 int256 _baseTokenGrowthInsideX128
             ) = self.computeGrowthInside(tickLower, tickUpper);
-            (int256 _fixedTokenDelta, int256 _baseTokenDelta) = position
+            (int256 _quoteTokenDelta, int256 _baseTokenDelta) = position
                 .calculateFixedAndVariableDelta(
-                    _fixedTokenGrowthInsideX128,
+                    _quoteTokenGrowthInsideX128,
                     _baseTokenGrowthInsideX128
                 );
             
             position.updateTrackers(
-                _fixedTokenGrowthInsideX128,
+                _quoteTokenGrowthInsideX128,
                 _baseTokenGrowthInsideX128,
-                _fixedTokenDelta,
+                _quoteTokenDelta,
                 _baseTokenDelta // todo: why were these "- 1" in v1?
             );
         } else {
             if (isMintBurn) {
                 (
-                    int256 _fixedTokenGrowthInsideX128,
+                    int256 _quoteTokenGrowthInsideX128,
                     int256 _baseTokenGrowthInsideX128
                 ) = self.computeGrowthInside(tickLower, tickUpper);
                 position.updateTrackers(
-                    _fixedTokenGrowthInsideX128,
+                    _quoteTokenGrowthInsideX128,
                     _baseTokenGrowthInsideX128,
                     0,
                     0
@@ -419,7 +419,7 @@ library DatedIrsVamm {
                 self.vars._tickBitmap,
                 self.vars,
                 VAMMBase.VammData({
-                    _trackerFixedTokenGrowthGlobalX128: self.vars.trackerFixedTokenGrowthGlobalX128,
+                    _trackerQuoteTokenGrowthGlobalX128: self.vars.trackerQuoteTokenGrowthGlobalX128,
                     _trackerBaseTokenGrowthGlobalX128: self.vars.trackerBaseTokenGrowthGlobalX128,
                     _maxLiquidityPerTick: self.immutableConfig._maxLiquidityPerTick,
                     _tickSpacing: self.immutableConfig._tickSpacing
@@ -458,7 +458,7 @@ library DatedIrsVamm {
     )
         internal
         lock(self)
-        returns (int256 trackerFixedTokenDelta, int256 trackerBaseTokenDelta)
+        returns (int256 quoteTokenDelta, int256 baseTokenDelta)
     {
         VAMMBase.checkCurrentTimestampMaturityTimestampDelta(self.immutableConfig.maturityTimestamp);
 
@@ -471,10 +471,10 @@ library DatedIrsVamm {
             sqrtPriceX96: self.vars.sqrtPriceX96,
             tick: self.vars.tick,
             liquidity: liquidityStart,
-            trackerFixedTokenGrowthGlobalX128: self.vars.trackerFixedTokenGrowthGlobalX128,
+            trackerQuoteTokenGrowthGlobalX128: self.vars.trackerQuoteTokenGrowthGlobalX128,
             trackerBaseTokenGrowthGlobalX128: self.vars.trackerBaseTokenGrowthGlobalX128,
-            trackerFixedTokenDeltaCumulative: 0, // for Trader (user invoking the swap)
-            trackerBaseTokenDeltaCumulative: 0 // for Trader (user invoking the swap)
+            quoteTokenDeltaCumulative: 0, // for Trader (user invoking the swap)
+            baseTokenDeltaCumulative: 0 // for Trader (user invoking the swap)
         });
 
         // The following are used n times within the loop, but will not change so they are calculated here
@@ -538,32 +538,37 @@ library DatedIrsVamm {
                 })
             );
 
-            ///// UPDATE TRACKERS /////
-            if(params.amountSpecified > 0) {
-                step.baseInStep -= step.amountIn.toInt();
+            if (params.amountSpecified > 0) {
                 // LP is a Variable Taker
-                step.trackerBaseTokenDelta = (step.amountIn).toInt(); // this is positive
+                step.baseTokenDelta = step.amountIn.toInt(); // this is positive
+                step.unbalancedQuoteTokenDelta = -step.amountOut.toInt();
             } else {
-                step.baseInStep += step.amountOut.toInt();
                 // LP is a Fixed Taker
-                step.trackerBaseTokenDelta -= step.amountOut.toInt();
+                step.baseTokenDelta = -step.amountOut.toInt();
+                step.unbalancedQuoteTokenDelta = step.amountIn.toInt(); // this is positive
             }
-            state.amountSpecifiedRemaining += step.baseInStep;
 
+            ///// UPDATE TRACKERS /////
+            state.amountSpecifiedRemaining -= step.baseTokenDelta;
             if (state.liquidity > 0) {
-                (
-                    state.trackerFixedTokenGrowthGlobalX128,
-                    state.trackerBaseTokenGrowthGlobalX128,
-                    step.trackerFixedTokenDelta
-                ) = VAMMBase._calculateUpdatedGlobalTrackerValues( 
-                    state,
-                    step,
+                step.quoteTokenDelta = VAMMBase.calculateQuoteTokenDelta(
+                    step.unbalancedQuoteTokenDelta,
+                    step.baseTokenDelta,
                     FixedAndVariableMath.accrualFact(secondsTillMaturity),
                     self.mutableConfig.rateOracle.getCurrentIndex()
                 );
 
-                state.trackerFixedTokenDeltaCumulative -= step.trackerFixedTokenDelta; // fixedTokens; opposite sign from that of the LP's
-                state.trackerBaseTokenDeltaCumulative -= step.trackerBaseTokenDelta; // opposite sign from that of the LP's
+                (
+                    state.trackerQuoteTokenGrowthGlobalX128,
+                    state.trackerBaseTokenGrowthGlobalX128
+                ) = VAMMBase.calculateGlobalTrackerValues(
+                    state,
+                    step.quoteTokenDelta,
+                    step.baseTokenDelta
+                );
+
+                state.quoteTokenDeltaCumulative -= step.quoteTokenDelta; // opposite sign from that of the LP's
+                state.baseTokenDeltaCumulative -= step.baseTokenDelta; // opposite sign from that of the LP's
             }
 
             ///// UPDATE TICK AFTER SWAP STEP /////
@@ -574,7 +579,7 @@ library DatedIrsVamm {
                 if (step.initialized) {
                     int128 liquidityNet = self.vars._ticks.cross(
                         step.tickNext,
-                        state.trackerFixedTokenGrowthGlobalX128,
+                        state.trackerQuoteTokenGrowthGlobalX128,
                         state.trackerBaseTokenGrowthGlobalX128
                     );
 
@@ -616,7 +621,7 @@ library DatedIrsVamm {
         if (liquidityStart != state.liquidity) self.vars.liquidity = state.liquidity;
 
         self.vars.trackerBaseTokenGrowthGlobalX128 = state.trackerBaseTokenGrowthGlobalX128;
-        self.vars.trackerFixedTokenGrowthGlobalX128 = state.trackerFixedTokenGrowthGlobalX128;
+        self.vars.trackerQuoteTokenGrowthGlobalX128 = state.trackerQuoteTokenGrowthGlobalX128;
 
         emit VAMMBase.VAMMPriceChange(self.immutableConfig.marketId, self.immutableConfig.maturityTimestamp, self.vars.tick, block.timestamp);
 
@@ -626,12 +631,12 @@ library DatedIrsVamm {
             msg.sender,
             params.amountSpecified,
             params.sqrtPriceLimitX96,
-            trackerFixedTokenDelta,
-            trackerBaseTokenDelta,
+            quoteTokenDelta,
+            baseTokenDelta,
             block.timestamp
         );
 
-        return (state.trackerFixedTokenDeltaCumulative, state.trackerBaseTokenDeltaCumulative);
+        return (state.quoteTokenDeltaCumulative, state.baseTokenDeltaCumulative);
     }
 
     /// @notice For a given LP account, how much liquidity is available to trade in each direction.
@@ -678,12 +683,12 @@ library DatedIrsVamm {
 
         for (uint256 i = 0; i < numPositions; i++) {
             LPPosition.Data storage position = LPPosition.load(self.vars.positionsInAccount[accountId][i]);
-            (int256 trackerFixedTokenGlobalGrowth, int256 trackerBaseTokenGlobalGrowth) = 
+            (int256 trackerQuoteTokenGlobalGrowth, int256 trackerBaseTokenGlobalGrowth) = 
                 growthBetweenTicks(self, position.tickLower, position.tickUpper);
-            (int256 trackerFixedTokenAccumulated, int256 trackerBaseTokenAccumulated) = position.getUpdatedPositionBalances(trackerFixedTokenGlobalGrowth, trackerBaseTokenGlobalGrowth); 
+            (int256 trackerQuoteTokenAccumulated, int256 trackerBaseTokenAccumulated) = position.getUpdatedPositionBalances(trackerQuoteTokenGlobalGrowth, trackerBaseTokenGlobalGrowth); 
 
             baseBalancePool += trackerBaseTokenAccumulated;
-            quoteBalancePool += trackerFixedTokenAccumulated;
+            quoteBalancePool += trackerQuoteTokenAccumulated;
         }
 
     }
@@ -726,39 +731,39 @@ library DatedIrsVamm {
         int24 tickLower,
         int24 tickUpper
     ) internal view returns (
-        int256 trackerFixedTokenGrowthBetween,
+        int256 trackerQuoteTokenGrowthBetween,
         int256 trackerBaseTokenGrowthBetween
     )
     {
         Tick.checkTicks(tickLower, tickUpper);
 
-        int256 trackerFixedTokenBelowLowerTick;
+        int256 trackerQuoteTokenBelowLowerTick;
         int256 trackerBaseTokenBelowLowerTick;
 
         if (tickLower <= self.vars.tick) {
-            trackerFixedTokenBelowLowerTick = self.vars._ticks[tickLower].trackerFixedTokenGrowthOutsideX128;
+            trackerQuoteTokenBelowLowerTick = self.vars._ticks[tickLower].trackerQuoteTokenGrowthOutsideX128;
             trackerBaseTokenBelowLowerTick = self.vars._ticks[tickLower].trackerBaseTokenGrowthOutsideX128;
         } else {
-            trackerFixedTokenBelowLowerTick = self.vars.trackerFixedTokenGrowthGlobalX128 -
-                self.vars._ticks[tickLower].trackerFixedTokenGrowthOutsideX128;
+            trackerQuoteTokenBelowLowerTick = self.vars.trackerQuoteTokenGrowthGlobalX128 -
+                self.vars._ticks[tickLower].trackerQuoteTokenGrowthOutsideX128;
             trackerBaseTokenBelowLowerTick = self.vars.trackerBaseTokenGrowthGlobalX128 -
                 self.vars._ticks[tickLower].trackerBaseTokenGrowthOutsideX128;
         }
 
-        int256 trackerFixedTokenAboveUpperTick;
+        int256 trackerQuoteTokenAboveUpperTick;
         int256 trackerBaseTokenAboveUpperTick;
 
         if (tickUpper > self.vars.tick) {
-            trackerFixedTokenAboveUpperTick = self.vars._ticks[tickUpper].trackerFixedTokenGrowthOutsideX128;
+            trackerQuoteTokenAboveUpperTick = self.vars._ticks[tickUpper].trackerQuoteTokenGrowthOutsideX128;
             trackerBaseTokenAboveUpperTick = self.vars._ticks[tickUpper].trackerBaseTokenGrowthOutsideX128;
         } else {
-            trackerFixedTokenAboveUpperTick = self.vars.trackerFixedTokenGrowthGlobalX128 -
-                self.vars._ticks[tickUpper].trackerFixedTokenGrowthOutsideX128;
+            trackerQuoteTokenAboveUpperTick = self.vars.trackerQuoteTokenGrowthGlobalX128 -
+                self.vars._ticks[tickUpper].trackerQuoteTokenGrowthOutsideX128;
             trackerBaseTokenAboveUpperTick = self.vars.trackerBaseTokenGrowthGlobalX128 -
                 self.vars._ticks[tickUpper].trackerBaseTokenGrowthOutsideX128;
         }
 
-        trackerFixedTokenGrowthBetween = self.vars.trackerFixedTokenGrowthGlobalX128 - trackerFixedTokenBelowLowerTick - trackerFixedTokenAboveUpperTick;
+        trackerQuoteTokenGrowthBetween = self.vars.trackerQuoteTokenGrowthGlobalX128 - trackerQuoteTokenBelowLowerTick - trackerQuoteTokenAboveUpperTick;
         trackerBaseTokenGrowthBetween = self.vars.trackerBaseTokenGrowthGlobalX128 - trackerBaseTokenBelowLowerTick - trackerBaseTokenAboveUpperTick;
 
     }
@@ -770,7 +775,7 @@ library DatedIrsVamm {
     )
         internal
         view
-        returns (int256 fixedTokenGrowthInsideX128, int256 baseTokenGrowthInsideX128)
+        returns (int256 quoteTokenGrowthInsideX128, int256 baseTokenGrowthInsideX128)
     {
 
         Tick.checkTicks(tickLower, tickUpper);
@@ -784,12 +789,12 @@ library DatedIrsVamm {
             })
         );
 
-        fixedTokenGrowthInsideX128 = self.vars._ticks.getFixedTokenGrowthInside(
-            Tick.FixedTokenGrowthInsideParams({
+        quoteTokenGrowthInsideX128 = self.vars._ticks.getQuoteTokenGrowthInside(
+            Tick.QuoteTokenGrowthInsideParams({
                 tickLower: tickLower,
                 tickUpper: tickUpper,
                 tickCurrent: self.vars.tick,
-                fixedTokenGrowthGlobalX128: self.vars.trackerFixedTokenGrowthGlobalX128
+                quoteTokenGrowthGlobalX128: self.vars.trackerQuoteTokenGrowthGlobalX128
             })
         );
 

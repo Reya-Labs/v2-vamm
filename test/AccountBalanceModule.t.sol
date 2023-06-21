@@ -35,7 +35,7 @@ contract ExtendedAccountBalanceModule is AccountBalanceModule, VoltzTest {
         return BASE_AMOUNT_PER_LP;
     }
 
-    function mockTakerOrderRight(uint128 marketId, uint32 maturityTimestamp) public returns (int256 trackerFixedTokenDelta, int256 trackerBaseTokenDelta){
+    function mockTakerOrderRight(uint128 marketId, uint32 maturityTimestamp) public returns (int256 quoteTokenDelta, int256 baseTokenDelta){
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
         int256 amountSpecified =  500_000_000;
 
@@ -49,7 +49,7 @@ contract ExtendedAccountBalanceModule is AccountBalanceModule, VoltzTest {
 
         // Mock the liquidity index that is read during a swap
         vm.mockCall(0xAa73aA73Aa73Aa73AA73Aa73aA73AA73aa73aa73, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
-        (trackerFixedTokenDelta, trackerBaseTokenDelta) = vamm.vammSwap(params);
+        (quoteTokenDelta, baseTokenDelta) = vamm.vammSwap(params);
     }
 
     function getLiquidityForBase(
@@ -129,11 +129,11 @@ contract AccountBalanceModuleTest is VoltzTest {
 
     function test_FilledBalances() public {
         pool.mockMakerOrder(initMarketId, initMaturityTimestamp);
-        (int256 trackerFixedTokenDelta, int256 trackerBaseTokenDelta) = pool.mockTakerOrderRight(initMarketId, initMaturityTimestamp);
+        (int256 quoteTokenDelta, int256 baseTokenDelta) = pool.mockTakerOrderRight(initMarketId, initMaturityTimestamp);
 
         (int256 baseBalancePool, int256 quoteBalancePool)  = pool.getAccountFilledBalances(initMarketId, initMaturityTimestamp, pool.ACCOUNT_1());
-        assertAlmostEqual(baseBalancePool, -trackerBaseTokenDelta);
-        assertAlmostEqual(quoteBalancePool, -trackerFixedTokenDelta);
+        assertAlmostEqual(baseBalancePool, -baseTokenDelta);
+        assertAlmostEqual(quoteBalancePool, -quoteTokenDelta);
     }
 
     function test_UnfilledBalances() public {

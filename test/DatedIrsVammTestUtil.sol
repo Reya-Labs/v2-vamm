@@ -114,7 +114,7 @@ contract DatedIrsVammTestUtil is VoltzTest {
         Tick.Info storage t = vamm.vars._ticks[_tick];
         console2.log("- liquidityGross", uint256(t.liquidityGross));
         console2.log("- liquidityNet", int256(t.liquidityNet));
-        console2.log("- trackerFixedTokenGrowthOutsideX128", t.trackerFixedTokenGrowthOutsideX128);
+        console2.log("- trackerQuoteTokenGrowthOutsideX128", t.trackerQuoteTokenGrowthOutsideX128);
         console2.log("- trackerBaseTokenGrowthOutsideX128", t.trackerBaseTokenGrowthOutsideX128);
         console2.log("- initialized", t.initialized);
     }
@@ -294,8 +294,8 @@ contract ExposedDatedIrsVamm {
         return DatedIrsVamm.load(vammId).vars.trackerBaseTokenGrowthGlobalX128;
     }
 
-    function trackerFixedTokenGrowthGlobalX128() external view returns (int256){
-        return DatedIrsVamm.load(vammId).vars.trackerFixedTokenGrowthGlobalX128;
+    function trackerQuoteTokenGrowthGlobalX128() external view returns (int256){
+        return DatedIrsVamm.load(vammId).vars.trackerQuoteTokenGrowthGlobalX128;
     }
 
     function position(uint128 posId) external view returns (LPPosition.Data memory){

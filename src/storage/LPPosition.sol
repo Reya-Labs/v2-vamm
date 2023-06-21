@@ -32,19 +32,19 @@ library LPPosition {
         */
         int24 tickUpper;
         /** 
-        * @dev fixed token growth per unit of liquidity as of the last update to liquidity or fixed/variable token balance
+        * @dev quote token growth per unit of liquidity as of the last update to liquidity or fixed/variable token balance
         */
-        int256 trackerFixedTokenUpdatedGrowth;
+        int256 trackerQuoteTokenUpdatedGrowth;
         /** 
         * @dev variable token growth per unit of liquidity as of the last update to liquidity or fixed/variable token balance
         */
         int256 trackerBaseTokenUpdatedGrowth;
         /** 
-        * @dev current Fixed Token balance of the position, 1 fixed token can be redeemed for 1% APY * (annualised amm term) at the maturity of the amm
+        * @dev current Quote Token balance of the position, 1 quote token can be redeemed for 1% APY * (annualised amm term) at the maturity of the amm
         * assuming 1 token worth of notional "deposited" in the underlying pool at the inception of the amm
         * can be negative/positive/zero
         */
-        int256 trackerFixedTokenAccumulated;
+        int256 trackerQuoteTokenAccumulated;
         /** 
         * @dev current Variable Token Balance of the position, 1 variable token can be redeemed for underlyingPoolAPY*(annualised amm term) at the maturity of the amm
         * assuming 1 token worth of notional "deposited" in the underlying pool at the inception of the amm
@@ -87,18 +87,18 @@ library LPPosition {
 
     function updateTrackers(
         Data storage self,
-        int256 trackerFixedTokenUpdatedGrowth,
+        int256 trackerQuoteTokenUpdatedGrowth,
         int256 trackerBaseTokenUpdatedGrowth,
-        int256 deltaTrackerFixedTokenAccumulated,
+        int256 deltaTrackerQuoteTokenAccumulated,
         int256 deltaTrackerBaseTokenAccumulated
     ) internal {
 
         if (self.accountId == 0) {
             revert PositionNotFound();
         }
-        self.trackerFixedTokenUpdatedGrowth = trackerFixedTokenUpdatedGrowth;
+        self.trackerQuoteTokenUpdatedGrowth = trackerQuoteTokenUpdatedGrowth;
         self.trackerBaseTokenUpdatedGrowth = trackerBaseTokenUpdatedGrowth;
-        self.trackerFixedTokenAccumulated += deltaTrackerFixedTokenAccumulated;
+        self.trackerQuoteTokenAccumulated += deltaTrackerQuoteTokenAccumulated;
         self.trackerBaseTokenAccumulated += deltaTrackerBaseTokenAccumulated;
     }
 
@@ -131,7 +131,7 @@ library LPPosition {
 
     function getUpdatedPositionBalances(
         Data memory self,
-        int256 fixedTokenGrowthInsideX128,
+        int256 quoteTokenGrowthInsideX128,
         int256 baseTokenGrowthInsideX128
     )
         internal view returns (int256, int256) {
@@ -140,14 +140,14 @@ library LPPosition {
             revert PositionNotFound();
         }
 
-        (int256 fixedTokenDelta, int256 baseTokenDelta) = calculateFixedAndVariableDelta(
+        (int256 quoteTokenDelta, int256 baseTokenDelta) = calculateFixedAndVariableDelta(
             self,
-            fixedTokenGrowthInsideX128,
+            quoteTokenGrowthInsideX128,
             baseTokenGrowthInsideX128
         );
 
         return (
-            self.trackerFixedTokenAccumulated + fixedTokenDelta,
+            self.trackerQuoteTokenAccumulated + quoteTokenDelta,
             self.trackerBaseTokenAccumulated + baseTokenDelta
         );
     }
@@ -169,25 +169,25 @@ library LPPosition {
 
     /// @notice Returns Fixed and Variable Token Deltas
     /// @param self position info struct represeting a liquidity provider
-    /// @param fixedTokenGrowthInsideX128 fixed token growth per unit of liquidity as of now (in wei)
+    /// @param quoteTokenGrowthInsideX128 quote token growth per unit of liquidity as of now (in wei)
     /// @param baseTokenGrowthInsideX128 variable token growth per unit of liquidity as of now (in wei)
-    /// @return _fixedTokenDelta = (fixedTokenGrowthInside-fixedTokenGrowthInsideLast) * liquidity of a position
+    /// @return _quoteTokenDelta = (quoteTokenGrowthInside-quoteTokenGrowthInsideLast) * liquidity of a position
     /// @return _baseTokenDelta = (baseTokenGrowthInside-baseTokenGrowthInsideLast) * liquidity of a position
     function calculateFixedAndVariableDelta(
         Data memory self,
-        int256 fixedTokenGrowthInsideX128,
+        int256 quoteTokenGrowthInsideX128,
         int256 baseTokenGrowthInsideX128
     )
         internal
         view
-        returns (int256 _fixedTokenDelta, int256 _baseTokenDelta)
+        returns (int256 _quoteTokenDelta, int256 _baseTokenDelta)
     {
 
-        int256 fixedTokenGrowthInsideDeltaX128 = fixedTokenGrowthInsideX128 -
-            self.trackerFixedTokenUpdatedGrowth;
+        int256 quoteTokenGrowthInsideDeltaX128 = quoteTokenGrowthInsideX128 -
+            self.trackerQuoteTokenUpdatedGrowth;
 
-        _fixedTokenDelta = FullMath.mulDivSigned(
-            fixedTokenGrowthInsideDeltaX128,
+        _quoteTokenDelta = FullMath.mulDivSigned(
+            quoteTokenGrowthInsideDeltaX128,
             self.liquidity,
             FixedPoint128.Q128
         );

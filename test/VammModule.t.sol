@@ -59,9 +59,9 @@ contract ExtendedVammModule is VammModule {
         return vamm.vars.liquidity;
     }
 
-    function trackerFixedTokenGrowthGlobalX128(uint128 marketId, uint32 maturityTimestamp) external returns (int256) {
+    function trackerQuoteTokenGrowthGlobalX128(uint128 marketId, uint32 maturityTimestamp) external returns (int256) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
-        return vamm.vars.trackerFixedTokenGrowthGlobalX128;
+        return vamm.vars.trackerQuoteTokenGrowthGlobalX128;
     }
 
     function trackerBaseTokenGrowthGlobalX128(uint128 marketId, uint32 maturityTimestamp) external returns (int256) {
@@ -149,7 +149,7 @@ contract VammModuleTest is VoltzTest {
         assertEq(vammConfig.observations(2, initMaturityTimestamp, 1).initialized, false);
         assertEq(vammConfig.positionsInAccount(2, initMaturityTimestamp, 1).length, 0);
         assertEq(vammConfig.liquidity(2, initMaturityTimestamp), 0);
-        assertEq(vammConfig.trackerFixedTokenGrowthGlobalX128(2, initMaturityTimestamp), 0);
+        assertEq(vammConfig.trackerQuoteTokenGrowthGlobalX128(2, initMaturityTimestamp), 0);
         assertEq(vammConfig.trackerBaseTokenGrowthGlobalX128(2, initMaturityTimestamp), 0);
         assertEq(vammConfig.ticks(2, initMaturityTimestamp, -32191).initialized, false);
         assertEq(vammConfig.ticks(2, initMaturityTimestamp, -32190).initialized, false);

@@ -86,8 +86,8 @@ interface IVammModule {
   function getVammPositionsInAccount(uint128 _marketId, uint32 _maturityTimestamp, uint128 accountId)
     external view returns (uint128[] memory positionsInAccount);
 
-  function getVammTrackerFixedTokenGrowthGlobalX128(uint128 _marketId, uint32 _maturityTimestamp)
-    external view returns (int256 trackerFixedTokenGrowthGlobalX128);
+  function getVammTrackerQuoteTokenGrowthGlobalX128(uint128 _marketId, uint32 _maturityTimestamp)
+    external view returns (int256 trackerQuoteTokenGrowthGlobalX128);
   
   function getVammTrackerBaseTokenGrowthGlobalX128(uint128 _marketId, uint32 _maturityTimestamp)
     external view returns (int256 trackerBaseTokenGrowthGlobalX128);

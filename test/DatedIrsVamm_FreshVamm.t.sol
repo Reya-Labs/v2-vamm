@@ -170,9 +170,9 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
     //     assertEq(p.tickLower, tickLower);
     //     assertEq(p.tickUpper, tickUpper);
     //     assertEq(p.baseAmount, 0);
-    //     assertEq(p.trackerFixedTokenUpdatedGrowth, 0);
+    //     assertEq(p.trackerQuoteTokenUpdatedGrowth, 0);
     //     assertEq(p.trackerBaseTokenUpdatedGrowth, 0);
-    //     assertEq(p.trackerFixedTokenAccumulated, 0);
+    //     assertEq(p.trackerQuoteTokenAccumulated, 0);
     //     assertEq(p.trackerBaseTokenAccumulated, 0);
     //     //vamm.getRawPosition(positionId);
     // }

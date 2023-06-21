@@ -54,8 +54,8 @@ library VAMMBase {
         address sender,
         int256 desiredBaseAmount,
         uint160 sqrtPriceLimitX96,
-        int256 trackerFixedTokenDelta,
-        int256 trackerBaseTokenDelta,
+        int256 quoteTokenDelta,
+        int256 baseTokenDelta,
         uint256 blockTimestamp
     );
 
@@ -83,16 +83,16 @@ library VAMMBase {
         uint160 sqrtPriceX96;
         /// @dev the tick associated with the current price
         int24 tick;
-        /// @dev the global fixed token growth
-        int256 trackerFixedTokenGrowthGlobalX128;
+        /// @dev the global quote token growth
+        int256 trackerQuoteTokenGrowthGlobalX128;
         /// @dev the global variable token growth
         int256 trackerBaseTokenGrowthGlobalX128;
         /// @dev the current liquidity in range
         uint128 liquidity;
-        /// @dev trackerFixedTokenDelta that will be applied to the fixed token balance of the position executing the swap
-        int256 trackerFixedTokenDeltaCumulative;
-        /// @dev trackerBaseTokenDelta that will be applied to the variable token balance of the position executing the swap
-        int256 trackerBaseTokenDeltaCumulative;
+        /// @dev quoteTokenDelta that will be applied to the quote token balance of the position executing the swap
+        int256 quoteTokenDeltaCumulative;
+        /// @dev baseTokenDelta that will be applied to the variable token balance of the position executing the swap
+        int256 baseTokenDeltaCumulative;
     }
 
     struct StepComputations {
@@ -108,12 +108,11 @@ library VAMMBase {
         uint256 amountIn;
         /// @dev how much is being swapped out
         uint256 amountOut;
+        int256 unbalancedQuoteTokenDelta;
         /// @dev ...
-        int256 trackerFixedTokenDelta; // for LP
+        int256 quoteTokenDelta; // for LP
         /// @dev ...
-        int256 trackerBaseTokenDelta; // for LP
-        /// @dev the amount swapped out/in of the output/input asset during swap step
-        int256 baseInStep;
+        int256 baseTokenDelta; // for LP
     }
 
     struct FlipTicksParams {
@@ -125,7 +124,7 @@ library VAMMBase {
     }
 
     struct VammData {
-        int256 _trackerFixedTokenGrowthGlobalX128;
+        int256 _trackerQuoteTokenGrowthGlobalX128;
         int256 _trackerBaseTokenGrowthGlobalX128;
         uint128 _maxLiquidityPerTick;
         int24 _tickSpacing;
@@ -168,123 +167,50 @@ library VAMMBase {
         return UD60x18.wrap(FullMath.mulDiv(1e18, FixedPoint96.Q96, priceX96));
     }
 
-    /// @dev Private but labelled internal for testability.
-    ///
-    /// @dev Calculate `fixedTokens` for some tick range that has uniform liquidity within a trade. The calculation relies
-    /// on the trade being uniformly distributed across the specified tick range in order to calculate the average price (the fixedAPY), so this
-    /// assumption must hold or the math will break. As such, the function can only really be useed to calculate `fixedTokens` for a subset of a trade,
-    ///
-    /// Thinking about cashflows from first principles, the cashflow of an IRS at time `x` (`x < maturityTimestamp`) is:
-    ///  (1)  `cashflow[x] = notional * (variableAPYBetween[tradeDate, x] - fixedAPY) * timeInYearsBetween[tradeDate, x]`   
-    /// We use liquidity indices to track variable rates, such that
-    ///  (2)  `variableAPYBetween[tradeDate, x] * timeInYearsBetween[tradeDate, x] = (liquidityIndex[x] / liquidityIndex[tradeDate]) - 1     
-    /// We can therefore rearrange (1) as:
-    ///       `cashflow[x] = notional * ((variableAPYBetween[tradeDate, x]*timeInYearsBetween[tradeDate, x]) - (fixedAPY*timeInYearsBetween[tradeDate, x]))`   
-    ///       `cashflow[x] = notional * ((liquidityIndex[x] / liquidityIndex[tradeDate]) - 1 - (fixedAPY*timeInYearsBetween[tradeDate, x]))`   
-    ///   (3) `cashflow[x] = notional*(liquidityIndex[x] / liquidityIndex[tradeDate]) - notional*(1 + fixedAPY*timeInYearsBetween[tradeDate, x])`
-    /// Now if we define:
-    ///   `baseTokens:= notional / liquidityIndex[tradeDate]`
-    /// then we can further rearrange (3) as:
-    ///       `cashflow[x] = baseTokens*liquidityIndex[x] - baseTokens*liquidityIndex[tradeDate]*(1 + fixedAPY*timeInYearsBetween[tradeDate, x])`
-    /// And now if we define:
-    ///   `fixedTokens:= -baseTokens*liquidityIndex[tradeDate]*(1 + fixedAPY*timeInYearsBetween[tradeDate, maturityTimestamp])
-    /// Then we will have simply:
-    ///   (4) `cashflow[maturity] = baseTokens*liquidityIndex[maturity] + fixedTokens`
-    /// 
-    /// In Voltz, `baseTokens` is calculated off-chain based on the desired notional, and is one of the inputs that the smart contracts see when a trade is made.
-    ///
-    /// The following function helps with the calculation of `fixedTokens`.
-    ///
-    /// Pluggin in a fixed Rate or 0 and we see that
-    ///   `cashflow[x] = baseTokens*liquidityIndex[x] - baseTokens*liquidityIndex[tradeDate]*(1 + fixedAPY*timeInYearsBetween[tradeDate, x])`
-    /// now simplifies to:
-    ///   `cashflow[x] = baseTokens*liquidityIndex[x] - baseTokens*liquidityIndex[tradeDate]`
-    /// which is what we want.
-    function _fixedTokensInHomogeneousTickWindow( // TODO: previously called trackFixedTokens; update python code to match new name 
-      int256 baseAmount,
-      int24 tickLower,
-      int24 tickUpper,
-      UD60x18 yearsUntilMaturity,
-      UD60x18 currentOracleValue
-    )
-        internal
-        view
-        returns (
-            int256 trackedValue
-        )
-    {
-        UD60x18 averagePrice = VAMMBase.averagePriceBetweenTicks(tickLower, tickUpper);
-        UD60x18 timeComponent = ONE.add(averagePrice.mul(yearsUntilMaturity)); // (1 + fixedRate * timeInYearsTillMaturity)
-        trackedValue = mulUDxInt(
-            currentOracleValue.mul(timeComponent),
-            -baseAmount
-        );
-    }
-
-    /// @dev Private but labelled internal for testability.
-    function _calculateUpdatedGlobalTrackerValues(
-        VAMMBase.SwapState memory state,
-        VAMMBase.StepComputations memory step,
+    function calculateQuoteTokenDelta(
+        int256 unbalancedQuoteTokenDelta,
+        int256 baseTokenDelta,
         UD60x18 yearsUntilMaturity,
         UD60x18 currentOracleValue
-    )
+    ) 
         internal
-        view
+        pure
         returns (
-            int256 stateFixedTokenGrowthGlobalX128,
-            int256 stateBaseTokenGrowthGlobalX128,
-            int256 fixedTokenDelta
+            int256 balancedQuoteTokenDelta
         )
     {
-        // Get the numder of fixed tokens for the current section of our swap's tick range
-        // This calculation assumes that the trade is uniformly distributed within the given tick range, which is only
-        // true because there are no changes in liquidity between `state.tick` and `step.tickNext`.
-        fixedTokenDelta = VAMMBase._fixedTokensInHomogeneousTickWindow(
-            step.trackerBaseTokenDelta,
-            state.tick < step.tickNext ? state.tick : step.tickNext,
-            state.tick > step.tickNext ? state.tick : step.tickNext,
-            yearsUntilMaturity,
-            currentOracleValue
-        );
+        UD60x18 averagePrice = SD59x18.wrap(
+            unbalancedQuoteTokenDelta
+        ).div(SD59x18.wrap(baseTokenDelta)).div(
+            convert_sd(-1)
+        ).intoUD60x18();
 
-        // update global trackers
-        // note this calculation is not precise with very small trackerBaseTokenDelta values 
-        stateBaseTokenGrowthGlobalX128 = state.trackerBaseTokenGrowthGlobalX128 + FullMath.mulDivSigned(step.trackerBaseTokenDelta, FixedPoint128.Q128, state.liquidity);
-        stateFixedTokenGrowthGlobalX128 = state.trackerFixedTokenGrowthGlobalX128 + FullMath.mulDivSigned(fixedTokenDelta, FixedPoint128.Q128, state.liquidity);
+        balancedQuoteTokenDelta = SD59x18.wrap(
+            -baseTokenDelta
+        ).mul(currentOracleValue.intoSD59x18()).mul(
+            ONE.add(averagePrice.mul(yearsUntilMaturity)).intoSD59x18()
+        ).unwrap();
     }
 
-    /// @dev Private but labelled internal for testability.
-    /// 
-    /// @dev The sum of `1.0001^x` for `x`=0,...,`tick`, equals `(1.0001^(tick+1) - 1) / (1.0001-1)`. This can be positive or nagative.
-    /// The `- 1 / (1.0001-1)` part of that forumla equals `-10000`. If we skip this subtraction then:
-    /// (A) there is less math to do
-    /// (B) we can guarantee that the result is positive (because `1.0001^(n+1)` is positive) and return an unsigned value
-    ///
-    /// For those reasons, we return not the sum of `1.0001^x` for `x`=0,...,`n`, but that sum plus 10,000.
-    function _sumOfAllPricesUpToPlus10k(int24 tick) internal pure returns(UD60x18 price) {
-        // Tick might be negative and UD60x18 does not support `.pow(x)` for x < 0, so we must use SD59x18
-        SD59x18 numeratorSigned = PRICE_EXPONENT_BASE.pow(convert_sd(int256(tick + 1)));
+    function calculateGlobalTrackerValues(
+        VAMMBase.SwapState memory state,
+        int256 balancedQuoteTokenDelta,
+        int256 baseTokenDelta
+    ) 
+        internal
+        pure
+        returns (
+            int256 stateQuoteTokenGrowthGlobalX128,
+            int256 stateBaseTokenGrowthGlobalX128
+        )
+    {
+        stateQuoteTokenGrowthGlobalX128 = 
+            state.trackerQuoteTokenGrowthGlobalX128 + 
+                FullMath.mulDivSigned(balancedQuoteTokenDelta, FixedPoint128.Q128, state.liquidity);
 
-        // We know that 1.0001^x is positive even for negative x, so we can safely cast to UD60x18 now
-        UD60x18 numerator = ud60x18(numeratorSigned);
-        return numerator.div(PRICE_EXPONENT_BASE_MINUS_ONE);
-    }
-
-    /// @dev Computes the average price of a trade, assuming uniform distribution of the trade across the specified tick range.
-    /// This assumption makes it unsuitable for determining the average price of a whole trade that crosses tick boundaries where liquidity changes.
-    function averagePriceBetweenTicks(
-        int24 _tickLower,
-        int24 _tickUpper
-    ) internal pure returns(UD60x18) {
-        // As both of the below results are 10k too large, the difference between them will be correct
-        // The division is inversed because price = 1.0001^-tick
-        return _sumOfAllPricesUpToPlus10k(-_tickLower)
-            .sub(_sumOfAllPricesUpToPlus10k(-_tickUpper - 1))
-            .div(
-                (convert_ud(uint256(
-                    int256(1 + _tickUpper - _tickLower)
-                )))
-            );
+        stateBaseTokenGrowthGlobalX128 = 
+            state.trackerBaseTokenGrowthGlobalX128 + 
+                FullMath.mulDivSigned(baseTokenDelta, FixedPoint128.Q128, state.liquidity);
     }
 
     function flipTicks(
@@ -307,7 +233,7 @@ library VAMMBase {
             params.tickLower,
             _vammVars.tick,
             params.liquidityDelta,
-            data._trackerFixedTokenGrowthGlobalX128,
+            data._trackerQuoteTokenGrowthGlobalX128,
             data._trackerBaseTokenGrowthGlobalX128,
             false,
             data._maxLiquidityPerTick
@@ -318,7 +244,7 @@ library VAMMBase {
             params.tickUpper,
             _vammVars.tick,
             params.liquidityDelta,
-            data._trackerFixedTokenGrowthGlobalX128,
+            data._trackerQuoteTokenGrowthGlobalX128,
             data._trackerBaseTokenGrowthGlobalX128,
             true,
             data._maxLiquidityPerTick
