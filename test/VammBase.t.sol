@@ -77,14 +77,14 @@ contract VammBaseTest is DatedIrsVammTestUtil {
         UD60x18 currentOracleValue = convert(uint256(107)).div(convert(uint256(100))); // 1.07
 
         // quote token delta = -base * liquidity_index * (1 + fixed_rate * yearsUntilMaturity)
-        // quote token delta = -1e6 *       1.07       * (1 + 1.5 * 0.5) // todo: scaling is wrong
-        // quote token delta = -1872500
+        // quote token delta = -1e6 *       1.07       * (1 + 0.015 * 0.5)
+        // quote token delta = -1078025
         int256 quoteTokenDelta = vammBase.calculateQuoteTokenDelta(
             unbalancedQuoteTokenDelta,
             baseTokenDelta,
             yearsUntilMaturity,
             currentOracleValue
         );
-        assertEq(quoteTokenDelta, -1872500);
+        assertEq(quoteTokenDelta, -1078025);
     }
 }

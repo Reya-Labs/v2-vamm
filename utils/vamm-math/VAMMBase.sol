@@ -182,7 +182,7 @@ library VAMMBase {
         UD60x18 averagePrice = SD59x18.wrap(
             unbalancedQuoteTokenDelta
         ).div(SD59x18.wrap(baseTokenDelta)).div(
-            convert_sd(-1)
+            convert_sd(-100)
         ).intoUD60x18();
 
         balancedQuoteTokenDelta = SD59x18.wrap(
