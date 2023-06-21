@@ -10,7 +10,7 @@ import "@voltz-protocol/util-contracts/src/storage/OwnableStorage.sol";
 contract PoolConfigurationModule is IPoolConfigurationModule {
   using PoolConfiguration for PoolConfiguration.Data;
 
-  bytes32 private constant _PAUSER_FEATURE_FLAG = "registerProduct";
+  bytes32 private constant _PAUSER_FEATURE_FLAG = "pauser";
 
   function setPauseState(bool paused) external override {
     FeatureFlag.ensureAccessToFeature(_PAUSER_FEATURE_FLAG);
