@@ -226,7 +226,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
         // ((1 + (1.0001 ^ 32223 + 1.0001^32191)/2 * 1) * 2 * -base) * 2^128 / 916703985467
         // (1 + (midPrice) * yearsToMaturity) * oracleIndex * -base * Q128 / liquidity = FT delta /liquidity
-        int256 expectedTrackerQuoteTokenGrowthGlobalX128 = 928017659342276365967091558361057;
+        int256 expectedTrackerQuoteTokenGrowthGlobalX128 = 928481604919124081779062245598153;
         assertAlmostEqual(vamm.trackerQuoteTokenGrowthGlobalX128(), expectedTrackerQuoteTokenGrowthGlobalX128);
         
         // base * Q128 / liquidity 
@@ -345,11 +345,11 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         // pos liq 500019035536
 
         // = growth inside = global - (below + above)
-        assertEq(position.trackerQuoteTokenUpdatedGrowth, -463755969456668962459120022970847328);
+        assertEq(position.trackerQuoteTokenUpdatedGrowth, -463478307750743507798232232542679160);
         assertEq(position.trackerBaseTokenUpdatedGrowth, 185601007694750624584923956706400286);
 
         // = (growth inside - position.growth) * liquidity / 2^128
-        assertEq(position.trackerQuoteTokenAccumulated, -681454095);
+        assertEq(position.trackerQuoteTokenAccumulated, -681046092);
         assertEq(position.trackerBaseTokenAccumulated, 272726552);
     }
 
@@ -385,11 +385,11 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
         // = growth inside = global - (below + above)
         LPPosition.Data memory position = vamm.position(LPPosition.getPositionId(ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER));
-        assertEq(position.trackerQuoteTokenUpdatedGrowth, -463755969456668962459120022970847328);
+        assertEq(position.trackerQuoteTokenUpdatedGrowth, -463478307750743507798232232542679160);
         assertEq(position.trackerBaseTokenUpdatedGrowth, 185601007694750624584923956706400286);
 
         // = (growth inside - position.growth) * liquidity / 2^128
-        assertEq(position.trackerQuoteTokenAccumulated, -681454095);
+        assertEq(position.trackerQuoteTokenAccumulated, -681046092);
         assertEq(position.trackerBaseTokenAccumulated, 272726552);
 
         assertEq(position.liquidity.toInt(), 500019035536 + requestedLiquidityAmount);
@@ -437,7 +437,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
         // = growth inside = global - (L G O + GLOBAL - U G O)
         LPPosition.Data memory position = vamm.position(LPPosition.getPositionId(newAccount, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER));
-        assertEq(position.trackerQuoteTokenUpdatedGrowth, -40832094223197638516397209956266229444);
+        assertEq(position.trackerQuoteTokenUpdatedGrowth, -40811677019265203502561232887107045219);
         assertEq(position.trackerBaseTokenUpdatedGrowth, 17013179946607015586200609783278514987);
 
         // // = (growth inside - position.growth) * liquidity / 2^128
@@ -488,11 +488,11 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
         // = growth inside = global - (below + above)
         LPPosition.Data memory position = vamm.position(LPPosition.getPositionId(ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER));
-        assertEq(position.trackerQuoteTokenUpdatedGrowth, -463755969456668962459120022970847328);
+        assertEq(position.trackerQuoteTokenUpdatedGrowth, -463478307750743507798232232542679160);
         assertEq(position.trackerBaseTokenUpdatedGrowth, 185601007694750624584923956706400286);
 
         // = (growth inside - position.growth) * liquidity / 2^128
-        assertEq(position.trackerQuoteTokenAccumulated, -681454095);
+        assertEq(position.trackerQuoteTokenAccumulated, -681046092);
         assertEq(position.trackerBaseTokenAccumulated, 272726552);
 
         assertEq(position.liquidity.toInt(), 500019035536 + requestedLiquidityAmount);
@@ -538,11 +538,11 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
         // = growth inside = global - (below + above)
         LPPosition.Data memory position = vamm.position(LPPosition.getPositionId(ACCOUNT_1, ACCOUNT_1_TICK_LOWER, ACCOUNT_1_TICK_UPPER));
-        assertEq(position.trackerQuoteTokenUpdatedGrowth, -463755969456668962459120022970847328);
+        assertEq(position.trackerQuoteTokenUpdatedGrowth, -463478307750743507798232232542679160);
         assertEq(position.trackerBaseTokenUpdatedGrowth, 185601007694750624584923956706400286);
 
         // = (growth inside - position.growth) * pos.liquidity / 2^128
-        assertEq(position.trackerQuoteTokenAccumulated, -567881711);
+        assertEq(position.trackerQuoteTokenAccumulated, -567541707);
         assertEq(position.trackerBaseTokenAccumulated, 227273447);
 
         assertEq(position.liquidity.toInt(), 416684949931 + requestedLiquidityAmount);

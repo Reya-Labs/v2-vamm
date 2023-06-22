@@ -31,13 +31,15 @@ contract ExposedVammBase {
         int256 unbalancedQuoteTokenDelta,
         int256 baseTokenDelta,
         UD60x18 yearsUntilMaturity,
-        UD60x18 currentOracleValue
+        UD60x18 currentOracleValue,
+        UD60x18 spread
     ) public pure returns (int256 balancedQuoteTokenDelta) {
         balancedQuoteTokenDelta = VAMMBase.calculateQuoteTokenDelta(
             unbalancedQuoteTokenDelta,
             baseTokenDelta,
             yearsUntilMaturity,
-            currentOracleValue
+            currentOracleValue,
+            spread
         );
     }
 }
@@ -70,7 +72,7 @@ contract VammBaseTest is DatedIrsVammTestUtil {
         assertOffByNoMoreThan2OrAlmostEqual(getLiquidityForBase(tickLower, tickUpper, baseAmount), liquidity); // TODO: can we do better than off-by-two for small values? is it important?
     }
 
-    function test_CalculateQuoteTokenDelta() public {
+    function test_CalculateQuoteTokenDelta_0bpsSpread_VT() public {
         int256 baseTokenDelta = 1e6;
         int256 unbalancedQuoteTokenDelta = -baseTokenDelta * 15 / 10; // avg price 1.5%
         UD60x18 yearsUntilMaturity = convert(uint256(1)).div(convert(uint256(2))); // half of year
@@ -83,8 +85,66 @@ contract VammBaseTest is DatedIrsVammTestUtil {
             unbalancedQuoteTokenDelta,
             baseTokenDelta,
             yearsUntilMaturity,
-            currentOracleValue
+            currentOracleValue,
+            ud60x18(0)
         );
         assertEq(quoteTokenDelta, -1078025);
+    }
+
+    function test_CalculateQuoteTokenDelta_0bpsSpread_FT() public {
+        int256 baseTokenDelta = -1e6;
+        int256 unbalancedQuoteTokenDelta = -baseTokenDelta * 15 / 10; // avg price 1.5%
+        UD60x18 yearsUntilMaturity = convert(uint256(1)).div(convert(uint256(2))); // half of year
+        UD60x18 currentOracleValue = convert(uint256(107)).div(convert(uint256(100))); // 1.07
+
+        // quote token delta = -base * liquidity_index * (1 + fixed_rate * yearsUntilMaturity)
+        // quote token delta = 1e6 *       1.07       * (1 + 0.015 * 0.5)
+        // quote token delta = 1078025
+        int256 quoteTokenDelta = vammBase.calculateQuoteTokenDelta(
+            unbalancedQuoteTokenDelta,
+            baseTokenDelta,
+            yearsUntilMaturity,
+            currentOracleValue,
+            ud60x18(0)
+        );
+        assertEq(quoteTokenDelta, 1078025);
+    }
+
+    function test_CalculateQuoteTokenDelta_50bpsSpread_VT() public {
+        int256 baseTokenDelta = 1e6;
+        int256 unbalancedQuoteTokenDelta = -baseTokenDelta * 15 / 10; // avg price 1.5%
+        UD60x18 yearsUntilMaturity = convert(uint256(1)).div(convert(uint256(2))); // half of year
+        UD60x18 currentOracleValue = convert(uint256(107)).div(convert(uint256(100))); // 1.07
+
+        // quote token delta = -base * liquidity_index * (1 + fixed_rate * (1 - spread/2) * yearsUntilMaturity)
+        // quote token delta = -1e6 *       1.07       * (1 + 0.015 * (1 - 0.005 / 2) * 0.5)          
+        // quote token delta = -1078004
+        int256 quoteTokenDelta = vammBase.calculateQuoteTokenDelta(
+            unbalancedQuoteTokenDelta,
+            baseTokenDelta,
+            yearsUntilMaturity,
+            currentOracleValue,
+            ud60x18(25e14)
+        );
+        assertEq(quoteTokenDelta, -1078004);
+    }
+
+    function test_CalculateQuoteTokenDelta_50bpsSpread_FT() public {
+        int256 baseTokenDelta = -1e6;
+        int256 unbalancedQuoteTokenDelta = -baseTokenDelta * 15 / 10; // avg price 1.5%
+        UD60x18 yearsUntilMaturity = convert(uint256(1)).div(convert(uint256(2))); // half of year
+        UD60x18 currentOracleValue = convert(uint256(107)).div(convert(uint256(100))); // 1.07
+
+        // quote token delta = -base * liquidity_index * (1 + fixed_rate  * (1 + spread/2) * yearsUntilMaturity)
+        // quote token delta = 1e6 *       1.07       * (1 + 0.015 * (1 + 0.005 / 2) * 0.5)                 
+        // quote token delta = 1078045
+        int256 quoteTokenDelta = vammBase.calculateQuoteTokenDelta(
+            unbalancedQuoteTokenDelta,
+            baseTokenDelta,
+            yearsUntilMaturity,
+            currentOracleValue,
+            ud60x18(25e14)
+        );
+        assertEq(quoteTokenDelta, 1078045);
     }
 }

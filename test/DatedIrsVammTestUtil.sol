@@ -32,7 +32,7 @@ contract DatedIrsVammTestUtil is VoltzTest {
     VammConfiguration.Mutable internal mutableConfig = VammConfiguration.Mutable({
         priceImpactPhi: ud60x18(1e17), // 0.1
         priceImpactBeta: ud60x18(125e15), // 0.125
-        spread: ud60x18(3e15), // 0.3%
+        spread: ud60x18(3e15), // spread / 2 = 0.3%
         rateOracle: IRateOracle(mockRateOracle)
     });
 

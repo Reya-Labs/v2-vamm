@@ -171,7 +171,8 @@ library VAMMBase {
         int256 unbalancedQuoteTokenDelta,
         int256 baseTokenDelta,
         UD60x18 yearsUntilMaturity,
-        UD60x18 currentOracleValue
+        UD60x18 currentOracleValue,
+        UD60x18 spread
     ) 
         internal
         pure
@@ -185,10 +186,14 @@ library VAMMBase {
             convert_sd(-100)
         ).intoUD60x18();
 
+        UD60x18 averagePriceWithSpread = averagePrice.mul(
+            (baseTokenDelta) > 0 ? ONE.sub(spread) : ONE.add(spread)
+        );
+
         balancedQuoteTokenDelta = SD59x18.wrap(
             -baseTokenDelta
         ).mul(currentOracleValue.intoSD59x18()).mul(
-            ONE.add(averagePrice.mul(yearsUntilMaturity)).intoSD59x18()
+            ONE.add(averagePriceWithSpread.mul(yearsUntilMaturity)).intoSD59x18()
         ).unwrap();
     }
 

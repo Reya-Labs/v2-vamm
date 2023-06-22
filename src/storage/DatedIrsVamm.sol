@@ -557,7 +557,8 @@ library DatedIrsVamm {
                     step.unbalancedQuoteTokenDelta,
                     step.baseTokenDelta,
                     FixedAndVariableMath.accrualFact(secondsTillMaturity),
-                    self.mutableConfig.rateOracle.getCurrentIndex()
+                    self.mutableConfig.rateOracle.getCurrentIndex(),
+                    self.mutableConfig.spread
                 );
 
                 (
