@@ -538,6 +538,8 @@ library DatedIrsVamm {
                 })
             );
 
+            // mapping amount in and amount out to the corresponding deltas
+            // along the 2 axes of the vamm
             if (params.amountSpecified > 0) {
                 // LP is a Variable Taker
                 step.baseTokenDelta = step.amountIn.toInt(); // this is positive
