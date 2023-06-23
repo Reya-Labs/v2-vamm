@@ -10,7 +10,7 @@ contract ExtendedPoolConfigurationModule is PoolConfigurationModule, FeatureFlag
     using SetUtil for SetUtil.AddressSet;
     using FeatureFlag for FeatureFlag.Data;
 
-    bytes32 private constant _PAUSER_FEATURE_FLAG = "registerProduct";
+    bytes32 private constant _PAUSER_FEATURE_FLAG = "pauser";
 
     function setPauser(address pauser) external {
         FeatureFlag.load(_PAUSER_FEATURE_FLAG).permissionedAddresses.add(pauser);

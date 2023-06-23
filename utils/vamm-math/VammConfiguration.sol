@@ -42,7 +42,7 @@ library VammConfiguration {
          * It is arranged on purpose to for one single storage slot.
          */
 
-        // the current price of the pool as a sqrt(trackerBaseToken/trackerFixedToken) Q64.96 value
+        // the current price of the pool as a sqrt(trackerBaseToken/trackerQuoteToken) Q64.96 value
         uint160 sqrtPriceX96;
         // the current tick of the vamm, i.e. according to the last tick transition that was run.
         int24 tick;
@@ -63,7 +63,7 @@ library VammConfiguration {
         /// @dev This value has no relationship to the total liquidity across all ticks
         uint128 liquidity;
         /// @dev total amount of variable tokens in vamm
-        int256 trackerFixedTokenGrowthGlobalX128;
+        int256 trackerQuoteTokenGrowthGlobalX128;
         /// @dev total amount of base tokens in vamm
         int256 trackerBaseTokenGrowthGlobalX128;
         /// @dev map from tick to tick info

@@ -59,9 +59,9 @@ contract ExtendedVammModule is VammModule {
         return vamm.vars.liquidity;
     }
 
-    function trackerFixedTokenGrowthGlobalX128(uint128 marketId, uint32 maturityTimestamp) external returns (int256) {
+    function trackerQuoteTokenGrowthGlobalX128(uint128 marketId, uint32 maturityTimestamp) external returns (int256) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
-        return vamm.vars.trackerFixedTokenGrowthGlobalX128;
+        return vamm.vars.trackerQuoteTokenGrowthGlobalX128;
     }
 
     function trackerBaseTokenGrowthGlobalX128(uint128 marketId, uint32 maturityTimestamp) external returns (int256) {
@@ -149,7 +149,7 @@ contract VammModuleTest is VoltzTest {
         assertEq(vammConfig.observations(2, initMaturityTimestamp, 1).initialized, false);
         assertEq(vammConfig.positionsInAccount(2, initMaturityTimestamp, 1).length, 0);
         assertEq(vammConfig.liquidity(2, initMaturityTimestamp), 0);
-        assertEq(vammConfig.trackerFixedTokenGrowthGlobalX128(2, initMaturityTimestamp), 0);
+        assertEq(vammConfig.trackerQuoteTokenGrowthGlobalX128(2, initMaturityTimestamp), 0);
         assertEq(vammConfig.trackerBaseTokenGrowthGlobalX128(2, initMaturityTimestamp), 0);
         assertEq(vammConfig.ticks(2, initMaturityTimestamp, -32191).initialized, false);
         assertEq(vammConfig.ticks(2, initMaturityTimestamp, -32190).initialized, false);
@@ -201,8 +201,16 @@ contract VammModuleTest is VoltzTest {
 
         vm.warp(block.timestamp + 60);
         UD60x18 twap = vammConfig.getAdjustedDatedIRSTwap(initMarketId, initMaturityTimestamp, 100, 30);
-        console2.log("twap", unwrap(twap));
         assertAlmostEqual(twap, ud60x18(294511e14));
+    }
+
+    function test_GetAdjustedDatedIRSTwap_ZeroOrderSize() public {
+        // = (arithmeticMeanTick  +/- spread)*(1 + phi*(|order|^beta))
+        vammConfig.writeObs(initMarketId, initMaturityTimestamp);
+
+        vm.warp(block.timestamp + 60);
+        UD60x18 twap = vammConfig.getAdjustedDatedIRSTwap(initMarketId, initMaturityTimestamp, 0, 30);
+        assertAlmostEqual(twap, ud60x18(250040e14));
     }
 
     function test_GetDatedIRSTwap() public {
@@ -223,5 +231,4 @@ contract VammModuleTest is VoltzTest {
         vm.expectRevert();
         UD60x18 twap = vammConfig.getDatedIRSTwap(initMarketId, initMaturityTimestamp, 0, 30, true, true);
     }
-
 }

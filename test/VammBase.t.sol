@@ -27,32 +27,19 @@ contract ExposedVammBase {
         price = VAMMBase.getPriceFromTick(_tick);
     }
 
-    function _sumOfAllPricesUpToPlus10k(
-        int24 _tick
-    ) public pure returns (UD60x18 price){
-        price = VAMMBase._sumOfAllPricesUpToPlus10k(_tick);
-    }
-
-    function averagePriceBetweenTicks(
-        int24 _tickLower,
-        int24 _tickUpper
-    ) public pure returns (UD60x18){
-        return VAMMBase.averagePriceBetweenTicks(_tickLower, _tickUpper);
-    }
-
-    function _fixedTokensInHomogeneousTickWindow(
-        int256 baseAmount,
-        int24 tickLower,
-        int24 tickUpper,
+    function calculateQuoteTokenDelta(
+        int256 unbalancedQuoteTokenDelta,
+        int256 baseTokenDelta,
         UD60x18 yearsUntilMaturity,
-        UD60x18 currentOracleValue
-    ) public view returns (int256){
-        return VAMMBase._fixedTokensInHomogeneousTickWindow(
-            baseAmount,
-            tickLower,
-            tickUpper,
+        UD60x18 currentOracleValue,
+        UD60x18 spread
+    ) public pure returns (int256 balancedQuoteTokenDelta) {
+        balancedQuoteTokenDelta = VAMMBase.calculateQuoteTokenDelta(
+            unbalancedQuoteTokenDelta,
+            baseTokenDelta,
             yearsUntilMaturity,
-            currentOracleValue
+            currentOracleValue,
+            spread
         );
     }
 }
@@ -85,161 +72,79 @@ contract VammBaseTest is DatedIrsVammTestUtil {
         assertOffByNoMoreThan2OrAlmostEqual(getLiquidityForBase(tickLower, tickUpper, baseAmount), liquidity); // TODO: can we do better than off-by-two for small values? is it important?
     }
 
-    // function testFuzz_LiquidityPerTick(
-    //     int24 tickLower,
-    //     int24 tickUpper,
-    //     int128 baseAmount)
-    // public {
-    //     (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
-    //     assertEq(VAMMBase.liquidityPerTick(tickLower, tickUpper, baseAmount), baseAmount / (tickUpper - tickLower));
-    // }
+    function test_CalculateQuoteTokenDelta_0bpsSpread_VT() public {
+        int256 baseTokenDelta = 1e6;
+        int256 unbalancedQuoteTokenDelta = -baseTokenDelta * 15 / 10; // avg price 1.5%
+        UD60x18 yearsUntilMaturity = convert(uint256(1)).div(convert(uint256(2))); // half of year
+        UD60x18 currentOracleValue = convert(uint256(107)).div(convert(uint256(100))); // 1.07
 
-    function averagePriceBetweenTicksUsingLoop(
-        int24 tickLower,
-        int24 tickUpper)
-    internal returns (UD60x18)
-    {
-        UD60x18 sumOfPrices = vammBase.getPriceFromTick(tickLower);
-        for (int24 i = tickLower + 1; i <= tickUpper; i++) {
-            sumOfPrices = sumOfPrices.add(vammBase.getPriceFromTick(i));
-        }
-        return sumOfPrices.div(convert(uint256(int256(1 + tickUpper - tickLower))));
+        // quote token delta = -base * liquidity_index * (1 + fixed_rate * yearsUntilMaturity)
+        // quote token delta = -1e6 *       1.07       * (1 + 0.015 * 0.5)
+        // quote token delta = -1078025
+        int256 quoteTokenDelta = vammBase.calculateQuoteTokenDelta(
+            unbalancedQuoteTokenDelta,
+            baseTokenDelta,
+            yearsUntilMaturity,
+            currentOracleValue,
+            ud60x18(0)
+        );
+        assertEq(quoteTokenDelta, -1078025);
     }
 
-    // TODO: move to separate VAMMBase test file (with others)
-    function test_SumOfAllPricesUpToPlus10k()
-    public {
-        // The greater the tick range, the more the real answer deviates from a naive average of the top and bottom price
-        // a range of ~500 is sufficient to illustrate a diversion, but note that larger ranges have much larger diversions
-        int24 tick = 1;
+    function test_CalculateQuoteTokenDelta_0bpsSpread_FT() public {
+        int256 baseTokenDelta = -1e6;
+        int256 unbalancedQuoteTokenDelta = -baseTokenDelta * 15 / 10; // avg price 1.5%
+        UD60x18 yearsUntilMaturity = convert(uint256(1)).div(convert(uint256(2))); // half of year
+        UD60x18 currentOracleValue = convert(uint256(107)).div(convert(uint256(100))); // 1.07
 
-        assertAlmostExactlyEqual(vammBase._sumOfAllPricesUpToPlus10k(tick), ud60x18(10000e18 + 20001e14));
+        // quote token delta = -base * liquidity_index * (1 + fixed_rate * yearsUntilMaturity)
+        // quote token delta = 1e6 *       1.07       * (1 + 0.015 * 0.5)
+        // quote token delta = 1078025
+        int256 quoteTokenDelta = vammBase.calculateQuoteTokenDelta(
+            unbalancedQuoteTokenDelta,
+            baseTokenDelta,
+            yearsUntilMaturity,
+            currentOracleValue,
+            ud60x18(0)
+        );
+        assertEq(quoteTokenDelta, 1078025);
     }
 
-    function test_AveragePriceBetweenTicks_SingleTick0()
-    public {
-        // The greater the tick range, the more the real answer deviates from a naive average of the top and bottom price
-        // a range of ~500 is sufficient to illustrate a diversion, but note that larger ranges have much larger diversions
-        int24 tickLower = 0;
-        int24 tickUpper = 0;
-        assertEq(vammBase.averagePriceBetweenTicks(tickLower, tickUpper), ud60x18(1e18));
+    function test_CalculateQuoteTokenDelta_50bpsSpread_VT() public {
+        int256 baseTokenDelta = 1e6;
+        int256 unbalancedQuoteTokenDelta = -baseTokenDelta * 15 / 10; // avg price 1.5%
+        UD60x18 yearsUntilMaturity = convert(uint256(1)).div(convert(uint256(2))); // half of year
+        UD60x18 currentOracleValue = convert(uint256(107)).div(convert(uint256(100))); // 1.07
+
+        // quote token delta = -base * liquidity_index * (1 + fixed_rate * (1 - spread/2) * yearsUntilMaturity)
+        // quote token delta = -1e6 *       1.07       * (1 + 0.015 * (1 - 0.005 / 2) * 0.5)          
+        // quote token delta = -1078004
+        int256 quoteTokenDelta = vammBase.calculateQuoteTokenDelta(
+            unbalancedQuoteTokenDelta,
+            baseTokenDelta,
+            yearsUntilMaturity,
+            currentOracleValue,
+            ud60x18(25e14)
+        );
+        assertEq(quoteTokenDelta, -1078004);
     }
 
-    // TODO: move to separate VAMMBase test file (with others)
-    function test_AveragePriceBetweenTicks_SingleTick1()
-    public {
-        // The greater the tick range, the more the real answer deviates from a naive average of the top and bottom price
-        // a range of ~500 is sufficient to illustrate a diversion, but note that larger ranges have much larger diversions
-        int24 tickLower = 1;
-        int24 tickUpper = 1;
-        assertAlmostExactlyEqual(vammBase.averagePriceBetweenTicks(tickLower, tickUpper), ud60x18(9999e14));
-    }
+    function test_CalculateQuoteTokenDelta_50bpsSpread_FT() public {
+        int256 baseTokenDelta = -1e6;
+        int256 unbalancedQuoteTokenDelta = -baseTokenDelta * 15 / 10; // avg price 1.5%
+        UD60x18 yearsUntilMaturity = convert(uint256(1)).div(convert(uint256(2))); // half of year
+        UD60x18 currentOracleValue = convert(uint256(107)).div(convert(uint256(100))); // 1.07
 
-    function test_AveragePriceBetweenTicks_TwoTicks()
-    public {
-        // The greater the tick range, the more the real answer deviates from a naive average of the top and bottom price
-        // a range of ~500 is sufficient to illustrate a diversion, but note that larger ranges have much larger diversions
-        int24 tickLower = 0;
-        int24 tickUpper = 1;
-        assertAlmostExactlyEqual(vammBase.averagePriceBetweenTicks(tickLower, tickUpper), ud60x18(99995e13));
-    }
-
-    function test_AveragePriceBetweenTicks()
-    public {
-        // The greater the tick range, the more the real answer deviates from a naive average of the top and bottom price
-        // a range of ~500 is sufficient to illustrate a diversion, but note that larger ranges have much larger diversions
-        int24 tickLower = 2;
-        int24 tickUpper = 500;
-        UD60x18 expected = averagePriceBetweenTicksUsingLoop(tickLower, tickUpper);
-        assertAlmostEqual(vammBase.averagePriceBetweenTicks(tickLower, tickUpper), expected);
-    }
-
-    function test_AveragePriceBetweenTicks2()
-    public {
-        // Test a nagative range
-        int24 tickLower = -10;
-        int24 tickUpper = 10;
-        UD60x18 expected = averagePriceBetweenTicksUsingLoop(tickLower, tickUpper);
-        assertAlmostExactlyEqual(vammBase.averagePriceBetweenTicks(tickLower, tickUpper), expected);
-    }
-
-    function testSlowFuzz_AveragePriceBetweenTicks(
-        int24 tickLower,
-        int24 tickUpper)
-    public {
-        (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
-        UD60x18 expected = averagePriceBetweenTicksUsingLoop(tickLower, tickUpper);
-        assertAlmostEqual(vammBase.averagePriceBetweenTicks(tickLower, tickUpper), expected);
-    }
-
-    function test_FixedTokensInHomogeneousTickWindow() public {
-      int256 baseAmount = 5e10;
-      int24 tickLower = -1;
-      int24 tickUpper = 1;
-      uint256 mockLiquidityIndex = 2;
- 
-      UD60x18 currentLiquidityIndex = convert(mockLiquidityIndex);
-
-      (int256 trackedValue) = vammBase._fixedTokensInHomogeneousTickWindow(baseAmount, tickLower, tickUpper, convert(uint256(1)), currentLiquidityIndex);
-
-      UD60x18 expectedAveragePrice = averagePriceBetweenTicksUsingLoop(tickLower, tickUpper);
-      assertAlmostEqual(vammBase.averagePriceBetweenTicks(tickLower, tickUpper), ONE);
-      assertAlmostEqual(vammBase.averagePriceBetweenTicks(tickLower, tickUpper), expectedAveragePrice);
-
-      // We expect -baseTokens * liquidityIndex[current] * (1 + fixedRate[ofSpecifiedTicks] * timeInYearsTillMaturity)
-      //         = -5e10       * mockLiquidityIndex      * (1 + expectedAveragePrice        * 1)         
-      //         = -5e10       * mockLiquidityIndex      * (1 + ~1)         
-      //         = ~-20e10
-      assertAlmostEqual(trackedValue, baseAmount * -2 * int256(mockLiquidityIndex));
-    }
-
-    // TODO: move to separate VAMMBase test file (with others)
-    function testFuzz_FixedTokensInHomogeneousTickWindow_VaryTicks(int24 tickLower, int24 tickUpper) public {
-      (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
-      int256 baseAmount = -9e30;
-      uint256 mockLiquidityIndex = 1;
-      UD60x18 currentLiquidityIndex = convert(mockLiquidityIndex);
-
-      (int256 trackedValue) = vammBase._fixedTokensInHomogeneousTickWindow(baseAmount, tickLower, tickUpper, convert(uint256(1)), currentLiquidityIndex);
-
-      UD60x18 averagePrice = vammBase.averagePriceBetweenTicks(tickLower, tickUpper);
-
-      // We expect -baseTokens * liquidityIndex[current] * (1 + fixedRate[ofSpecifiedTicks] * timeInYearsTillMaturity)
-      //         = 9e30        * mockLiquidityIndex      * (1 + expectedAveragePrice        * 1)         
-      //         = 9e30        * 2      * (1 + averagePrice)         
-      assertAlmostExactlyEqual(SD59x18.wrap(trackedValue),
-        SD59x18.wrap(mulUDxInt(
-            ONE.add(averagePrice),
-            -baseAmount * int256(mockLiquidityIndex)
-        ))
-      );
-    }
-
-    // TODO: move to separate VAMMBase test file (with others)
-    function testFuzz_FixedTokensInHomogeneousTickWindow_VaryTerm(uint256 secondsToMaturity) public {
-      int256 baseAmount = -123e20;
-      int24 tickLower = -1;
-      int24 tickUpper = 1;
-      uint256 mockLiquidityIndex = 8;
-      uint256 SECONDS_IN_YEAR = convert(FixedAndVariableMath.SECONDS_IN_YEAR);
-
-      // Bound term between 0 and one hundred years
-      secondsToMaturity = bound(secondsToMaturity,  0, SECONDS_IN_YEAR * 100);
-      UD60x18 timeInYearsTillMaturity = convert(secondsToMaturity).div(FixedAndVariableMath.SECONDS_IN_YEAR);
- 
-      UD60x18 currentLiquidityIndex = convert(mockLiquidityIndex);
-
-      (int256 trackedValue) = vammBase._fixedTokensInHomogeneousTickWindow(baseAmount, tickLower, tickUpper, timeInYearsTillMaturity, currentLiquidityIndex);
-      assertAlmostExactlyEqual(vammBase.averagePriceBetweenTicks(tickLower, tickUpper), ONE);
-
-      // We expect -baseTokens * liquidityIndex[current] * (1 + fixedRate[ofSpecifiedTicks] * timeInYearsTillMaturity)
-      //         = 123e20        * mockLiquidityIndex      * (1 + ~1                          * timeInYearsTillMaturity)         
-      //         = 123e20        * 2      * (1 + ~timeInYearsTillMaturity)         
-      assertAlmostExactlyEqual(SD59x18.wrap(trackedValue),
-        SD59x18.wrap(mulUDxInt(
-            ONE.add(timeInYearsTillMaturity),
-            -baseAmount * int256(mockLiquidityIndex)
-        ))
-      );
+        // quote token delta = -base * liquidity_index * (1 + fixed_rate  * (1 + spread/2) * yearsUntilMaturity)
+        // quote token delta = 1e6 *       1.07       * (1 + 0.015 * (1 + 0.005 / 2) * 0.5)                 
+        // quote token delta = 1078045
+        int256 quoteTokenDelta = vammBase.calculateQuoteTokenDelta(
+            unbalancedQuoteTokenDelta,
+            baseTokenDelta,
+            yearsUntilMaturity,
+            currentOracleValue,
+            ud60x18(25e14)
+        );
+        assertEq(quoteTokenDelta, 1078045);
     }
 }

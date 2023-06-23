@@ -34,11 +34,11 @@ interface IVammModule {
     external;
   
   /**
-     * @notice Get dated IRS TWAP for the purposes of unrealized pnl calculation in the portfolio (see Portfolio.sol)
+     * @notice Get dated IRS Adjusted TWAP for the purposes of unrealized pnl calculation in the portfolio (see Portfolio.sol)
      * @param marketId Id of the market for which we want to retrieve the dated IRS TWAP
      * @param maturityTimestamp Timestamp at which a given market matures
-     * @param orderSize The order size to use when adjusting the price for price impact or spread. Must not be zero if either of the boolean params is true because it used to indicate the direction of the trade and therefore the direction of the adjustment. Function will revert if `abs(orderSize)` overflows when cast to a `U60x18`
-     * @param lookbackWindow Whether or not to adjust the returned price by the VAMM's configured spread.
+     * @param orderSize The order size to use when adjusting the price for price impact or spread. No adjustment is applied if 0.
+     * @param lookbackWindow Number of seconds in the past from which to calculate the time-weighted means
      * @return datedIRSTwap Time Weighted Average Fixed Rate (average = geometric mean)
      */
   function getAdjustedDatedIRSTwap(uint128 marketId, uint32 maturityTimestamp, int256 orderSize, uint32 lookbackWindow) 
@@ -86,8 +86,8 @@ interface IVammModule {
   function getVammPositionsInAccount(uint128 _marketId, uint32 _maturityTimestamp, uint128 accountId)
     external view returns (uint128[] memory positionsInAccount);
 
-  function getVammTrackerFixedTokenGrowthGlobalX128(uint128 _marketId, uint32 _maturityTimestamp)
-    external view returns (int256 trackerFixedTokenGrowthGlobalX128);
+  function getVammTrackerQuoteTokenGrowthGlobalX128(uint128 _marketId, uint32 _maturityTimestamp)
+    external view returns (int256 trackerQuoteTokenGrowthGlobalX128);
   
   function getVammTrackerBaseTokenGrowthGlobalX128(uint128 _marketId, uint32 _maturityTimestamp)
     external view returns (int256 trackerBaseTokenGrowthGlobalX128);

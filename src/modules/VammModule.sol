@@ -48,7 +48,9 @@ contract VammModule is IVammModule {
         external view override returns (UD60x18 datedIRSTwap) 
     {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
-        datedIRSTwap = vamm.twap(lookbackWindow, orderSize, true, true);
+        
+        bool nonZeroOrderSize = orderSize != 0;
+        datedIRSTwap = vamm.twap(lookbackWindow, orderSize, nonZeroOrderSize, nonZeroOrderSize);
     }
 
     /**
@@ -116,11 +118,11 @@ contract VammModule is IVammModule {
         return vamm.vars.positionsInAccount[accountId];
     }
 
-    function getVammTrackerFixedTokenGrowthGlobalX128(uint128 _marketId, uint32 _maturityTimestamp)
+    function getVammTrackerQuoteTokenGrowthGlobalX128(uint128 _marketId, uint32 _maturityTimestamp)
         external view override returns (int256) {
         
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(_marketId, _maturityTimestamp);
-        return vamm.vars.trackerFixedTokenGrowthGlobalX128;
+        return vamm.vars.trackerQuoteTokenGrowthGlobalX128;
     }
     
     function getVammTrackerBaseTokenGrowthGlobalX128(uint128 _marketId, uint32 _maturityTimestamp)
