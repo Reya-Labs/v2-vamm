@@ -9,6 +9,8 @@ pragma solidity >=0.8.13;
 /// Observations are overwritten when the full length of the oracle array is populated.
 /// The most recent observation is available, independent of the length of the oracle array, by passing 0 to observe()
 library Oracle {
+    uint256 public constant MAX_BUFFER_LENGTH = 65535;
+
     struct Observation {
         // the block timestamp of the observation
         uint32 blockTimestamp;
@@ -49,7 +51,7 @@ library Oracle {
     /// @param time The time of the oracle initialization, via block.timestamp truncated to uint32
     /// @return cardinality The number of populated elements in the oracle array
     /// @return cardinalityNext The new length of the oracle array, independent of population
-    function initialize(Observation[65535] storage self, uint32 time)
+    function initialize(Observation[MAX_BUFFER_LENGTH] storage self, uint32 time)
         internal
         returns (uint16 cardinality, uint16 cardinalityNext)
     {
@@ -76,7 +78,7 @@ library Oracle {
     /// @return indexUpdated The new index of the most recently written element in the oracle array
     /// @return cardinalityUpdated The new cardinality of the oracle array
     function write(
-        Observation[65535] storage self,
+        Observation[MAX_BUFFER_LENGTH] storage self,
         uint16 index,
         uint32 blockTimestamp,
         int24 tick,
@@ -106,11 +108,15 @@ library Oracle {
     /// @param next The proposed next cardinality which will be populated in the oracle array
     /// @return next The next cardinality which will be populated in the oracle array
     function grow(
-        Observation[65535] storage self,
+        Observation[MAX_BUFFER_LENGTH] storage self,
         uint16 current,
         uint16 next
     ) internal returns (uint16) {
         require(current > 0, 'I');
+
+        // check against buffer size not needed since next is uint16 
+        // and MAX_BUFFER_LENGTH is 2^16-1
+
         // no-op if the passed next value isn't greater than the current next value
         if (next <= current) return current;
         // store in each slot to prevent fresh SSTOREs in swaps
@@ -151,7 +157,7 @@ library Oracle {
     /// @return beforeOrAt The observation recorded before, or at, the target
     /// @return atOrAfter The observation recorded at, or after, the target
     function binarySearch(
-        Observation[65535] storage self,
+        Observation[MAX_BUFFER_LENGTH] storage self,
         uint32 time,
         uint32 target,
         uint16 index,
@@ -196,7 +202,7 @@ library Oracle {
     /// @return beforeOrAt The observation which occurred at, or before, the given timestamp
     /// @return atOrAfter The observation which occurred at, or after, the given timestamp
     function getSurroundingObservations(
-        Observation[65535] storage self,
+        Observation[MAX_BUFFER_LENGTH] storage self,
         uint32 time,
         uint32 target,
         int24 tick,
@@ -244,7 +250,7 @@ library Oracle {
     /// @return secondsPerLiquidityCumulativeX128 Undefined - do not use
     // UNUSED for now -- @return secondsPerLiquidityCumulativeX128 The time elapsed / max(1, liquidity) since the pool was first initialized, as of `secondsAgo`
     function observeSingle(
-        Observation[65535] storage self,
+        Observation[MAX_BUFFER_LENGTH] storage self,
         uint32 time,
         uint32 secondsAgo,
         int24 tick,
@@ -307,7 +313,7 @@ library Oracle {
     /// @return secondsPerLiquidityCumulativeX128s Undefined - do not use
     // UNUSED for now --  @return secondsPerLiquidityCumulativeX128s The cumulative seconds / max(1, liquidity) since the pool was first initialized, as of each `secondsAgo`
     function observe(
-        Observation[65535] storage self,
+        Observation[MAX_BUFFER_LENGTH] storage self,
         uint32 time,
         uint32[] memory secondsAgos,
         int24 tick,

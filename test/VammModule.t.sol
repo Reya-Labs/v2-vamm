@@ -195,6 +195,11 @@ contract VammModuleTest is VoltzTest {
         vammConfig.configureVamm(7663, initMaturityTimestamp, mutableConfig);
     }
 
+    function test_IncreaseObservationCardinalityNext() public {
+        vammConfig.increaseObservationCardinalityNext(initMarketId, initMaturityTimestamp, 256);
+        assertEq(vammConfig.observationCardinalityNext(initMarketId, initMaturityTimestamp), 256);
+    }
+
     function test_GetAdjustedDatedIRSTwap() public {
         // = (arithmeticMeanTick  +/- spread)*(1 + phi*(|order|^beta))
         vammConfig.writeObs(initMarketId, initMaturityTimestamp);

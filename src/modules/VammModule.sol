@@ -42,6 +42,16 @@ contract VammModule is IVammModule {
     }
 
     /**
+      * @inheritdoc IVammModule
+      */
+    function increaseObservationCardinalityNext(uint128 _marketId, uint32 _maturityTimestamp, uint16 _observationCardinalityNext)
+    external override
+    {
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(_marketId, _maturityTimestamp);
+        vamm.increaseObservationCardinalityNext(_observationCardinalityNext);
+    }
+
+    /**
      * @inheritdoc IVammModule
      */
     function getAdjustedDatedIRSTwap(uint128 marketId, uint32 maturityTimestamp, int256 orderSize, uint32 lookbackWindow) 

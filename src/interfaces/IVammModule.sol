@@ -32,6 +32,14 @@ interface IVammModule {
     */
   function configureVamm(uint128 _marketId, uint32 _maturityTimestamp, VammConfiguration.Mutable calldata _config)
     external;
+
+  /**
+    * @param _marketId Id of the market for which we want to increase the number of observations
+    * @param _maturityTimestamp Timestamp at which the given market matures
+    * @param _observationCardinalityNext The desired minimum number of observations for the pool to store
+    */
+  function increaseObservationCardinalityNext(uint128 _marketId, uint32 _maturityTimestamp, uint16 _observationCardinalityNext)
+    external;
   
   /**
      * @notice Get dated IRS Adjusted TWAP for the purposes of unrealized pnl calculation in the portfolio (see Portfolio.sol)
