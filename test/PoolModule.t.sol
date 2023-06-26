@@ -171,6 +171,41 @@ contract PoolModuleTest is VoltzTest {
         assertEq(executedBaseAmount, 100000);
     }
 
+    function test_ExecuteDatedMaketOrderAndTakerOrders_LeftRight() public {
+        int256 baseAmount =  500_000_000;
+        int24 tickLower = -33300;
+        int24 tickUpper = -29400;
+        uint128 accountId = 726;
+
+        int128 requestedLiquidityAmount = pool.getLiquidityForBase(tickLower, tickUpper, baseAmount);
+        vm.mockCall(
+            address(0),
+            abi.encodeWithSelector(IProductIRSModule.getCoreProxyAddress.selector),
+            abi.encode(address(7))
+        );
+        vm.mockCall(
+            address(7),
+            abi.encodeWithSelector(IAccountModule.onlyAuthorized.selector, accountId, AccountRBAC._ADMIN_PERMISSION, address(this)),
+            abi.encode()
+        );
+        
+        vm.mockCall(
+            address(0),
+            abi.encodeWithSelector(IProductIRSModule.propagateMakerOrder.selector, accountId, initMarketId, initMaturityTimestamp, baseAmount - 1),
+            abi.encode(0, 0)
+        );
+        pool.initiateDatedMakerOrder(accountId, initMarketId, initMaturityTimestamp, tickLower, tickUpper, requestedLiquidityAmount);
+
+        vm.startPrank(address(0));
+        vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
+        
+        (int256 executedBaseAmount, int256 executedQuoteAmount) = pool.executeDatedTakerOrder(initMarketId, initMaturityTimestamp, 100000, TickMath.getSqrtRatioAtTick(TickMath.MIN_TICK + 1));
+        assertEq(executedBaseAmount, 100000);
+
+        (executedBaseAmount, executedQuoteAmount) = pool.executeDatedTakerOrder(initMarketId, initMaturityTimestamp, -100000, TickMath.getSqrtRatioAtTick(TickMath.MAX_TICK - 1));
+        assertEq(executedBaseAmount, -100000);
+    }
+
     function test_CloseUnfilledBase_NoPositions() public {
         vm.prank(address(0));
         int256 closeUnfilledBasePool = pool.closeUnfilledBase(initMarketId, initMaturityTimestamp, 56);
