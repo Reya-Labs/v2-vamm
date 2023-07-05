@@ -13,6 +13,8 @@ library TickMath {
     /// @dev The default minimum tick of a vamm repersenting 0.001%
     int24 internal constant DEFAULT_MAX_TICK = -DEFAULT_MIN_TICK;
 
+    /// @dev below values are taken from uniswap v3 
+    /// https://github.com/Uniswap/v3-core/blob/d8b1c635c275d2a9450bd6a78f3fa2484fef73eb/contracts/libraries/TickMath.sol#L9
     /// @dev The minimum tick that may be passed to #getSqrtRatioAtTick computed from log base 1.0001 of 2**-128
     int24 internal constant MIN_TICK_LIMIT = -887272;
     /// @dev The maximum tick that may be passed to #getSqrtRatioAtTick computed from log base 1.0001 of 2**128

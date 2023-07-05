@@ -152,6 +152,12 @@ contract ExposedDatedIrsVamm {
         }
     }
 
+    function configureVamm(
+        VammConfiguration.Mutable memory _mutableConfig
+    ) external {
+        DatedIrsVamm.load(vammId).configure(_mutableConfig);
+    }
+
     function load(
     ) public returns (bytes32 s) {
         DatedIrsVamm.Data storage vamm =  DatedIrsVamm.load(vammId);

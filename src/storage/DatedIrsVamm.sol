@@ -65,6 +65,11 @@ library DatedIrsVamm {
      */
     error ExceededTickLimits(int24 minTick, int24 maxTick);
 
+    /**
+     * @dev Thrown when specified ticks are not symmetric around 0
+     */
+    error AsymmetricTicks(int24 minTick, int24 maxTick);
+
     /// @dev Internal, frequently-updated state of the VAMM, which is compressed into one storage slot.
     struct Data {
         /// @dev vamm config set at initialization, can't be modified after creation
@@ -180,6 +185,10 @@ library DatedIrsVamm {
     ) internal {
         if(_minTick < TickMath.MIN_TICK_LIMIT || _maxTick > TickMath.MAX_TICK_LIMIT) {
             revert ExceededTickLimits(_minTick, _minTick);
+        }
+
+        if(_minTick != -_maxTick) {
+            revert AsymmetricTicks(_minTick, _minTick);
         }
 
         self.mutableConfig.minTick = _minTick;
