@@ -115,36 +115,6 @@ library VAMMBase {
         int256 baseTokenDelta; // for LP
     }
 
-    struct FlipTicksParams {
-        // the lower and upper tick of the position
-        int24 tickLower;
-        int24 tickUpper;
-        // any change in liquidity
-        int128 liquidityDelta;
-    }
-
-    struct VammData {
-        int256 _trackerQuoteTokenGrowthGlobalX128;
-        int256 _trackerBaseTokenGrowthGlobalX128;
-        uint128 _maxLiquidityPerTick;
-        int24 _tickSpacing;
-    }
-
-    /// @dev Computes the agregate amount of base between two ticks, given a tick range and the amount of liquidity per tick.
-    /// The answer must be a valid `int256`. Reverts on overflow.
-    function baseBetweenTicks(
-        int24 _tickLower,
-        int24 _tickUpper,
-        int128 _liquidityPerTick
-    ) internal view returns(int256) {
-        // get sqrt ratios
-        uint160 sqrtRatioAX96 = TickMath.getSqrtRatioAtTick(_tickLower);
-
-        uint160 sqrtRatioBX96 = TickMath.getSqrtRatioAtTick(_tickUpper);
-
-        return baseAmountFromLiquidity(_liquidityPerTick, sqrtRatioAX96, sqrtRatioBX96);
-    }
-
     /// @notice Computes the amount of notional coresponding to an amount of liquidity and price range
     /// @dev Calculates amount1 * (sqrt(upper) - sqrt(lower)).
     /// @param liquidity Liquidity per tick
@@ -159,12 +129,6 @@ library VAMMBase {
                 .mulDiv(uint128(liquidity > 0 ? liquidity : -liquidity), sqrtRatioBX96 - sqrtRatioAX96, Q96);
 
         baseAmount = liquidity > 0 ? absBase.toInt() : -(absBase.toInt());
-    }
-
-    function getPriceFromTick(int24 _tick) internal pure returns (UD60x18 price) {
-        uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(_tick);
-        uint256 priceX96 = FullMath.mulDiv(sqrtPriceX96, sqrtPriceX96, FixedPoint96.Q96);
-        return UD60x18.wrap(FullMath.mulDiv(1e18, FixedPoint96.Q96, priceX96));
     }
 
     function calculateQuoteTokenDelta(
@@ -218,55 +182,10 @@ library VAMMBase {
                 FullMath.mulDivSigned(baseTokenDelta, FixedPoint128.Q128, state.liquidity);
     }
 
-    function flipTicks(
-        FlipTicksParams memory params,
-        mapping(int24 => Tick.Info) storage _ticks,
-        mapping(int16 => uint256) storage _tickBitmap,
-        VammConfiguration.State storage _vammVars,
-        VammData memory data
-    )
-        internal
-        returns (
-            bool flippedLower,
-            bool flippedUpper
-        )
-    {
-        Tick.checkTicks(params.tickLower, params.tickUpper);
-
-        /// @dev isUpper = false
-        flippedLower = _ticks.update(
-            params.tickLower,
-            _vammVars.tick,
-            params.liquidityDelta,
-            data._trackerQuoteTokenGrowthGlobalX128,
-            data._trackerBaseTokenGrowthGlobalX128,
-            false,
-            data._maxLiquidityPerTick
-        );
-
-        /// @dev isUpper = true
-        flippedUpper = _ticks.update(
-            params.tickUpper,
-            _vammVars.tick,
-            params.liquidityDelta,
-            data._trackerQuoteTokenGrowthGlobalX128,
-            data._trackerBaseTokenGrowthGlobalX128,
-            true,
-            data._maxLiquidityPerTick
-        );
-
-        if (flippedLower) {
-            _tickBitmap.flipTick(params.tickLower, data._tickSpacing);
-        }
-
-        if (flippedUpper) {
-            _tickBitmap.flipTick(params.tickUpper, data._tickSpacing);
-        }
-    }
-
     function checksBeforeSwap(
         VAMMBase.SwapParams memory params,
         VammConfiguration.State storage vammVarsStart,
+        VammConfiguration.Mutable storage vammMutableConfig,
         bool isFT
     ) internal view {
 
@@ -282,9 +201,9 @@ library VAMMBase {
         require(
             isFT
                 ? params.sqrtPriceLimitX96 > vammVarsStart.sqrtPriceX96 &&
-                    params.sqrtPriceLimitX96 < TickMath.MAX_SQRT_RATIO
+                    params.sqrtPriceLimitX96 < vammMutableConfig.maxSqrtRatio
                 : params.sqrtPriceLimitX96 < vammVarsStart.sqrtPriceX96 &&
-                    params.sqrtPriceLimitX96 > TickMath.MIN_SQRT_RATIO,
+                    params.sqrtPriceLimitX96 > vammMutableConfig.minSqrtRatio,
             "SPL"
         );
     }

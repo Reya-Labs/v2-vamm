@@ -30,36 +30,6 @@ library Tick {
         bool initialized;
     }
 
-    /// @notice Derives max liquidity per tick from given tick spacing
-    /// @dev Executed within the pool constructor
-    /// @param tickSpacing The amount of required tick separation, realized in multiples of `tickSpacing`
-    ///     e.g., a tickSpacing of 3 requires ticks to be initialized every 3rd tick i.e., ..., -6, -3, 0, 3, 6, ...
-    /// @return The max liquidity per tick
-    function tickSpacingToMaxLiquidityPerTick(int24 tickSpacing)
-        internal
-        pure
-        returns (uint128)
-    {
-        int24 minTick = TickMath.MIN_TICK - (TickMath.MIN_TICK % tickSpacing);
-        int24 maxTick = -minTick;
-        uint24 numTicks = uint24((maxTick - minTick) / tickSpacing) + 1;
-        return type(uint128).max / numTicks;
-    }
-
-    /// @dev Common checks for valid tick inputs.
-    function checkTicks(int24 tickLower, int24 tickUpper) internal pure {
-        require(tickLower < tickUpper, "TLU");
-        require(tickLower >= TickMath.MIN_TICK, "TLM");
-        require(tickUpper <= TickMath.MAX_TICK, "TUM");
-    }
-
-    struct FeeGrowthInsideParams {
-        int24 tickLower;
-        int24 tickUpper;
-        int24 tickCurrent;
-        uint256 feeGrowthGlobalX128;
-    }
-
     function _getGrowthInside(
         int24 _tickLower,
         int24 _tickUpper,

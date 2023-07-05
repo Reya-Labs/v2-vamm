@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-/// @title Interface a Pool needs to adhere.
+/// @title Pool configuration
 library PoolConfiguration {
     event PauseState(bool newPauseState, uint256 blockTimestamp);
 

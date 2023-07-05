@@ -46,8 +46,8 @@ contract PoolModule is IPoolModule {
         swapParams.sqrtPriceLimitX96 = sqrtPriceLimitX96 == 0
                 ? (
                     baseAmount > 0 // VT
-                        ? TickMath.MIN_SQRT_RATIO + 1
-                        : TickMath.MAX_SQRT_RATIO - 1
+                        ? vamm.mutableConfig.minSqrtRatio + 1
+                        : vamm.mutableConfig.maxSqrtRatio - 1
                 )
                 : sqrtPriceLimitX96;
 
@@ -88,8 +88,8 @@ contract PoolModule is IPoolModule {
                 maturityTimestamp,
                 VAMMBase.baseAmountFromLiquidity(
                     liquidityDelta,
-                    TickMath.getSqrtRatioAtTick(tickLower),
-                    TickMath.getSqrtRatioAtTick(tickUpper)
+                    vamm.getSqrtRatioAtTickSafe(tickLower),
+                    vamm.getSqrtRatioAtTickSafe(tickUpper)
                 )
             );
        }

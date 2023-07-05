@@ -33,7 +33,11 @@ contract DatedIrsVammTestUtil is VoltzTest {
         priceImpactPhi: ud60x18(1e17), // 0.1
         priceImpactBeta: ud60x18(125e15), // 0.125
         spread: ud60x18(3e15), // spread / 2 = 0.3%
-        rateOracle: IRateOracle(mockRateOracle)
+        rateOracle: IRateOracle(mockRateOracle),
+        minTick: MIN_TICK,
+        maxTick: MAX_TICK,
+        minSqrtRatio: 0,
+        maxSqrtRatio: 0
     });
 
     VammConfiguration.Immutable internal immutableConfig = VammConfiguration.Immutable({
@@ -234,6 +238,20 @@ contract ExposedDatedIrsVamm {
         vamm.updatePositionTokenBalances(_position, tickLower, tickUpper, isMintBurn);
 
         return _position;
+    }
+
+    function getPriceFromTick(int24 _tick) public view returns (UD60x18 price) {
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
+        return vamm.getPriceFromTick(_tick);
+    }
+
+    function baseBetweenTicks(
+        int24 _tickLower,
+        int24 _tickUpper,
+        int128 _liquidityPerTick
+    ) public view returns(int256) {
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
+        return vamm.baseBetweenTicks(_tickLower, _tickUpper, _liquidityPerTick);
     }
 
     ///// GETTERS

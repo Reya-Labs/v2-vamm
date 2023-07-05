@@ -64,16 +64,16 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         //    liquidity * distance_from_current_price_to_LP2_lower_tick
         // AND
         //    LP1_liquidity_value * distance_from_LP1_lower_tick_to_LP2_lower_tick
-        baseTradeableToLeft += VAMMBase.baseBetweenTicks(ACCOUNT_2_TICK_LOWER, vamm.tick(), vamm.liquidity().toInt());
-        baseTradeableToLeft += VAMMBase.baseBetweenTicks(ACCOUNT_1_TICK_LOWER, ACCOUNT_2_TICK_LOWER, vamm.ticks( ACCOUNT_1_TICK_LOWER).liquidityNet);
+        baseTradeableToLeft += vamm.baseBetweenTicks(ACCOUNT_2_TICK_LOWER, vamm.tick(), vamm.liquidity().toInt());
+        baseTradeableToLeft += vamm.baseBetweenTicks(ACCOUNT_1_TICK_LOWER, ACCOUNT_2_TICK_LOWER, vamm.ticks( ACCOUNT_1_TICK_LOWER).liquidityNet);
         // console2.log("baseTradeableToLeft  ", baseTradeableToLeft);
 
         // We know that the current price is within the range of both LPs, so to calculate base tokens available to trade to the right we add:
         //    liquidity * distance_from_current_price_to_LP1_upper_tick
         // AND
         //    LP2_per-tick_value * distance_from_LP1_lower_tick_to_LP2_lower_tick
-        baseTradeableToRight += VAMMBase.baseBetweenTicks(vamm.tick(), ACCOUNT_1_TICK_UPPER, vamm.liquidity().toInt());
-        baseTradeableToRight += VAMMBase.baseBetweenTicks(ACCOUNT_1_TICK_UPPER, ACCOUNT_2_TICK_UPPER, -vamm.ticks(ACCOUNT_2_TICK_UPPER).liquidityNet);
+        baseTradeableToRight += vamm.baseBetweenTicks(vamm.tick(), ACCOUNT_1_TICK_UPPER, vamm.liquidity().toInt());
+        baseTradeableToRight += vamm.baseBetweenTicks(ACCOUNT_1_TICK_UPPER, ACCOUNT_2_TICK_UPPER, -vamm.ticks(ACCOUNT_2_TICK_UPPER).liquidityNet);
         // console2.log("baseTradeableToRight ", baseTradeableToRight);
     }
 
@@ -123,7 +123,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
         VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
             amountSpecified: amountSpecified,
-            sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(TickMath.MIN_TICK + 1)
+            sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(MIN_TICK + 1)
         });
 
         // Mock the liquidity index that is read during a swap
@@ -151,7 +151,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
     }
 
     function test_Swap_MovingMaxLeft() public {
-        int24 tickLimit = TickMath.MIN_TICK + 1;
+        int24 tickLimit = MIN_TICK + 1;
 
         VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
             amountSpecified: -500_000_000_000_000_000_000_000_000_000_000, // There is not enough liquidity - swap should max out at baseTradeableToLeft
@@ -214,7 +214,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
         VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
             amountSpecified: amountSwap,
-            sqrtPriceLimitX96: TickMath.MIN_SQRT_RATIO + 1
+            sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(MIN_TICK) + 1
         });
 
         // Mock the liquidity index that is read during a swap
@@ -591,15 +591,15 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
             int256 amountSpecified =  1;
             VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
                 amountSpecified: amountSpecified,
-                sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(TickMath.MAX_TICK - 1)
+                sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(MAX_TICK - 1)
             });
             
             vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
             (int256 quoteTokenDelta, int256 baseTokenDelta) = vamm.vammSwap(params);
             assertAlmostEqual(baseTokenDelta, 0);
             assertAlmostEqual(quoteTokenDelta, 0);
-            assertEq(vamm.tick(), TickMath.MAX_TICK - 1);
-            assertEq(vamm.sqrtPriceX96(), TickMath.getSqrtRatioAtTick(TickMath.MAX_TICK - 1));
+            assertEq(vamm.tick(), MAX_TICK - 1);
+            assertEq(vamm.sqrtPriceX96(), TickMath.getSqrtRatioAtTick(MAX_TICK - 1));
         }
 
         // Test swap to left
@@ -607,15 +607,15 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
             int256 amountSpecified =  -1;
             VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
                 amountSpecified: amountSpecified,
-                sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(TickMath.MIN_TICK + 1)
+                sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(MIN_TICK + 1)
             });
             
             vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
             (int256 quoteTokenDelta, int256 baseTokenDelta) = vamm.vammSwap(params);
             assertAlmostEqual(baseTokenDelta, 0);
             assertAlmostEqual(quoteTokenDelta, 0);
-            assertEq(vamm.tick(), TickMath.MIN_TICK + 1);
-            assertEq(vamm.sqrtPriceX96(), TickMath.getSqrtRatioAtTick(TickMath.MIN_TICK + 1));
+            assertEq(vamm.tick(), MIN_TICK + 1);
+            assertEq(vamm.sqrtPriceX96(), TickMath.getSqrtRatioAtTick(MIN_TICK + 1));
         }
     }
 
@@ -643,7 +643,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
         VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
             amountSpecified: baseBalancePool, 
-            sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(TickMath.MAX_TICK - 1)
+            sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(MAX_TICK - 1)
         });
         vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
         (int256 quoteTokenDelta, int256 baseTokenDelta) = vamm.vammSwap(params);
@@ -671,7 +671,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
         VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
             amountSpecified: baseBalancePool, 
-            sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(TickMath.MAX_TICK - 1)
+            sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(MAX_TICK - 1)
         });
         vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex.add(UNIT)));
         (int256 quoteTokenDelta, int256 baseTokenDelta) = vamm.vammSwap(params);

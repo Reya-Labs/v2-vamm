@@ -66,7 +66,11 @@ contract PoolModuleTest is VoltzTest {
         priceImpactPhi: ud60x18(1e17), // 0.1
         priceImpactBeta: ud60x18(125e15), // 0.125
         spread: ud60x18(3e15), // 0.3%
-        rateOracle: IRateOracle(mockRateOracle)
+        rateOracle: IRateOracle(mockRateOracle),
+        minTick: MIN_TICK,
+        maxTick: MAX_TICK,
+        minSqrtRatio: 0,
+        maxSqrtRatio: 0
     });
 
     VammConfiguration.Immutable internal immutableConfig = VammConfiguration.Immutable({
@@ -88,7 +92,7 @@ contract PoolModuleTest is VoltzTest {
 
     function test_ExecuteDatedTakerOrder_NoLiquidity() public {
         vm.prank(address(0));
-        (int256 executedBaseAmount, int256 executedQuoteAmount) = pool.executeDatedTakerOrder(1, initMaturityTimestamp, -100, TickMath.getSqrtRatioAtTick(TickMath.MAX_TICK - 1));
+        (int256 executedBaseAmount, int256 executedQuoteAmount) = pool.executeDatedTakerOrder(1, initMaturityTimestamp, -100, TickMath.getSqrtRatioAtTick(MAX_TICK - 1));
         assertEq(executedBaseAmount, 0);
         assertEq(executedQuoteAmount, 0);
     }
@@ -96,7 +100,7 @@ contract PoolModuleTest is VoltzTest {
     function test_RevertWhen_ExecuteDatedTakerOrder_NotProduct() public {
         vm.prank(address(1));
         vm.expectRevert();
-        (int256 executedBaseAmount, int256 executedQuoteAmount) = pool.executeDatedTakerOrder(1, initMaturityTimestamp, -100, TickMath.getSqrtRatioAtTick(TickMath.MAX_TICK - 1));
+        (int256 executedBaseAmount, int256 executedQuoteAmount) = pool.executeDatedTakerOrder(1, initMaturityTimestamp, -100, TickMath.getSqrtRatioAtTick(MAX_TICK - 1));
         assertEq(executedBaseAmount, 0);
         assertEq(executedQuoteAmount, 0);
     }
@@ -104,7 +108,7 @@ contract PoolModuleTest is VoltzTest {
     function test_RevertWhen_ExecuteDatedTakerOrder_MarketNotFoud() public {
         vm.prank(address(0));
         vm.expectRevert(abi.encodeWithSelector(CustomErrors.MarketAndMaturityCombinaitonNotSupported.selector, 3, initMaturityTimestamp));
-        (int256 executedBaseAmount, int256 executedQuoteAmount) = pool.executeDatedTakerOrder(3, initMaturityTimestamp, -100, TickMath.getSqrtRatioAtTick(TickMath.MAX_TICK - 1));
+        (int256 executedBaseAmount, int256 executedQuoteAmount) = pool.executeDatedTakerOrder(3, initMaturityTimestamp, -100, TickMath.getSqrtRatioAtTick(MAX_TICK - 1));
         assertEq(executedBaseAmount, 0);
         assertEq(executedQuoteAmount, 0);
     }
@@ -136,7 +140,7 @@ contract PoolModuleTest is VoltzTest {
 
         vm.prank(address(0));
         vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
-        (int256 executedBaseAmount, int256 executedQuoteAmount) = pool.executeDatedTakerOrder(1, initMaturityTimestamp, -100000, TickMath.getSqrtRatioAtTick(TickMath.MAX_TICK - 1));
+        (int256 executedBaseAmount, int256 executedQuoteAmount) = pool.executeDatedTakerOrder(1, initMaturityTimestamp, -100000, TickMath.getSqrtRatioAtTick(MAX_TICK - 1));
         assertEq(executedBaseAmount, -100000);
     }
 
@@ -167,7 +171,7 @@ contract PoolModuleTest is VoltzTest {
 
         vm.prank(address(0));
         vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
-        (int256 executedBaseAmount, int256 executedQuoteAmount) = pool.executeDatedTakerOrder(initMarketId, initMaturityTimestamp, 100000, TickMath.getSqrtRatioAtTick(TickMath.MIN_TICK + 1));
+        (int256 executedBaseAmount, int256 executedQuoteAmount) = pool.executeDatedTakerOrder(initMarketId, initMaturityTimestamp, 100000, TickMath.getSqrtRatioAtTick(MIN_TICK + 1));
         assertEq(executedBaseAmount, 100000);
     }
 
@@ -199,10 +203,10 @@ contract PoolModuleTest is VoltzTest {
         vm.startPrank(address(0));
         vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
         
-        (int256 executedBaseAmount, int256 executedQuoteAmount) = pool.executeDatedTakerOrder(initMarketId, initMaturityTimestamp, 100000, TickMath.getSqrtRatioAtTick(TickMath.MIN_TICK + 1));
+        (int256 executedBaseAmount, int256 executedQuoteAmount) = pool.executeDatedTakerOrder(initMarketId, initMaturityTimestamp, 100000, TickMath.getSqrtRatioAtTick(MIN_TICK + 1));
         assertEq(executedBaseAmount, 100000);
 
-        (executedBaseAmount, executedQuoteAmount) = pool.executeDatedTakerOrder(initMarketId, initMaturityTimestamp, -100000, TickMath.getSqrtRatioAtTick(TickMath.MAX_TICK - 1));
+        (executedBaseAmount, executedQuoteAmount) = pool.executeDatedTakerOrder(initMarketId, initMaturityTimestamp, -100000, TickMath.getSqrtRatioAtTick(MAX_TICK - 1));
         assertEq(executedBaseAmount, -100000);
     }
 
