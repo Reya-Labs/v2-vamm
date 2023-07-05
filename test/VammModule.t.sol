@@ -110,7 +110,11 @@ contract VammModuleTest is VoltzTest {
         priceImpactPhi: ud60x18(1e17), // 0.1
         priceImpactBeta: ud60x18(125e15), // 0.125
         spread: ud60x18(3e15), // 0.3%
-        rateOracle: IRateOracle(mockRateOracle)
+        rateOracle: IRateOracle(mockRateOracle),
+        minTick: MIN_TICK,
+        maxTick: MAX_TICK,
+        minSqrtRatio: 0,
+        maxSqrtRatio: 0
     });
 
     VammConfiguration.Immutable internal immutableConfig = VammConfiguration.Immutable({
@@ -167,7 +171,11 @@ contract VammModuleTest is VoltzTest {
             priceImpactPhi: ud60x18(12e16), // 0.1
             priceImpactBeta: ud60x18(123e15), // 0.125
             spread: ud60x18(5e15), // 0.3%
-            rateOracle: IRateOracle(address(23))
+            rateOracle: IRateOracle(address(23)),
+            minTick: MIN_TICK,
+            maxTick: MAX_TICK,
+            minSqrtRatio: 0,
+            maxSqrtRatio: 0
         });
 
         vammConfig.configureVamm(initMarketId, initMaturityTimestamp, __mutableConfig);

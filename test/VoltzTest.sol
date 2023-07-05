@@ -43,8 +43,8 @@ contract VoltzTest is Test {
     internal view returns (int24 tickLower, int24 tickUpper)
     {
         // Ticks must be in range and cannot be equal
-        tickLower = int24(bound(_tickLower,  TickMath.MIN_TICK, TickMath.MAX_TICK - 1));
-        tickUpper = int24(bound(_tickUpper,  TickMath.MIN_TICK + 1, TickMath.MAX_TICK));
+        tickLower = int24(bound(_tickLower, MIN_TICK, MAX_TICK - 1));
+        tickUpper = int24(bound(_tickUpper, MIN_TICK + 1, MAX_TICK));
         vm.assume(tickLower < tickUpper);
     }
     function tickDistance(int24 _tickA, int24 _tickB) public pure returns (uint256 absoluteDistance) {

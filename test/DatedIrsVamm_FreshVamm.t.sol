@@ -47,13 +47,25 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
         vamm.initialize(initSqrtPriceX96);
     }
 
+    function testFuzz_BaseBetweenTicks(
+        int24 tickLower,
+        int24 tickUpper,
+        int128 liquidity)
+    public {
+        (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
+        // Check that baseBetweenTicks and getLiquidityForBase are symetric
+        liquidity = boundNewPositionLiquidityAmount(type(uint128).max, tickLower, tickUpper, liquidity);
+        int256 baseAmount = vamm.baseBetweenTicks(tickLower, tickUpper, liquidity);
+        assertOffByNoMoreThan2OrAlmostEqual(getLiquidityForBase(tickLower, tickUpper, baseAmount), liquidity); // TODO: can we do better than off-by-two for small values? is it important?
+    }
+
     function test_Init_Twap_Unadjusted() public {
         int24 tick = vamm.tick();
         assertEq(vamm.observe(0), tick); 
 
         // no lookback, no adjustments
         UD60x18 geometricMeanPrice = vamm.twap(0, 0, false, false);
-        assertEq(geometricMeanPrice, VAMMBase.getPriceFromTick(tick)); 
+        assertEq(geometricMeanPrice, vamm.getPriceFromTick(tick)); 
         assertAlmostEqual(geometricMeanPrice, ud60x18(25e18)); // Approx 0.04. Not exact cos snaps to tick boundary.
     }
 
@@ -65,14 +77,14 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
             // no lookback, adjust for spread, positive order size
             UD60x18 twapPrice = vamm.twap(0, 1, false, true);
             // Spread adds 0.3% to the price (as an absolute amount, not as a percentage of the price)
-            assertEq(twapPrice, VAMMBase.getPriceFromTick(tick).add(mutableConfig.spread)); 
+            assertEq(twapPrice, vamm.getPriceFromTick(tick).add(mutableConfig.spread)); 
         }
 
         {
             // no lookback, adjust for spread, negative order size
             UD60x18 twapPrice = vamm.twap(0, -1, false, true);
             // Spread subtracts 0.3% from the price (as an absolute amount, not as a percentage of the price)
-            assertEq(twapPrice, VAMMBase.getPriceFromTick(tick).sub(mutableConfig.spread));
+            assertEq(twapPrice, vamm.getPriceFromTick(tick).sub(mutableConfig.spread));
         }
     }
 
@@ -88,7 +100,7 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
             // Price impact adds a multiple of 0.1*orderSize^0.125
             //                               = 0.1*100000000^0.125
             //                               = 0.1*10 = 1 to the price, i.e. doubles the price
-            assertAlmostEqual(twapPrice, VAMMBase.getPriceFromTick(tick).mul(ONE.add(ONE)));  
+            assertAlmostEqual(twapPrice, vamm.getPriceFromTick(tick).mul(ONE.add(ONE)));  
         }
 
         {
@@ -99,7 +111,7 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
             // Price impact subtracts a multiple of 0.1*abs(orderSize)^0.125
             //                               = 0.1*256^0.125
             //                               = 0.1*2 = 0.2 times the price, i.e. takes 20% off the price
-            assertAlmostEqual(twapPrice, VAMMBase.getPriceFromTick(tick).mul(ud60x18(8e17)));  
+            assertAlmostEqual(twapPrice, vamm.getPriceFromTick(tick).mul(ud60x18(8e17)));  
         }
     }
 
@@ -110,7 +122,7 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
 
         int24 tick = vamm.tick();
         assertEq(vamm.observe(0), tick);
-        UD60x18 instantPrice = VAMMBase.getPriceFromTick(tick);
+        UD60x18 instantPrice = vamm.getPriceFromTick(tick);
 
         // no lookback
         UD60x18 twapPrice = vamm.twap(0, orderSize, adjustForPriceImpact, adjustForSpread);
@@ -136,11 +148,11 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
     function averagePriceBetweenTicksUsingLoop(
         int24 tickLower,
         int24 tickUpper)
-    internal pure returns (UD60x18)
+    internal view returns (UD60x18)
     {
-        UD60x18 sumOfPrices = VAMMBase.getPriceFromTick(tickLower);
+        UD60x18 sumOfPrices = vamm.getPriceFromTick(tickLower);
         for (int24 i = tickLower + 1; i <= tickUpper; i++) {
-            sumOfPrices = sumOfPrices.add(VAMMBase.getPriceFromTick(i));
+            sumOfPrices = sumOfPrices.add(vamm.getPriceFromTick(i));
         }
         return sumOfPrices.div(convert(uint256(int256(1 + tickUpper - tickLower))));
     }
@@ -407,7 +419,7 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
             assertGe(unfilledBaseLong, 0, "long unexpectedlly zero");
         }
 
-        int256 baseAmount = VAMMBase.baseBetweenTicks(tickLower, tickUpper, liquidityDelta);
+        int256 baseAmount = vamm.baseBetweenTicks(tickLower, tickUpper, liquidityDelta);
         assertOffByNoMoreThan2OrAlmostEqual((unfilledBaseLong + unfilledBaseShort).toInt(), baseAmount);
     }
 }

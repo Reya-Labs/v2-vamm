@@ -22,6 +22,14 @@ library VammConfiguration {
         UD60x18 spread;
         /// @dev rate oracle from which the vamm extracts the liquidity index
         IRateOracle rateOracle;
+        /// @dev The minimum tick of the vamm
+        int24 minTick;
+        /// @dev The maximum tick of the vamm
+        int24 maxTick;
+        /// @dev Equivalent to getSqrtRatioAtTick(MAX_TICK)
+        uint160 minSqrtRatio;
+        /// @dev Equivalent to getSqrtRatioAtTick(MIN_TICK)
+        uint160 maxSqrtRatio;
     }
 
     struct Immutable {
