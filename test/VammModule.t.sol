@@ -8,73 +8,78 @@ import "forge-std/console2.sol";
 
 contract ExtendedVammModule is VammModule {
     using Oracle for Oracle.Observation[65535];
+    using DatedIrsVamm for DatedIrsVamm.Data;
 
     function setOwner(address account) external {
         OwnableStorage.Data storage ownable = OwnableStorage.load();
         ownable.owner = account;
     }
 
-    function sqrtPriceX96(uint128 marketId, uint32 maturityTimestamp) external returns (uint160) {
+    function configureVamm(uint128 _vammId, VammConfiguration.Mutable calldata _mutableConfig) public {
+        DatedIrsVamm.load(_vammId).configure(_mutableConfig);
+    }
+
+    function sqrtPriceX96(uint128 marketId, uint32 maturityTimestamp) external view returns (uint160) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
         return vamm.vars.sqrtPriceX96;
     }
 
-    function tick(uint128 marketId, uint32 maturityTimestamp) external returns (int24) {
+    function tick(uint128 marketId, uint32 maturityTimestamp) external view returns (int24) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
         return vamm.vars.tick;
     }
 
-    function observationIndex(uint128 marketId, uint32 maturityTimestamp) external returns (uint16) {
+    function observationIndex(uint128 marketId, uint32 maturityTimestamp) external view returns (uint16) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
         return vamm.vars.observationIndex;
     }
 
-    function observationCardinality(uint128 marketId, uint32 maturityTimestamp) external returns (uint16) {
+    function observationCardinality(uint128 marketId, uint32 maturityTimestamp) external view returns (uint16) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
         return vamm.vars.observationCardinality;
     }
 
-    function observationCardinalityNext(uint128 marketId, uint32 maturityTimestamp) external returns (uint16) {
+    function observationCardinalityNext(uint128 marketId, uint32 maturityTimestamp) external view returns (uint16) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
         return vamm.vars.observationCardinalityNext;
     }
 
-    function unlocked(uint128 marketId, uint32 maturityTimestamp) external returns (bool) {
+    function unlocked(uint128 marketId, uint32 maturityTimestamp) external view returns (bool) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
         return vamm.vars.unlocked;
     }
 
-    function observations(uint128 marketId, uint32 maturityTimestamp, uint24 index) external returns (Oracle.Observation memory) {
+    function observations(uint128 marketId, uint32 maturityTimestamp, uint24 index) external view returns (Oracle.Observation memory) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
         return vamm.vars.observations[index];
     }
 
-    function positionsInAccount(uint128 marketId, uint32 maturityTimestamp, uint128 accountId) external returns (uint128[] memory) {
+    function positionsInAccount(uint128 marketId, uint32 maturityTimestamp, uint128 accountId) external view returns (uint128[] memory) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
         return vamm.vars.positionsInAccount[accountId];
     }
 
-    function liquidity(uint128 marketId, uint32 maturityTimestamp) external returns (uint128) {
+    function liquidity(uint128 marketId, uint32 maturityTimestamp) external view returns (uint128) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
         return vamm.vars.liquidity;
     }
 
-    function trackerQuoteTokenGrowthGlobalX128(uint128 marketId, uint32 maturityTimestamp) external returns (int256) {
+    function trackerQuoteTokenGrowthGlobalX128(uint128 marketId, uint32 maturityTimestamp) external view returns (int256) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
         return vamm.vars.trackerQuoteTokenGrowthGlobalX128;
     }
 
-    function trackerBaseTokenGrowthGlobalX128(uint128 marketId, uint32 maturityTimestamp) external returns (int256) {
+    function trackerBaseTokenGrowthGlobalX128(uint128 marketId, uint32 maturityTimestamp) external view returns (int256) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
         return vamm.vars.trackerBaseTokenGrowthGlobalX128;
     }
 
-    function ticks(uint128 marketId, uint32 maturityTimestamp, int24 _tick) external returns (Tick.Info memory) {
+    function ticks(uint128 marketId, uint32 maturityTimestamp, int24 _tick) external view returns (Tick.Info memory) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
         return vamm.vars._ticks[_tick];
     }
 
-    function tickBitmap(uint128 marketId, uint32 maturityTimestamp, int16 index) external returns (uint256) {
+    function tickBitmap(uint128 marketId, uint32 maturityTimestamp, int16 index) external view returns (uint256) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
         return vamm.vars._tickBitmap[index];
     }
@@ -185,6 +190,10 @@ contract VammModuleTest is VoltzTest {
         assertEq(_mutableConfig.priceImpactBeta, ud60x18(123e15));
         assertEq(_mutableConfig.spread, ud60x18(5e15));
         assertEq(address(_mutableConfig.rateOracle), address(23));
+        assertEq(_mutableConfig.minTick, TickMath.DEFAULT_MIN_TICK);
+        assertEq(_mutableConfig.maxTick, TickMath.DEFAULT_MAX_TICK);
+        assertEq(_mutableConfig.minSqrtRatio, TickMath.getSqrtRatioAtTick(TickMath.DEFAULT_MIN_TICK));
+        assertEq(_mutableConfig.maxSqrtRatio, TickMath.getSqrtRatioAtTick(TickMath.DEFAULT_MAX_TICK));
 
         // same as before
         assertEq(config.maturityTimestamp, initMaturityTimestamp);
