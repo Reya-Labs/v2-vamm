@@ -1,7 +1,11 @@
 include = [
   "utils/commons.toml",
   "utils/vamm-router.toml",
+  "utils/vamm-proxy-upgrade.toml",
 ]
 
 [setting.owner]
 defaultValue = "0x8DC15493a8041f059f18ddBA98ee7dcf93b838Ad"
+
+[setting.vammProxy]
+defaultValue = "0x26ae8a2be9d0980ca24d1005a7d46cf0ef92ce4d"
