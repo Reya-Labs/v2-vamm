@@ -159,7 +159,7 @@ contract ExposedDatedIrsVamm {
     }
 
     function load(
-    ) public returns (bytes32 s) {
+    ) public view returns (bytes32 s) {
         DatedIrsVamm.Data storage vamm =  DatedIrsVamm.load(vammId);
         assembly {
             s := vamm.slot
@@ -173,18 +173,19 @@ contract ExposedDatedIrsVamm {
 
     function twap(uint32 secondsAgo, int256 orderSize, bool adjustForPriceImpact,  bool adjustForSpread) 
         public
+        view
         returns (UD60x18 geometricMeanPrice) 
     {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
         return vamm.twap( secondsAgo, orderSize, adjustForPriceImpact, adjustForSpread);
     }
 
-    function observe(uint32 secondsAgo) public returns (int24) {
+    function observe(uint32 secondsAgo) public view returns (int24) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
         return vamm.observe(secondsAgo);
     }
 
-    function observe( uint32[] memory secondsAgo) public returns (int56[] memory, uint160[] memory) {
+    function observe( uint32[] memory secondsAgo) public view returns (int56[] memory, uint160[] memory) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
         return vamm.observe(secondsAgo);
     }
@@ -210,12 +211,12 @@ contract ExposedDatedIrsVamm {
         vamm.configure(_config);
     }
 
-    function getAccountFilledBalances(uint128 accountId) public returns (int256, int256) {
+    function getAccountFilledBalances(uint128 accountId) public view returns (int256, int256) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
         return vamm.getAccountFilledBalances(accountId);
     }
 
-    function getAccountUnfilledBases(uint128 accountId) public returns (uint256, uint256) {
+    function getAccountUnfilledBases(uint128 accountId) public view returns (uint256, uint256) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
         return vamm.getAccountUnfilledBases(accountId);
     }
@@ -322,7 +323,7 @@ contract ExposedDatedIrsVamm {
         return DatedIrsVamm.load(vammId).vars.trackerQuoteTokenGrowthGlobalX128;
     }
 
-    function position(uint128 posId) external view returns (LPPosition.Data memory){
+    function position(uint128 posId) external pure returns (LPPosition.Data memory){
         return LPPosition.load(posId);
     }
 

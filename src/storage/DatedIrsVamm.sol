@@ -62,6 +62,7 @@ library DatedIrsVamm {
 
     /**
      * @dev Thrown when specified ticks excees limits set in TickMath
+     * or the current tick is outside of the range
      */
     error ExceededTickLimits(int24 minTick, int24 maxTick);
 
@@ -183,12 +184,15 @@ library DatedIrsVamm {
         int24 _minTick,
         int24 _maxTick
     ) internal {
-        if(_minTick < TickMath.MIN_TICK_LIMIT || _maxTick > TickMath.MAX_TICK_LIMIT) {
-            revert ExceededTickLimits(_minTick, _minTick);
+        if(
+            _minTick < TickMath.MIN_TICK_LIMIT || _maxTick > TickMath.MAX_TICK_LIMIT ||
+            self.vars.tick < _minTick || self.vars.tick > _maxTick
+        ) {
+            revert ExceededTickLimits(_minTick, _maxTick);
         }
 
         if(_minTick != -_maxTick) {
-            revert AsymmetricTicks(_minTick, _minTick);
+            revert AsymmetricTicks(_minTick, _maxTick);
         }
 
         self.mutableConfig.minTick = _minTick;
@@ -432,8 +436,12 @@ library DatedIrsVamm {
     {
         VAMMBase.checkCurrentTimestampMaturityTimestampDelta(self.immutableConfig.maturityTimestamp);
 
-        self.checkTicks(tickLower, tickUpper);
-
+        if (liquidityDelta > 0) {
+            self.checkTicksInRange(tickLower, tickUpper);
+        } else {
+            checkTicksLimits(tickLower, tickUpper);
+        }
+        
         bool flippedLower;
         bool flippedUpper;
 
@@ -757,7 +765,7 @@ library DatedIrsVamm {
         int256 trackerBaseTokenGrowthBetween
     )
     {
-        self.checkTicks(tickLower, tickUpper);
+        checkTicksLimits(tickLower, tickUpper);
 
         int256 trackerQuoteTokenBelowLowerTick;
         int256 trackerBaseTokenBelowLowerTick;
@@ -800,7 +808,7 @@ library DatedIrsVamm {
         returns (int256 quoteTokenGrowthInsideX128, int256 baseTokenGrowthInsideX128)
     {
 
-        self.checkTicks(tickLower, tickUpper);
+        checkTicksLimits(tickLower, tickUpper);
 
         baseTokenGrowthInsideX128 = self.vars._ticks.getBaseTokenGrowthInside(
             Tick.BaseTokenGrowthInsideParams({
@@ -854,8 +862,6 @@ library DatedIrsVamm {
             bool flippedUpper
         )
     {
-        self.checkTicks(tickLower, tickUpper);
-
         /// @dev isUpper = false
         flippedLower = self.vars._ticks.update(
             tickLower,
@@ -887,11 +893,18 @@ library DatedIrsVamm {
         }
     }
 
-    /// @dev Common checks for valid tick inputs.
-    function checkTicks(Data storage self, int24 tickLower, int24 tickUpper) internal view {
-        require(tickLower < tickUpper, "TLU");
-        require(tickLower >= self.mutableConfig.minTick, "TLM");
-        require(tickUpper <= self.mutableConfig.maxTick, "TUM");
+    /// @dev Common checks for valid tick inputs inside the min & max ticks
+    function checkTicksInRange(Data storage self, int24 tickLower, int24 tickUpper) internal view {
+        require(tickLower < tickUpper, "TLUR");
+        require(tickLower >= self.mutableConfig.minTick, "TLMR");
+        require(tickUpper <= self.mutableConfig.maxTick, "TUMR");
+    }
+
+    /// @dev Common checks for valid tick inputs inside the tick limits
+    function checkTicksLimits(int24 tickLower, int24 tickUpper) internal pure {
+        require(tickLower < tickUpper, "TLUL");
+        require(tickLower >= TickMath.MIN_TICK_LIMIT, "TLML");
+        require(tickUpper <= TickMath.MAX_TICK_LIMIT, "TUML");
     }
 
     /// @dev Computes the agregate amount of base between two ticks, given a tick range and the amount of liquidity per tick.

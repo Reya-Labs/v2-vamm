@@ -134,7 +134,7 @@ library LPPosition {
         int256 quoteTokenGrowthInsideX128,
         int256 baseTokenGrowthInsideX128
     )
-        internal view returns (int256, int256) {
+        internal pure returns (int256, int256) {
 
         if (self.accountId == 0) {
             revert PositionNotFound();
@@ -179,7 +179,7 @@ library LPPosition {
         int256 baseTokenGrowthInsideX128
     )
         internal
-        view
+        pure
         returns (int256 _quoteTokenDelta, int256 _baseTokenDelta)
     {
 

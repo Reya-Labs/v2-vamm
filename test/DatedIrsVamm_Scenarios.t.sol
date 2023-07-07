@@ -19,6 +19,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
     using DatedIrsVamm for DatedIrsVamm.Data;
     using SafeCastU256 for uint256;
     using SafeCastU128 for uint128;
+    using LPPosition for LPPosition.Data;
 
     int128 constant BASE_AMOUNT_PER_LP = 50_000_000_000;
     uint128 constant ACCOUNT_1 = 1;
@@ -168,7 +169,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         assertEq(vamm.sqrtPriceX96(), TickMath.getSqrtRatioAtTick(tickLimit));
     }
 
-    function test_Swap_MovingMaxLeft_UpdateTickLimits() public {
+    function test_Swap_MovingMaxLeft_ExtendTickLimits() public {
         int24 tickLimit = MIN_TICK + 1;
 
         VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
@@ -179,7 +180,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         // Mock the liquidity index that is read during a swap
         vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
 
-        (int256 quoteTokenDelta, int256 baseTokenDelta) = vamm.vammSwap(params);
+        (, int256 baseTokenDelta) = vamm.vammSwap(params);
 
         assertAlmostEqual(baseTokenDelta, baseTradeableToLeft);
         assertEq(vamm.tick(), tickLimit);
@@ -222,7 +223,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         assertEq(vamm.sqrtPriceX96(), TickMath.getSqrtRatioAtTick(tickLimit2));
     }
 
-    function test_Swap_MovingMaxRight_UpdateTickLimits() public {
+    function test_Swap_MovingMaxRight_ExtendTickLimits() public {
         int24 tickLimit = MAX_TICK - 1;
 
         VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
@@ -273,6 +274,140 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         assertLt(baseTokenDelta2, 0);
         assertEq(vamm.tick(), tickLimit2);
         assertEq(vamm.sqrtPriceX96(), TickMath.getSqrtRatioAtTick(tickLimit2));
+    }
+
+    function test_RevertWhen_ReduceTickLimits_TickOutside() public {
+        test_Swap_MovingMaxLeft();
+
+        int24 NEW_MIN_TICK = MIN_TICK + 1000;
+        int24 NEW_MAX_TICK = MAX_TICK - 1000;
+
+        VammConfiguration.Mutable memory mutableConfig = VammConfiguration.Mutable({
+            priceImpactPhi: ud60x18(1e17), // 0.1
+            priceImpactBeta: ud60x18(125e15), // 0.125
+            spread: ud60x18(3e15), // spread / 2 = 0.3%
+            rateOracle: IRateOracle(mockRateOracle),
+            minTick: NEW_MIN_TICK,
+            maxTick: NEW_MAX_TICK,
+            minSqrtRatio: 0,
+            maxSqrtRatio: 0
+        });
+
+        vm.expectRevert(abi.encodeWithSelector(DatedIrsVamm.ExceededTickLimits.selector, NEW_MIN_TICK, NEW_MAX_TICK));
+        vamm.configureVamm(mutableConfig);
+
+        // MOVE TICK BACK 
+        VAMMBase.SwapParams memory params0 = VAMMBase.SwapParams({
+            amountSpecified: 66668361499, 
+            sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(MAX_TICK - 1)
+        });
+        // Mock the liquidity index that is read during a swap
+        vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
+        vamm.vammSwap(params0);
+        vamm.configureVamm(mutableConfig);
+
+        /// MINTS
+
+        vm.expectRevert(bytes("TLMR"));
+        vamm.executeDatedMakerOrder(ACCOUNT_1,MIN_TICK, NEW_MIN_TICK + 1, 10000);
+        vm.expectRevert(bytes("TUMR"));
+        vamm.executeDatedMakerOrder(ACCOUNT_1,NEW_MIN_TICK + 1, MAX_TICK, 10000);
+
+        int128 requestedLiquidityAmount = getLiquidityForBase(-6450, 0, BASE_AMOUNT_PER_LP);
+        vamm.executeDatedMakerOrder(ACCOUNT_1,-6450, 0, requestedLiquidityAmount);
+
+        /// SWAPS
+
+        VAMMBase.SwapParams memory params1 = VAMMBase.SwapParams({
+            amountSpecified: -500_000_000_000_000_000_000_000_000_000_000, // There is not enough liquidity - swap should max out at baseTradeableToLeft
+            sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(MIN_TICK + 1)
+        });
+        // Mock the liquidity index that is read during a swap
+        vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
+        vm.expectRevert(bytes("SPL"));
+        vamm.vammSwap(params1);
+
+        VAMMBase.SwapParams memory params2 = VAMMBase.SwapParams({
+            amountSpecified: -500_000_000_000_000_000_000_000_000_000_000, // There is not enough liquidity - swap should max out at baseTradeableToLeft
+            sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(NEW_MIN_TICK + 1)
+        });
+
+        // Mock the liquidity index that is read during a swap
+        vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
+
+        (, int256 baseTokenDelta2) = vamm.vammSwap(params2);
+
+        assertGt(baseTokenDelta2, 0);
+        assertEq(vamm.tick(), NEW_MIN_TICK + 1);
+        assertEq(vamm.sqrtPriceX96(), TickMath.getSqrtRatioAtTick(NEW_MIN_TICK + 1));
+    }
+
+    function test_ReduceTickLimits() public {
+        test_Swap_MovingLeft();
+
+        int24 NEW_MIN_TICK = MIN_TICK + 1000;
+        int24 NEW_MAX_TICK = MAX_TICK - 1000;
+
+        VammConfiguration.Mutable memory mutableConfig = VammConfiguration.Mutable({
+            priceImpactPhi: ud60x18(1e17), // 0.1
+            priceImpactBeta: ud60x18(125e15), // 0.125
+            spread: ud60x18(3e15), // spread / 2 = 0.3%
+            rateOracle: IRateOracle(mockRateOracle),
+            minTick: NEW_MIN_TICK,
+            maxTick: NEW_MAX_TICK,
+            minSqrtRatio: 0,
+            maxSqrtRatio: 0
+        });
+
+        vamm.configureVamm(mutableConfig);
+
+        /// MINT 
+
+        vm.expectRevert(bytes("TLMR"));
+        vamm.executeDatedMakerOrder(ACCOUNT_1,MIN_TICK, NEW_MIN_TICK + 1, 10000);
+
+        int128 requestedLiquidityAmount = getLiquidityForBase(-6450, 0, BASE_AMOUNT_PER_LP);
+        vamm.executeDatedMakerOrder(ACCOUNT_1,-6450, 0, requestedLiquidityAmount);
+
+        /// EXECUTE ANOTHER SWAP
+
+        VAMMBase.SwapParams memory params2 = VAMMBase.SwapParams({
+            amountSpecified: -500_000_000_000_000_000_000_000_000_000_000, // There is not enough liquidity - swap should max out at baseTradeableToLeft
+            sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(NEW_MIN_TICK + 1)
+        });
+
+        // Mock the liquidity index that is read during a swap
+        vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
+
+        (, int256 baseTokenDelta2) = vamm.vammSwap(params2);
+
+        assertGt(baseTokenDelta2, 0);
+        assertEq(vamm.tick(), NEW_MIN_TICK + 1);
+        assertEq(vamm.sqrtPriceX96(), TickMath.getSqrtRatioAtTick(NEW_MIN_TICK + 1));
+    }
+
+    function test_Burn_After_ReduceTickLimits() public {
+
+        int24 NEW_MIN_TICK = MIN_TICK + 1000;
+        int24 NEW_MAX_TICK = MAX_TICK - 1000;
+
+        // MINT BETWEEN OLD MIN & MAX TICKS
+        int128 requestedLiquidityAmount = getLiquidityForBase(MIN_TICK, MAX_TICK, 100e18);
+        vamm.executeDatedMakerOrder(ACCOUNT_1, MIN_TICK, MAX_TICK, requestedLiquidityAmount);
+
+        test_ReduceTickLimits();
+
+        uint128 posId = LPPosition.getPositionId(ACCOUNT_1, MIN_TICK, MAX_TICK);
+        LPPosition.Data memory pos = vamm.position(posId);
+        assertEq(pos.liquidity, uint128(requestedLiquidityAmount));
+
+        // BURN IN OUR OF RANGE TICKS
+        vamm.executeDatedMakerOrder(ACCOUNT_1, MIN_TICK, MAX_TICK, -requestedLiquidityAmount);
+
+        pos = vamm.position(posId);
+        assertEq(pos.liquidity, 0);
+        assertEq(vamm.tick(), NEW_MIN_TICK + 1);
+        assertEq(vamm.sqrtPriceX96(), TickMath.getSqrtRatioAtTick(NEW_MIN_TICK + 1));
     }
 
     function test_FirstMint() public returns (int256, int24, int24, uint128) {
