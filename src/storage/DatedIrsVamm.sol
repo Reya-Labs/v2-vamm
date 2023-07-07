@@ -136,10 +136,10 @@ library DatedIrsVamm {
         irsVamm.immutableConfig._maxLiquidityPerTick = _config._maxLiquidityPerTick;
         irsVamm.immutableConfig._tickSpacing = _config._tickSpacing;
         irsVamm.immutableConfig.marketId = _marketId;
-        
-        configure(irsVamm, _mutableConfig);
 
         initialize(irsVamm, _sqrtPriceX96);
+        
+        configure(irsVamm, _mutableConfig);
     }
 
     /// @dev not locked because it initializes unlocked
