@@ -39,7 +39,7 @@ contract ExtendedAccountBalanceModule is AccountBalanceModule, VoltzTest {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
         int256 amountSpecified =  500_000_000;
 
-        VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
+        DatedIrsVamm.SwapParams memory params = DatedIrsVamm.SwapParams({
             amountSpecified: amountSpecified,
             sqrtPriceLimitX96: ACCOUNT_1_UPPER_SQRTPRICEX96
         });
@@ -92,9 +92,7 @@ contract AccountBalanceModuleTest is VoltzTest {
         spread: ud60x18(3e15), // 0.3%
         rateOracle: IRateOracle(mockRateOracle),
         minTick: MIN_TICK,
-        maxTick: MAX_TICK,
-        minSqrtRatio: 0,
-        maxSqrtRatio: 0
+        maxTick: MAX_TICK
     });
 
     VammConfiguration.Immutable internal immutableConfig = VammConfiguration.Immutable({

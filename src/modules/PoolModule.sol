@@ -41,13 +41,13 @@ contract PoolModule is IPoolModule {
 
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
 
-        VAMMBase.SwapParams memory swapParams;
+        DatedIrsVamm.SwapParams memory swapParams;
         swapParams.amountSpecified = -baseAmount;
         swapParams.sqrtPriceLimitX96 = sqrtPriceLimitX96 == 0
                 ? (
                     baseAmount > 0 // VT
-                        ? vamm.mutableConfig.minSqrtRatio + 1
-                        : vamm.mutableConfig.maxSqrtRatio - 1
+                        ? vamm.minSqrtRatio + 1
+                        : vamm.maxSqrtRatio - 1
                 )
                 : sqrtPriceLimitX96;
 

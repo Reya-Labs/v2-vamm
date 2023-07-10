@@ -68,9 +68,7 @@ contract PoolModuleTest is VoltzTest {
         spread: ud60x18(3e15), // 0.3%
         rateOracle: IRateOracle(mockRateOracle),
         minTick: MIN_TICK,
-        maxTick: MAX_TICK,
-        minSqrtRatio: 0,
-        maxSqrtRatio: 0
+        maxTick: MAX_TICK
     });
 
     VammConfiguration.Immutable internal immutableConfig = VammConfiguration.Immutable({

@@ -105,7 +105,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
     function test_Swap_MovingRight() public {
         int256 amountSpecified =  500_000_000;
 
-        VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
+        DatedIrsVamm.SwapParams memory params = DatedIrsVamm.SwapParams({
             amountSpecified: amountSpecified,
             sqrtPriceLimitX96: ACCOUNT_2_UPPER_SQRTPRICEX96
         });
@@ -122,7 +122,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
     function test_Swap_MovingLeft() public {
         int256 amountSpecified =  -500_000_000;
 
-        VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
+        DatedIrsVamm.SwapParams memory params = DatedIrsVamm.SwapParams({
             amountSpecified: amountSpecified,
             sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(MIN_TICK + 1)
         });
@@ -137,7 +137,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
     function test_Swap_MovingMaxRight() public {
         int24 tickLimit = ACCOUNT_2_TICK_UPPER + 1;
 
-        VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
+        DatedIrsVamm.SwapParams memory params = DatedIrsVamm.SwapParams({
             amountSpecified: 500_000_000_000_000_000_000_000_000_000_000, // There is not enough liquidity - swap should max out at baseTradeableToRight
             sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(tickLimit)
         });
@@ -154,7 +154,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
     function test_Swap_MovingMaxLeft() public {
         int24 tickLimit = MIN_TICK + 1;
 
-        VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
+        DatedIrsVamm.SwapParams memory params = DatedIrsVamm.SwapParams({
             amountSpecified: -500_000_000_000_000_000_000_000_000_000_000, // There is not enough liquidity - swap should max out at baseTradeableToLeft
             sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(tickLimit)
         });
@@ -172,7 +172,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
     function test_Swap_MovingMaxLeft_ExtendTickLimits() public {
         int24 tickLimit = MIN_TICK + 1;
 
-        VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
+        DatedIrsVamm.SwapParams memory params = DatedIrsVamm.SwapParams({
             amountSpecified: -500_000_000_000_000_000_000_000_000_000_000, // There is not enough liquidity - swap should max out at baseTradeableToLeft
             sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(tickLimit)
         });
@@ -192,9 +192,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
             spread: ud60x18(3e15), // spread / 2 = 0.3%
             rateOracle: IRateOracle(mockRateOracle),
             minTick: MIN_TICK - 1000,
-            maxTick: MAX_TICK + 1000,
-            minSqrtRatio: 0,
-            maxSqrtRatio: 0
+            maxTick: MAX_TICK + 1000
         });
 
         vamm.configureVamm(mutableConfig);
@@ -208,7 +206,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
         int24 tickLimit2 = MIN_TICK - 1000 + 1;
 
-        VAMMBase.SwapParams memory params2 = VAMMBase.SwapParams({
+        DatedIrsVamm.SwapParams memory params2 = DatedIrsVamm.SwapParams({
             amountSpecified: -500_000_000_000_000_000_000_000_000_000_000, // There is not enough liquidity - swap should max out at baseTradeableToLeft
             sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(tickLimit2)
         });
@@ -226,7 +224,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
     function test_Swap_MovingMaxRight_ExtendTickLimits() public {
         int24 tickLimit = MAX_TICK - 1;
 
-        VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
+        DatedIrsVamm.SwapParams memory params = DatedIrsVamm.SwapParams({
             amountSpecified: 500_000_000_000_000_000_000_000_000_000_000, // There is not enough liquidity - swap should max out at baseTradeableToRight
             sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(tickLimit)
         });
@@ -245,9 +243,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
             spread: ud60x18(3e15), // spread / 2 = 0.3%
             rateOracle: IRateOracle(mockRateOracle),
             minTick: MIN_TICK - 1000,
-            maxTick: MAX_TICK + 1000,
-            minSqrtRatio: 0,
-            maxSqrtRatio: 0
+            maxTick: MAX_TICK + 1000
         });
 
         vamm.configureVamm(mutableConfig);
@@ -261,7 +257,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
         int24 tickLimit2 = MAX_TICK + 1000 - 1;
 
-        VAMMBase.SwapParams memory params2 = VAMMBase.SwapParams({
+        DatedIrsVamm.SwapParams memory params2 = DatedIrsVamm.SwapParams({
             amountSpecified: 500_000_000_000_000_000_000_000_000_000_000, // There is not enough liquidity - swap should max out at baseTradeableToLeft
             sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(tickLimit2)
         });
@@ -288,16 +284,14 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
             spread: ud60x18(3e15), // spread / 2 = 0.3%
             rateOracle: IRateOracle(mockRateOracle),
             minTick: NEW_MIN_TICK,
-            maxTick: NEW_MAX_TICK,
-            minSqrtRatio: 0,
-            maxSqrtRatio: 0
+            maxTick: NEW_MAX_TICK
         });
 
         vm.expectRevert(abi.encodeWithSelector(DatedIrsVamm.ExceededTickLimits.selector, NEW_MIN_TICK, NEW_MAX_TICK));
         vamm.configureVamm(mutableConfig);
 
         // MOVE TICK BACK 
-        VAMMBase.SwapParams memory params0 = VAMMBase.SwapParams({
+        DatedIrsVamm.SwapParams memory params0 = DatedIrsVamm.SwapParams({
             amountSpecified: 66668361499, 
             sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(MAX_TICK - 1)
         });
@@ -318,7 +312,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
         /// SWAPS
 
-        VAMMBase.SwapParams memory params1 = VAMMBase.SwapParams({
+        DatedIrsVamm.SwapParams memory params1 = DatedIrsVamm.SwapParams({
             amountSpecified: -500_000_000_000_000_000_000_000_000_000_000, // There is not enough liquidity - swap should max out at baseTradeableToLeft
             sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(MIN_TICK + 1)
         });
@@ -327,7 +321,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         vm.expectRevert(bytes("SPL"));
         vamm.vammSwap(params1);
 
-        VAMMBase.SwapParams memory params2 = VAMMBase.SwapParams({
+        DatedIrsVamm.SwapParams memory params2 = DatedIrsVamm.SwapParams({
             amountSpecified: -500_000_000_000_000_000_000_000_000_000_000, // There is not enough liquidity - swap should max out at baseTradeableToLeft
             sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(NEW_MIN_TICK + 1)
         });
@@ -354,9 +348,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
             spread: ud60x18(3e15), // spread / 2 = 0.3%
             rateOracle: IRateOracle(mockRateOracle),
             minTick: NEW_MIN_TICK,
-            maxTick: NEW_MAX_TICK,
-            minSqrtRatio: 0,
-            maxSqrtRatio: 0
+            maxTick: NEW_MAX_TICK
         });
 
         vamm.configureVamm(mutableConfig);
@@ -371,7 +363,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
         /// EXECUTE ANOTHER SWAP
 
-        VAMMBase.SwapParams memory params2 = VAMMBase.SwapParams({
+        DatedIrsVamm.SwapParams memory params2 = DatedIrsVamm.SwapParams({
             amountSpecified: -500_000_000_000_000_000_000_000_000_000_000, // There is not enough liquidity - swap should max out at baseTradeableToLeft
             sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(NEW_MIN_TICK + 1)
         });
@@ -454,7 +446,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
         int256 amountSwap =  -1000000;
 
-        VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
+        DatedIrsVamm.SwapParams memory params = DatedIrsVamm.SwapParams({
             amountSpecified: amountSwap,
             sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(MIN_TICK) + 1
         });
@@ -831,7 +823,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         // Test swap to right
         {
             int256 amountSpecified =  1;
-            VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
+            DatedIrsVamm.SwapParams memory params = DatedIrsVamm.SwapParams({
                 amountSpecified: amountSpecified,
                 sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(MAX_TICK - 1)
             });
@@ -847,7 +839,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         // Test swap to left
         {
             int256 amountSpecified =  -1;
-            VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
+            DatedIrsVamm.SwapParams memory params = DatedIrsVamm.SwapParams({
                 amountSpecified: amountSpecified,
                 sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(MIN_TICK + 1)
             });
@@ -883,7 +875,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         // console2.log("baseBalancePool", baseBalancePool);
         // console2.log("quoteBalancePool", quoteBalancePool);
 
-        VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
+        DatedIrsVamm.SwapParams memory params = DatedIrsVamm.SwapParams({
             amountSpecified: baseBalancePool, 
             sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(MAX_TICK - 1)
         });
@@ -911,7 +903,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         // CLOSE FILLED BALANCES
         (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(ACCOUNT_2);
 
-        VAMMBase.SwapParams memory params = VAMMBase.SwapParams({
+        DatedIrsVamm.SwapParams memory params = DatedIrsVamm.SwapParams({
             amountSpecified: baseBalancePool, 
             sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(MAX_TICK - 1)
         });

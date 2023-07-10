@@ -79,6 +79,17 @@ library DatedIrsVamm {
         VammConfiguration.Mutable mutableConfig;
         /// @dev vamm state frequently-updated
         VammConfiguration.State vars;
+        /// @dev Equivalent to getSqrtRatioAtTick(MAX_TICK)
+        uint160 minSqrtRatio;
+        /// @dev Equivalent to getSqrtRatioAtTick(MIN_TICK)
+        uint160 maxSqrtRatio;
+    }
+
+    struct SwapParams {
+        /// @dev The amount of the swap in base tokens, which implicitly configures the swap as exact input (positive), or exact output (negative)
+        int256 amountSpecified;
+        /// @dev The Q64.96 sqrt price limit. If !isFT, the price cannot be less than this
+        uint160 sqrtPriceLimitX96;
     }
 
     /**
@@ -191,14 +202,14 @@ library DatedIrsVamm {
             revert ExceededTickLimits(_minTick, _maxTick);
         }
 
-        if(_minTick != -_maxTick) {
+        if(_minTick + _maxTick != 0) {
             revert AsymmetricTicks(_minTick, _maxTick);
         }
 
         self.mutableConfig.minTick = _minTick;
         self.mutableConfig.maxTick = _maxTick;
-        self.mutableConfig.minSqrtRatio = TickMath.getSqrtRatioAtTick(_minTick);
-        self.mutableConfig.maxSqrtRatio = TickMath.getSqrtRatioAtTick(_maxTick);
+        self.minSqrtRatio = TickMath.getSqrtRatioAtTick(_minTick);
+        self.maxSqrtRatio = TickMath.getSqrtRatioAtTick(_maxTick);
     }
 
     /// @dev Mutually exclusive reentrancy protection into the pool to/from a method. This method also prevents entrance
@@ -479,9 +490,11 @@ library DatedIrsVamm {
         }
     }
 
+    /// @dev amountSpecified The amount of the swap in base tokens, which implicitly configures the swap as exact input (positive), or exact output (negative)
+    /// @dev sqrtPriceLimitX96 The Q64.96 sqrt price limit. If !isFT, the price cannot be less than this
     function vammSwap(
         Data storage self,
-        VAMMBase.SwapParams memory params
+        SwapParams memory params
     )
         internal
         lock(self)
@@ -489,7 +502,7 @@ library DatedIrsVamm {
     {
         VAMMBase.checkCurrentTimestampMaturityTimestampDelta(self.immutableConfig.maturityTimestamp);
 
-        VAMMBase.checksBeforeSwap(params, self.vars, self.mutableConfig, params.amountSpecified > 0);
+        self.checksBeforeSwap(params.amountSpecified, params.sqrtPriceLimitX96, params.amountSpecified > 0);
 
         uint128 liquidityStart = self.vars.liquidity;
 
@@ -506,9 +519,11 @@ library DatedIrsVamm {
 
         // The following are used n times within the loop, but will not change so they are calculated here
         uint256 secondsTillMaturity = self.immutableConfig.maturityTimestamp - block.timestamp;
+        int24[] memory vammMinMaxTicks = new int24[](2);
+        vammMinMaxTicks[0] = self.mutableConfig.minTick;
+        vammMinMaxTicks[1] = self.mutableConfig.maxTick;
 
         // continue swapping as long as we haven't used the entire input/output and haven't reached the price (implied fixed rate) limit
-        bool advanceRight = params.amountSpecified > 0;
         while (
             state.amountSpecifiedRemaining != 0 &&
             state.sqrtPriceX96 != params.sqrtPriceLimitX96
@@ -526,25 +541,14 @@ library DatedIrsVamm {
                 .nextInitializedTickWithinOneWord(state.tick, self.immutableConfig._tickSpacing, !(params.amountSpecified > 0));
 
             // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
-            if (params.amountSpecified > 0 && step.tickNext > self.mutableConfig.maxTick) {
-                step.tickNext = self.mutableConfig.maxTick;
+            if (params.amountSpecified > 0 && step.tickNext > vammMinMaxTicks[1]) {
+                step.tickNext = vammMinMaxTicks[1];
             }
-            if (!(params.amountSpecified > 0) && step.tickNext < self.mutableConfig.minTick) {
-                step.tickNext = self.mutableConfig.minTick;
+            if (!(params.amountSpecified > 0) && step.tickNext < vammMinMaxTicks[0]) {
+                step.tickNext = vammMinMaxTicks[0];
             }
             // get the price for the next tick
             step.sqrtPriceNextX96 = self.getSqrtRatioAtTickSafe(step.tickNext);
-            //FT
-            uint160 sqrtRatioTargetX96 = step.sqrtPriceNextX96 > params.sqrtPriceLimitX96
-                    ? params.sqrtPriceLimitX96
-                    : step.sqrtPriceNextX96;
-            // VT 
-            if(!advanceRight) {
-                sqrtRatioTargetX96 = step.sqrtPriceNextX96 < params.sqrtPriceLimitX96
-                    ? params.sqrtPriceLimitX96
-                    : step.sqrtPriceNextX96;
-            }
-
 
             ///// GET SWAP RESULTS /////
 
@@ -558,7 +562,7 @@ library DatedIrsVamm {
             ) = SwapMath.computeSwapStep(
                 SwapMath.SwapStepParams({
                     sqrtRatioCurrentX96: state.sqrtPriceX96,
-                    sqrtRatioTargetX96: sqrtRatioTargetX96,
+                    sqrtRatioTargetX96: VAMMBase.getSqrtRatioTargetX96(params.amountSpecified, step.sqrtPriceNextX96, params.sqrtPriceLimitX96),
                     liquidity: state.liquidity,
                     amountRemaining: state.amountSpecifiedRemaining,
                     timeToMaturityInSeconds: secondsTillMaturity
@@ -842,8 +846,8 @@ library DatedIrsVamm {
     function getTickAtSqrtRatioSafe(Data storage self, uint160 sqrtPriceX96) internal view returns (int24 tick){
         // second inequality must be < because the price can never reach the price at the max tick
         require(
-            sqrtPriceX96 >= self.mutableConfig.minSqrtRatio &&
-                sqrtPriceX96 < self.mutableConfig.maxSqrtRatio,
+            sqrtPriceX96 >= self.minSqrtRatio &&
+                sqrtPriceX96 < self.maxSqrtRatio,
             "R"
         );
 
@@ -905,6 +909,32 @@ library DatedIrsVamm {
         require(tickLower < tickUpper, "TLUL");
         require(tickLower >= TickMath.MIN_TICK_LIMIT, "TLML");
         require(tickUpper <= TickMath.MAX_TICK_LIMIT, "TUML");
+    }
+
+    function checksBeforeSwap(
+        Data storage self,
+        int256 amountSpecified,
+        uint160 sqrtPriceLimitX96,
+        bool isFT
+    ) internal view {
+
+        if (amountSpecified == 0) {
+            revert CustomErrors.IRSNotionalAmountSpecifiedMustBeNonZero();
+        }
+
+        /// @dev if a trader is an FT, they consume fixed in return for variable
+        /// @dev Movement from right to left along the VAMM, hence the sqrtPriceLimitX96 needs to be higher than the current sqrtPriceX96, but lower than the MAX_SQRT_RATIO
+        /// @dev if a trader is a VT, they consume variable in return for fixed
+        /// @dev Movement from left to right along the VAMM, hence the sqrtPriceLimitX96 needs to be lower than the current sqrtPriceX96, but higher than the MIN_SQRT_RATIO
+
+        require(
+            isFT
+                ? sqrtPriceLimitX96 > self.vars.sqrtPriceX96 &&
+                    sqrtPriceLimitX96 < self.maxSqrtRatio
+                : sqrtPriceLimitX96 < self.vars.sqrtPriceX96 &&
+                    sqrtPriceLimitX96 > self.minSqrtRatio,
+            "SPL"
+        );
     }
 
     /// @dev Computes the agregate amount of base between two ticks, given a tick range and the amount of liquidity per tick.
