@@ -93,11 +93,11 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         // 3rd position
         vamm.executeDatedMakerOrder(ACCOUNT_1,ACCOUNT_1_TICK_LOWER + 1,ACCOUNT_1_TICK_UPPER + 1, 1000);
         // 4th position
-        vm.expectRevert(abi.encodeWithSelector(DatedIrsVamm.TooManyPositions.selector, ACCOUNT_1));
+        vm.expectRevert(abi.encodeWithSelector(DatedIrsVamm.TooManyLpPositions.selector, ACCOUNT_1));
         vamm.executeDatedMakerOrder(ACCOUNT_1,ACCOUNT_1_TICK_LOWER + 2,ACCOUNT_1_TICK_UPPER + 1, 1000);
 
         // 4th position
-        vm.expectRevert(abi.encodeWithSelector(DatedIrsVamm.TooManyPositions.selector, ACCOUNT_1));
+        vm.expectRevert(abi.encodeWithSelector(DatedIrsVamm.TooManyLpPositions.selector, ACCOUNT_1));
         vamm.executeDatedMakerOrder(ACCOUNT_1,ACCOUNT_1_TICK_LOWER - 2,ACCOUNT_1_TICK_UPPER - 1, 1000);
     }
 
