@@ -72,7 +72,7 @@ contract PoolConfigurationModuleTest is VoltzTest {
     function test_SetPositionsPerAccountLimit() public {
         assertEq(poolConfig.positionsPerAccountLimit(), 0);
         poolConfig.setOwner(address(this));
-        poolConfig.setPositionsPerAccountLimit(1);
+        poolConfig.setLpPositionsPerAccountLimit(1);
         assertEq(poolConfig.positionsPerAccountLimit(), 1);
     }
 
@@ -80,7 +80,7 @@ contract PoolConfigurationModuleTest is VoltzTest {
         assertEq(poolConfig.positionsPerAccountLimit(), 0);
 
         vm.expectRevert(abi.encodeWithSelector(AccessError.Unauthorized.selector, address(this)));
-        poolConfig.setPositionsPerAccountLimit(1);
+        poolConfig.setLpPositionsPerAccountLimit(1);
         assertEq(poolConfig.positionsPerAccountLimit(), 0);
     }
 
