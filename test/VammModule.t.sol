@@ -19,6 +19,11 @@ contract ExtendedVammModule is VammModule {
         DatedIrsVamm.load(_vammId).configure(_mutableConfig);
     }
 
+    function sqrtRatioMinAndMax(uint128 marketId, uint32 maturityTimestamp) external view returns (uint160, uint160) {
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
+        return (vamm.minSqrtRatio, vamm.maxSqrtRatio);
+    }
+
     function sqrtPriceX96(uint128 marketId, uint32 maturityTimestamp) external view returns (uint160) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
         return vamm.vars.sqrtPriceX96;
@@ -117,9 +122,7 @@ contract VammModuleTest is VoltzTest {
         spread: ud60x18(3e15), // 0.3%
         rateOracle: IRateOracle(mockRateOracle),
         minTick: MIN_TICK,
-        maxTick: MAX_TICK,
-        minSqrtRatio: 0,
-        maxSqrtRatio: 0
+        maxTick: MAX_TICK
     });
 
     VammConfiguration.Immutable internal immutableConfig = VammConfiguration.Immutable({
@@ -178,9 +181,7 @@ contract VammModuleTest is VoltzTest {
             spread: ud60x18(5e15), // 0.3%
             rateOracle: IRateOracle(address(23)),
             minTick: MIN_TICK,
-            maxTick: MAX_TICK,
-            minSqrtRatio: 0,
-            maxSqrtRatio: 0
+            maxTick: MAX_TICK
         });
 
         vammConfig.configureVamm(initMarketId, initMaturityTimestamp, __mutableConfig);
@@ -192,8 +193,10 @@ contract VammModuleTest is VoltzTest {
         assertEq(address(_mutableConfig.rateOracle), address(23));
         assertEq(_mutableConfig.minTick, TickMath.DEFAULT_MIN_TICK);
         assertEq(_mutableConfig.maxTick, TickMath.DEFAULT_MAX_TICK);
-        assertEq(_mutableConfig.minSqrtRatio, TickMath.getSqrtRatioAtTick(TickMath.DEFAULT_MIN_TICK));
-        assertEq(_mutableConfig.maxSqrtRatio, TickMath.getSqrtRatioAtTick(TickMath.DEFAULT_MAX_TICK));
+
+        (uint160 ratioMin, uint160 ratioMax) = vammConfig.sqrtRatioMinAndMax(initMarketId, initMaturityTimestamp);
+        assertEq(ratioMin, TickMath.getSqrtRatioAtTick(TickMath.DEFAULT_MIN_TICK));
+        assertEq(ratioMax, TickMath.getSqrtRatioAtTick(TickMath.DEFAULT_MAX_TICK));
 
         // same as before
         assertEq(config.maturityTimestamp, initMaturityTimestamp);

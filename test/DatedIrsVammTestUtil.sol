@@ -35,9 +35,7 @@ contract DatedIrsVammTestUtil is VoltzTest {
         spread: ud60x18(3e15), // spread / 2 = 0.3%
         rateOracle: IRateOracle(mockRateOracle),
         minTick: MIN_TICK,
-        maxTick: MAX_TICK,
-        minSqrtRatio: 0,
-        maxSqrtRatio: 0
+        maxTick: MAX_TICK
     });
 
     VammConfiguration.Immutable internal immutableConfig = VammConfiguration.Immutable({
@@ -221,7 +219,7 @@ contract ExposedDatedIrsVamm {
         return vamm.getAccountUnfilledBases(accountId);
     }
 
-    function vammSwap(VAMMBase.SwapParams memory params) public returns (int256, int256) {
+    function vammSwap(DatedIrsVamm.SwapParams memory params) public returns (int256, int256) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
         return vamm.vammSwap(params);
     }

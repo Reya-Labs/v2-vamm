@@ -26,10 +26,6 @@ library VammConfiguration {
         int24 minTick;
         /// @dev The maximum tick of the vamm
         int24 maxTick;
-        /// @dev Equivalent to getSqrtRatioAtTick(MAX_TICK)
-        uint160 minSqrtRatio;
-        /// @dev Equivalent to getSqrtRatioAtTick(MIN_TICK)
-        uint160 maxSqrtRatio;
     }
 
     struct Immutable {

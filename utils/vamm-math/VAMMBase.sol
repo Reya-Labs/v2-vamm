@@ -39,13 +39,6 @@ library VAMMBase {
         mapping(int16 => uint256) _tickBitmap;
     }
 
-    struct SwapParams {
-        /// @dev The amount of the swap in base tokens, which implicitly configures the swap as exact input (positive), or exact output (negative)
-        int256 amountSpecified;
-        /// @dev The Q64.96 sqrt price limit. If !isFT, the price cannot be less than this
-        uint160 sqrtPriceLimitX96;
-    }
-
     // ==================== EVENTS ======================
     /// @dev emitted after a successful swap transaction
     event Swap(
@@ -182,32 +175,6 @@ library VAMMBase {
                 FullMath.mulDivSigned(baseTokenDelta, FixedPoint128.Q128, state.liquidity);
     }
 
-    function checksBeforeSwap(
-        VAMMBase.SwapParams memory params,
-        VammConfiguration.State storage vammVarsStart,
-        VammConfiguration.Mutable storage vammMutableConfig,
-        bool isFT
-    ) internal view {
-
-        if (params.amountSpecified == 0) {
-            revert CustomErrors.IRSNotionalAmountSpecifiedMustBeNonZero();
-        }
-
-        /// @dev if a trader is an FT, they consume fixed in return for variable
-        /// @dev Movement from right to left along the VAMM, hence the sqrtPriceLimitX96 needs to be higher than the current sqrtPriceX96, but lower than the MAX_SQRT_RATIO
-        /// @dev if a trader is a VT, they consume variable in return for fixed
-        /// @dev Movement from left to right along the VAMM, hence the sqrtPriceLimitX96 needs to be lower than the current sqrtPriceX96, but higher than the MIN_SQRT_RATIO
-
-        require(
-            isFT
-                ? params.sqrtPriceLimitX96 > vammVarsStart.sqrtPriceX96 &&
-                    params.sqrtPriceLimitX96 < vammMutableConfig.maxSqrtRatio
-                : params.sqrtPriceLimitX96 < vammVarsStart.sqrtPriceX96 &&
-                    params.sqrtPriceLimitX96 > vammMutableConfig.minSqrtRatio,
-            "SPL"
-        );
-    }
-
     /// @dev Modifier that ensures new LP positions cannot be minted after one day before the maturity of the vamm
     /// @dev also ensures new swaps cannot be conducted after one day before maturity of the vamm
     function checkCurrentTimestampMaturityTimestampDelta(uint32 maturityTimestamp) internal view {
@@ -215,4 +182,19 @@ library VAMMBase {
             revert("closeToOrBeyondMaturity");
         }
     }
+
+    function getSqrtRatioTargetX96(int256 amountSpecified, uint160 sqrtPriceNextX96, uint160 sqrtPriceLimitX96) 
+        internal pure returns (uint160 sqrtRatioTargetX96) {
+        // FT
+        sqrtRatioTargetX96 = sqrtPriceNextX96 > sqrtPriceLimitX96
+                ? sqrtPriceLimitX96
+                : sqrtPriceNextX96;
+        // VT 
+        if(!(amountSpecified > 0)) {
+            sqrtRatioTargetX96 = sqrtPriceNextX96 < sqrtPriceLimitX96
+                ? sqrtPriceLimitX96
+                : sqrtPriceNextX96;
+        }
+    }
+    
 }
