@@ -75,7 +75,7 @@ library DatedIrsVamm {
     /**
      * @dev Thrown when the number of positions per account exceeded the limit.
      */
-    error TooManyPositions(uint128 accountId);
+    error TooManyLpPositions(uint128 accountId);
 
     /// @dev Internal, frequently-updated state of the VAMM, which is compressed into one storage slot.
     struct Data {
@@ -377,7 +377,7 @@ library DatedIrsVamm {
         if (newlyCreated) {
             uint256 positionsPerAccountLimit = PoolConfiguration.load().positionsPerAccountLimit;
             if (self.vars.positionsInAccount[accountId].length >= positionsPerAccountLimit) {
-                revert TooManyPositions(accountId);
+                revert TooManyLpPositions(accountId);
             }
             self.vars.positionsInAccount[accountId].push(LPPosition.getPositionId(accountId, tickLower, tickUpper));
         }
