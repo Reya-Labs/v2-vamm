@@ -47,6 +47,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         vammId = uint256(keccak256(abi.encodePacked(initMarketId, uint32(initMaturityTimestamp))));
         vamm = new ExposedDatedIrsVamm(vammId);
         vamm.create(initMarketId, initSqrtPriceX96, immutableConfig, mutableConfig);
+        vamm.setPositionsPerAccountLimit(3);
 
         // console2.log("requestedBaseAmount (per LP)  ", BASE_AMOUNT_PER_LP);
 
@@ -84,6 +85,20 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
     function test_CorrectCreation() public {
         assertEq(vamm.tick(), TickMath.getTickAtSqrtRatio(initSqrtPriceX96));
+    }
+
+    function test_PositionsPerAccountLimit() public {
+        // 2nd position
+        vamm.executeDatedMakerOrder(ACCOUNT_1,ACCOUNT_1_TICK_LOWER - 1,ACCOUNT_1_TICK_UPPER + 1, 1000);
+        // 3rd position
+        vamm.executeDatedMakerOrder(ACCOUNT_1,ACCOUNT_1_TICK_LOWER + 1,ACCOUNT_1_TICK_UPPER + 1, 1000);
+        // 4th position
+        vm.expectRevert(abi.encodeWithSelector(DatedIrsVamm.TooManyPositions.selector, ACCOUNT_1));
+        vamm.executeDatedMakerOrder(ACCOUNT_1,ACCOUNT_1_TICK_LOWER + 2,ACCOUNT_1_TICK_UPPER + 1, 1000);
+
+        // 4th position
+        vm.expectRevert(abi.encodeWithSelector(DatedIrsVamm.TooManyPositions.selector, ACCOUNT_1));
+        vamm.executeDatedMakerOrder(ACCOUNT_1,ACCOUNT_1_TICK_LOWER - 2,ACCOUNT_1_TICK_UPPER - 1, 1000);
     }
 
     function test_GetAccountUnfilledBases() public {
@@ -162,7 +177,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         // Mock the liquidity index that is read during a swap
         vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
 
-        (int256 quoteTokenDelta, int256 baseTokenDelta) = vamm.vammSwap(params);
+        (, int256 baseTokenDelta) = vamm.vammSwap(params);
 
         assertAlmostEqual(baseTokenDelta, baseTradeableToLeft);
         assertEq(vamm.tick(), tickLimit);
@@ -381,7 +396,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
     function test_Burn_After_ReduceTickLimits() public {
 
         int24 NEW_MIN_TICK = MIN_TICK + 1000;
-        int24 NEW_MAX_TICK = MAX_TICK - 1000;
+        // int24 NEW_MAX_TICK = MAX_TICK - 1000;
 
         // MINT BETWEEN OLD MIN & MAX TICKS
         int128 requestedLiquidityAmount = getLiquidityForBase(MIN_TICK, MAX_TICK, 100e18);

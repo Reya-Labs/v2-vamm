@@ -55,7 +55,7 @@ contract DatedIrsVammTestUtil is VoltzTest {
         int24 tickLower,
         int24 tickUpper,
         int256 baseAmount
-    ) public view returns (int128 liquidity) {
+    ) public pure returns (int128 liquidity) {
 
         // get sqrt ratios
         uint160 sqrtRatioAX96 = TickMath.getSqrtRatioAtTick(tickLower);
@@ -125,6 +125,7 @@ contract DatedIrsVammTestUtil is VoltzTest {
 contract ExposedDatedIrsVamm {
 
     using DatedIrsVamm for DatedIrsVamm.Data;
+    using PoolConfiguration for PoolConfiguration.Data;
 
     uint256 vammId;
 
@@ -257,6 +258,12 @@ contract ExposedDatedIrsVamm {
     ) public view returns(int256) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
         return vamm.baseBetweenTicks(_tickLower, _tickUpper, _liquidityPerTick);
+    }
+
+    ///// HELPERS
+
+    function setPositionsPerAccountLimit(uint256 limit) public {
+        PoolConfiguration.load().setPositionsPerAccountLimit(limit);
     }
 
     ///// GETTERS
