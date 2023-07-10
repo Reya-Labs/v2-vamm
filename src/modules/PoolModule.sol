@@ -18,7 +18,7 @@ contract PoolModule is IPoolModule {
     using SafeCastU128 for uint128;
 
     /// @notice returns a human-readable name for a given pool
-    function name() external view override returns (string memory) {
+    function name() external pure override returns (string memory) {
         return "Dated Irs Pool";
     }
 

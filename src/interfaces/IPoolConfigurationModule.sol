@@ -10,4 +10,8 @@ interface IPoolConfigurationModule {
   /// @notice Setting the product (instrument) address
   /// @param productAddress Address of the product proxy
   function setProductAddress(address productAddress) external;
+
+  /// @notice Setting positions per account limit
+  /// @param limit Maximum number of positions an acccount can have
+  function setPositionsPerAccountLimit(uint256 limit) external;
 }

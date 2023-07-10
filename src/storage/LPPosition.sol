@@ -182,6 +182,9 @@ library LPPosition {
         pure
         returns (int256 _quoteTokenDelta, int256 _baseTokenDelta)
     {
+        if (self.accountId == 0) {
+            revert PositionNotFound();
+        }
 
         int256 quoteTokenGrowthInsideDeltaX128 = quoteTokenGrowthInsideX128 -
             self.trackerQuoteTokenUpdatedGrowth;

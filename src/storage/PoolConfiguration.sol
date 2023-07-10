@@ -8,6 +8,7 @@ library PoolConfiguration {
     struct Data {
         bool paused;
         address productAddress;
+        uint256 positionsPerAccountLimit;
     }
 
     function load() internal pure returns (Data storage self) {
@@ -24,6 +25,10 @@ library PoolConfiguration {
 
     function setProductAddress(Data storage self, address _productAddress) internal {
         self.productAddress = _productAddress;
+    }
+
+    function setPositionsPerAccountLimit(Data storage self, uint256 limit) internal {
+        self.positionsPerAccountLimit = limit;
     }
 
     function whenNotPaused() internal view {

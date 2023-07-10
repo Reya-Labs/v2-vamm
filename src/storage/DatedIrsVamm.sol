@@ -2,6 +2,7 @@
 pragma solidity >=0.8.13;
 
 import "./LPPosition.sol";
+import "./PoolConfiguration.sol";
 
 import "../../utils/vamm-math/VAMMBase.sol";
 import "../../utils/vamm-math/SwapMath.sol";
@@ -70,6 +71,11 @@ library DatedIrsVamm {
      * @dev Thrown when specified ticks are not symmetric around 0
      */
     error AsymmetricTicks(int24 minTick, int24 maxTick);
+
+    /**
+     * @dev Thrown when the number of positions per account exceeded the limit.
+     */
+    error TooManyPositions(uint128 accountId);
 
     /// @dev Internal, frequently-updated state of the VAMM, which is compressed into one storage slot.
     struct Data {
@@ -369,6 +375,10 @@ library DatedIrsVamm {
     { 
         (LPPosition.Data storage position, bool newlyCreated) = LPPosition._ensurePositionOpened(accountId, tickLower, tickUpper);
         if (newlyCreated) {
+            uint256 positionsPerAccountLimit = PoolConfiguration.load().positionsPerAccountLimit;
+            if (self.vars.positionsInAccount[accountId].length >= positionsPerAccountLimit) {
+                revert TooManyPositions(accountId);
+            }
             self.vars.positionsInAccount[accountId].push(LPPosition.getPositionId(accountId, tickLower, tickUpper));
         }
 
