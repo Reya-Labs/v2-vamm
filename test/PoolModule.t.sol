@@ -16,14 +16,14 @@ contract ExtendedPoolModule is PoolModule, PoolConfigurationModule {
     }
 
     function createTestVamm(uint128 _marketId,  uint160 _sqrtPriceX96, VammConfiguration.Immutable calldata _config, VammConfiguration.Mutable calldata _mutableConfig) public {
-        DatedIrsVamm.Data storage vamm = DatedIrsVamm.create(_marketId, _sqrtPriceX96, _config, _mutableConfig);
+        DatedIrsVamm.create(_marketId, _sqrtPriceX96, _config, _mutableConfig);
     }
 
     function getLiquidityForBase(
         int24 tickLower,
         int24 tickUpper,
         int256 baseAmount
-    ) public view returns (int128 liquidity) {
+    ) public pure returns (int128 liquidity) {
 
         // get sqrt ratios
         uint160 sqrtRatioAX96 = TickMath.getSqrtRatioAtTick(tickLower);
@@ -37,7 +37,7 @@ contract ExtendedPoolModule is PoolModule, PoolConfigurationModule {
         return baseAmount > 0 ? absLiquidity.toInt().to128() : -(absLiquidity.toInt().to128());
     }
 
-    function position(uint128 posId) external view returns (LPPosition.Data memory){
+    function position(uint128 posId) external pure returns (LPPosition.Data memory){
         return LPPosition.load(posId);
     }
 }
@@ -82,6 +82,9 @@ contract PoolModuleTest is VoltzTest {
         pool = new ExtendedPoolModule();
         vammId = uint256(keccak256(abi.encodePacked(initMarketId, initMaturityTimestamp)));
         pool.createTestVamm(initMarketId, initSqrtPriceX96, immutableConfig, mutableConfig);
+
+        pool.setOwner(address(this));
+        pool.setPositionsPerAccountLimit(1);
     }
 
     function test_Name() public {

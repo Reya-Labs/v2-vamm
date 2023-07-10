@@ -6,6 +6,7 @@ import "./VoltzTest.sol";
 
 contract ExtendedAccountBalanceModule is AccountBalanceModule, VoltzTest {
     using DatedIrsVamm for DatedIrsVamm.Data;
+    using PoolConfiguration for PoolConfiguration.Data;
     using SafeCastU256 for uint256;
     using SafeCastI256 for int256;
     using SafeCastU128 for uint128;
@@ -19,13 +20,17 @@ contract ExtendedAccountBalanceModule is AccountBalanceModule, VoltzTest {
     int24 ACCOUNT_1_TICK_LOWER = TickMath.getTickAtSqrtRatio(ACCOUNT_1_LOWER_SQRTPRICEX96);
     int24 ACCOUNT_1_TICK_UPPER = TickMath.getTickAtSqrtRatio(ACCOUNT_1_UPPER_SQRTPRICEX96);
 
-    function getVammConfig(uint128 marketId, uint32 maturityTimestamp) external returns (VammConfiguration.Mutable memory, VammConfiguration.Immutable memory) {
+    function getVammConfig(uint128 marketId, uint32 maturityTimestamp) external view returns (VammConfiguration.Mutable memory, VammConfiguration.Immutable memory) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
         return (vamm.mutableConfig, vamm.immutableConfig);
     }
 
     function createTestVamm(uint128 _marketId,  uint160 _sqrtPriceX96, VammConfiguration.Immutable calldata _config, VammConfiguration.Mutable calldata _mutableConfig) public {
-        DatedIrsVamm.Data storage vamm = DatedIrsVamm.create(_marketId, _sqrtPriceX96, _config, _mutableConfig);
+        DatedIrsVamm.create(_marketId, _sqrtPriceX96, _config, _mutableConfig);
+    }
+
+    function setPositionsPerAccountLimit(uint256 limit) public {
+        PoolConfiguration.load().setPositionsPerAccountLimit(limit);
     }
 
     function mockMakerOrder(uint128 marketId, uint32 maturityTimestamp) public returns (int128){
@@ -56,7 +61,7 @@ contract ExtendedAccountBalanceModule is AccountBalanceModule, VoltzTest {
         int24 tickLower,
         int24 tickUpper,
         int256 baseAmount
-    ) public view returns (int128 liquidity) {
+    ) public pure returns (int128 liquidity) {
 
         // get sqrt ratios
         uint160 sqrtRatioAX96 = TickMath.getSqrtRatioAtTick(tickLower);
@@ -105,6 +110,8 @@ contract AccountBalanceModuleTest is VoltzTest {
     function setUp() public {
         pool = new ExtendedAccountBalanceModule();
         pool.createTestVamm(initMarketId, initSqrtPriceX96, immutableConfig, mutableConfig);
+
+        pool.setPositionsPerAccountLimit(1);
     }
 
     function test_FilledBalances_UnknownPosition() public {

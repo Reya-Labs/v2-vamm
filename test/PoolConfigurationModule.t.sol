@@ -16,12 +16,16 @@ contract ExtendedPoolConfigurationModule is PoolConfigurationModule, FeatureFlag
         FeatureFlag.load(_PAUSER_FEATURE_FLAG).permissionedAddresses.add(pauser);
     }
 
-    function whenNotPaused() external {
+    function whenNotPaused() external view {
         PoolConfiguration.whenNotPaused();
     }
 
-    function productAddress() external returns (address){
+    function productAddress() external view returns (address){
         return PoolConfiguration.load().productAddress;
+    }
+
+    function positionsPerAccountLimit() external view returns (uint256){
+        return PoolConfiguration.load().positionsPerAccountLimit;
     }
 
     function setOwner(address account) external {
@@ -63,6 +67,21 @@ contract PoolConfigurationModuleTest is VoltzTest {
         poolConfig.setOwner(address(this));
         poolConfig.setProductAddress(address(1));
         assertEq(poolConfig.productAddress(), address(1));
+    }
+
+    function test_SetPositionsPerAccountLimit() public {
+        assertEq(poolConfig.positionsPerAccountLimit(), 0);
+        poolConfig.setOwner(address(this));
+        poolConfig.setPositionsPerAccountLimit(1);
+        assertEq(poolConfig.positionsPerAccountLimit(), 1);
+    }
+
+    function test_RevertWhen_SetPositionsPerAccountLimit_notOwner() public {
+        assertEq(poolConfig.positionsPerAccountLimit(), 0);
+
+        vm.expectRevert(abi.encodeWithSelector(AccessError.Unauthorized.selector, address(this)));
+        poolConfig.setPositionsPerAccountLimit(1);
+        assertEq(poolConfig.positionsPerAccountLimit(), 0);
     }
 
 }
