@@ -11,7 +11,7 @@ interface IPoolConfigurationModule {
   /// @param productAddress Address of the product proxy
   function setProductAddress(address productAddress) external;
 
-  /// @notice Setting positions per account limit
+  /// @notice Setting limit of LP positions per account
   /// @param limit Maximum number of positions an acccount can have
-  function setPositionsPerAccountLimit(uint256 limit) external;
+  function setLpPositionsPerAccountLimit(uint256 limit) external;
 }

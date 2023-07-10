@@ -47,7 +47,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         vammId = uint256(keccak256(abi.encodePacked(initMarketId, uint32(initMaturityTimestamp))));
         vamm = new ExposedDatedIrsVamm(vammId);
         vamm.create(initMarketId, initSqrtPriceX96, immutableConfig, mutableConfig);
-        vamm.setPositionsPerAccountLimit(3);
+        vamm.setLpPositionsPerAccountLimit(3);
 
         // console2.log("requestedBaseAmount (per LP)  ", BASE_AMOUNT_PER_LP);
 

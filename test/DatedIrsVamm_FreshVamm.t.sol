@@ -28,7 +28,7 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
         vamm = new ExposedDatedIrsVamm(vammId);
         vamm.create(initMarketId, initSqrtPriceX96, immutableConfig, mutableConfig);
         
-        vamm.setPositionsPerAccountLimit(1);
+        vamm.setLpPositionsPerAccountLimit(1);
     }
 
     function test_Init_State() public {

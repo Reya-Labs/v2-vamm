@@ -22,8 +22,8 @@ contract PoolConfigurationModule is IPoolConfigurationModule {
     PoolConfiguration.load().setProductAddress(productAddress);
   }
 
-  function setPositionsPerAccountLimit(uint256 limit) external override {
+  function setLpPositionsPerAccountLimit(uint256 limit) external override {
     OwnableStorage.onlyOwner();
-    PoolConfiguration.load().setPositionsPerAccountLimit(limit);
+    PoolConfiguration.load().setLpPositionsPerAccountLimit(limit);
   }
 }

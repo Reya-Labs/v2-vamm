@@ -27,7 +27,7 @@ library PoolConfiguration {
         self.productAddress = _productAddress;
     }
 
-    function setPositionsPerAccountLimit(Data storage self, uint256 limit) internal {
+    function setLpPositionsPerAccountLimit(Data storage self, uint256 limit) internal {
         self.positionsPerAccountLimit = limit;
     }
 
