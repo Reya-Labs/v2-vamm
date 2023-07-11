@@ -29,8 +29,8 @@ contract ExtendedAccountBalanceModule is AccountBalanceModule, VoltzTest {
         DatedIrsVamm.create(_marketId, _sqrtPriceX96, _config, _mutableConfig);
     }
 
-    function setLpPositionsPerAccountLimit(uint256 limit) public {
-        PoolConfiguration.load().setLpPositionsPerAccountLimit(limit);
+    function setMakerPositionsPerAccountLimit(uint256 limit) public {
+        PoolConfiguration.load().setMakerPositionsPerAccountLimit(limit);
     }
 
     function mockMakerOrder(uint128 marketId, uint32 maturityTimestamp) public returns (int128){
@@ -111,7 +111,7 @@ contract AccountBalanceModuleTest is VoltzTest {
         pool = new ExtendedAccountBalanceModule();
         pool.createTestVamm(initMarketId, initSqrtPriceX96, immutableConfig, mutableConfig);
 
-        pool.setLpPositionsPerAccountLimit(1);
+        pool.setMakerPositionsPerAccountLimit(1);
     }
 
     function test_FilledBalances_UnknownPosition() public {
