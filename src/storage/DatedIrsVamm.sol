@@ -373,9 +373,11 @@ library DatedIrsVamm {
     )
     internal
     { 
+        VAMMBase.checkCurrentTimestampMaturityTimestampDelta(self.immutableConfig.maturityTimestamp);
+        
         (LPPosition.Data storage position, bool newlyCreated) = LPPosition._ensurePositionOpened(accountId, tickLower, tickUpper);
         if (newlyCreated) {
-            uint256 positionsPerAccountLimit = PoolConfiguration.load().positionsPerAccountLimit;
+            uint256 positionsPerAccountLimit = PoolConfiguration.load().makerPositionsPerAccountLimit;
             if (self.vars.positionsInAccount[accountId].length >= positionsPerAccountLimit) {
                 revert TooManyLpPositions(accountId);
             }

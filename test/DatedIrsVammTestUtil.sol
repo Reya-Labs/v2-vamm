@@ -262,8 +262,8 @@ contract ExposedDatedIrsVamm {
 
     ///// HELPERS
 
-    function setLpPositionsPerAccountLimit(uint256 limit) public {
-        PoolConfiguration.load().setLpPositionsPerAccountLimit(limit);
+    function setMakerPositionsPerAccountLimit(uint256 limit) public {
+        PoolConfiguration.load().setMakerPositionsPerAccountLimit(limit);
     }
 
     ///// GETTERS

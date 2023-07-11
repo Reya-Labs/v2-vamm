@@ -84,7 +84,7 @@ contract PoolModuleTest is VoltzTest {
         pool.createTestVamm(initMarketId, initSqrtPriceX96, immutableConfig, mutableConfig);
 
         pool.setOwner(address(this));
-        pool.setLpPositionsPerAccountLimit(1);
+        pool.setMakerPositionsPerAccountLimit(1);
     }
 
     function test_Name() public {
