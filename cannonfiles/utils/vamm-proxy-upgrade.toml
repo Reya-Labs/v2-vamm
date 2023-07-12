@@ -1,0 +1,18 @@
+# vammProxy is required and must be overridden
+[setting.vammProxy]
+description = "Address of the deployed VAMM Proxy"
+
+# Upgrades implementation of VAMM Proxy to point to the new 
+# router implementation.
+[invoke.upgrade_vamm_proxy]
+target = ["<%= settings.vammProxy %>"]
+abi = "OwnerUpgradeModule"
+from = "<%= settings.owner %>"
+func = "upgradeTo"
+args = ["<%= contracts.VammRouter.address %>"]
+factory.VammProxy.abiOf = ["VammRouter"]
+factory.VammProxy.event = "Upgraded"
+factory.VammProxy.arg = 0
+depends = [
+  "router.VammRouter"
+]

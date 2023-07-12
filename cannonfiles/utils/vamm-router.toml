@@ -12,7 +12,9 @@ artifact = "PoolModule"
 [contract.VammModule]
 artifact = "VammModule"
 
-# Deploys VAMM Router
+#####################################
+# Deploy VAMM Router
+#####################################
 [router.VammRouter]
 contracts = [
   "OwnerUpgradeModule",

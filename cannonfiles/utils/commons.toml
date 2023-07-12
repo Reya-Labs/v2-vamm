@@ -7,6 +7,10 @@ description = "Voltz V2 Dated IRS VAMM"
 description = "Change this to a unique string when deploying multiple instances of the protocol. Note that only the proxy contract will be unique."
 defaultValue = "main"
 
+# owner is required and must be overridden
+[setting.owner]
+description = "Admin user for the protocol"
+
 # Deploys OwnerUpgradeModule, which inherits from OwnerModule and 
 # UpgradeModule; it essentially represents an UUPSUpgradeable 
 # contract. Only re-deployed if salt is changed.
