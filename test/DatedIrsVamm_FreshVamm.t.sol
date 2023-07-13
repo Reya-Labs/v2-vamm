@@ -198,9 +198,16 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
     }
 
     function testFuzz_GetAccountUnfilledBasesUnusedAccount(uint128 accountId) public {
-        (uint256 unfilledBaseLong, uint256 unfilledBaseShort,,) = vamm.getAccountUnfilledBases(accountId, 0);
+        (
+            uint256 unfilledBaseLong,
+            uint256 unfilledBaseShort,
+            uint256 unfilledQuoteLong,
+            uint256 unfilledQuoteShort
+        ) = vamm.getAccountUnfilledBases(accountId, 0);
         assertEq(unfilledBaseLong, 0);
         assertEq(unfilledBaseShort, 0);
+        assertEq(unfilledQuoteLong, 0);
+        assertEq(unfilledQuoteShort, 0);
     }
 
     // TODO: test that the weighted average of two average prices, using intervals (a,b) and (b,c) is the same as that of interval (a,c)
@@ -413,17 +420,29 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
     
         // We expect the full base amount is unfilled cos there have been no trades
         vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(ud60x18(1e18)));
-        (uint256 unfilledBaseLong, uint256 unfilledBaseShort,,) = vamm.getAccountUnfilledBases(accountId, 0);
-        uint256 distanceToLower = tickDistanceFromCurrentToTick(vamm, tickLower);
-        uint256 distanceToUpper = tickDistanceFromCurrentToTick(vamm, tickUpper);
-        if (distanceToLower > 0) {
+        (
+            uint256 unfilledBaseLong,
+            uint256 unfilledBaseShort,
+            uint256 unfilledQuoteLong,
+            uint256 unfilledQuoteShort
+        ) = vamm.getAccountUnfilledBases(accountId, 0);
+        if (tickDistanceFromCurrentToTick(vamm, tickLower) > 0) {
             assertGe(unfilledBaseShort, 0, "short unexpectedlly zero");
         }
-        if (distanceToUpper > 0) {
+        if (tickDistanceFromCurrentToTick(vamm, tickUpper) > 0) {
             assertGe(unfilledBaseLong, 0, "long unexpectedlly zero");
         }
 
-        int256 baseAmount = vamm.baseBetweenTicks(tickLower, tickUpper, liquidityDelta);
-        assertOffByNoMoreThan2OrAlmostEqual((unfilledBaseLong + unfilledBaseShort).toInt(), baseAmount);
+        assertOffByNoMoreThan2OrAlmostEqual((unfilledBaseLong + unfilledBaseShort).toInt(), vamm.baseBetweenTicks(tickLower, tickUpper, liquidityDelta));
+
+        assertOffByNoMoreThan2OrAlmostEqual(
+            -(unfilledQuoteShort).toInt(), 
+            -unfilledBaseShort.toInt() * (unwrap(vamm.twap(0, -unfilledBaseShort.toInt(), unfilledBaseShort > 0, unfilledBaseShort > 0)).toInt() + 1e18) / 1e18
+        );
+
+        assertOffByNoMoreThan2OrAlmostEqual(
+            (unfilledQuoteLong).toInt(), 
+            unfilledBaseLong.toInt() * (unwrap(vamm.twap(0, unfilledBaseLong.toInt(), unfilledBaseLong > 0, unfilledBaseLong > 0)).toInt() + 1e18) / 1e18
+        );
     }
 }
