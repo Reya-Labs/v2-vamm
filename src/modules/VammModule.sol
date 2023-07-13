@@ -15,11 +15,16 @@ contract VammModule is IVammModule {
     /**
      * @inheritdoc IVammModule
      */
-    function createVamm(uint128 _marketId,  uint160 _sqrtPriceX96, VammConfiguration.Immutable calldata _config, VammConfiguration.Mutable calldata _mutableConfig)
-    external override
-    {
+    function createVamm(
+        uint128 _marketId, 
+        uint160 _sqrtPriceX96, 
+        uint32[] calldata times, 
+        int24[] calldata observedTicks, 
+        VammConfiguration.Immutable calldata _config, 
+        VammConfiguration.Mutable calldata _mutableConfig
+    ) external override {
         OwnableStorage.onlyOwner();
-        DatedIrsVamm.Data storage vamm = DatedIrsVamm.create(_marketId, _sqrtPriceX96, _config, _mutableConfig);
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.create(_marketId, _sqrtPriceX96, times, observedTicks,  _config, _mutableConfig);
         emit VammCreated(
             _marketId,
             vamm.vars.tick,

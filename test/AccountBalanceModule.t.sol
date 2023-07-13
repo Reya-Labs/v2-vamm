@@ -25,8 +25,8 @@ contract ExtendedAccountBalanceModule is AccountBalanceModule, VoltzTest {
         return (vamm.mutableConfig, vamm.immutableConfig);
     }
 
-    function createTestVamm(uint128 _marketId,  uint160 _sqrtPriceX96, VammConfiguration.Immutable calldata _config, VammConfiguration.Mutable calldata _mutableConfig) public {
-        DatedIrsVamm.create(_marketId, _sqrtPriceX96, _config, _mutableConfig);
+    function createTestVamm(uint128 _marketId,  uint160 _sqrtPriceX96, uint32[] calldata times, int24[] calldata observedTicks, VammConfiguration.Immutable calldata _config, VammConfiguration.Mutable calldata _mutableConfig) public {
+        DatedIrsVamm.create(_marketId, _sqrtPriceX96, times, observedTicks, _config, _mutableConfig);
     }
 
     function setMakerPositionsPerAccountLimit(uint256 limit) public {
@@ -86,7 +86,8 @@ contract AccountBalanceModuleTest is VoltzTest {
 
     // Initial VAMM state
     // Picking a price that lies on a tick boundry simplifies the math to make some tests and checks easier
-    uint160 initSqrtPriceX96 = TickMath.getSqrtRatioAtTick(-32191); // price = ~0.04 = ~4%
+    int24 initialTick = -32191;
+    uint160 initSqrtPriceX96 = TickMath.getSqrtRatioAtTick(initialTick); // price = ~0.04 = ~4%
     uint128 initMarketId = 1;
     int24 initTickSpacing = 1; // TODO: test with different tick spacing; need to adapt boundTicks()
     uint32 initMaturityTimestamp = uint32(block.timestamp + convert(FixedAndVariableMath.SECONDS_IN_YEAR));
@@ -107,9 +108,19 @@ contract AccountBalanceModuleTest is VoltzTest {
         marketId: initMarketId
     });
 
+    uint32[] internal times;
+    int24[] internal observedTicks;
+
     function setUp() public {
         pool = new ExtendedAccountBalanceModule();
-        pool.createTestVamm(initMarketId, initSqrtPriceX96, immutableConfig, mutableConfig);
+
+        times = new uint32[](1);
+        times[0] = uint32(block.timestamp);
+
+        observedTicks = new int24[](1);
+        observedTicks[0] = initialTick;
+        
+        pool.createTestVamm(initMarketId, initSqrtPriceX96, times, observedTicks, immutableConfig, mutableConfig);
 
         pool.setMakerPositionsPerAccountLimit(1);
     }

@@ -25,7 +25,8 @@ contract DatedIrsVammTestUtil is VoltzTest {
 
     // Initial VAMM state
     // Picking a price that lies on a tick boundry simplifies the math to make some tests and checks easier
-    uint160 initSqrtPriceX96 = TickMath.getSqrtRatioAtTick(-32191); // price = ~0.04 = ~4%
+    int24 initialTick = -32191;
+    uint160 initSqrtPriceX96 = TickMath.getSqrtRatioAtTick(initialTick); // price = ~0.04 = ~4%
     uint128 initMarketId = 1;
     int24 initTickSpacing = 1; // TODO: test with different tick spacing; need to adapt boundTicks()
     uint32 initMaturityTimestamp = uint32(block.timestamp + convert(FixedAndVariableMath.SECONDS_IN_YEAR));
@@ -136,12 +137,16 @@ contract ExposedDatedIrsVamm {
     function create(
         uint128 _marketId,
         uint160 _sqrtPriceX96,
+        uint32[] calldata times, 
+        int24[] calldata observedTicks,
         VammConfiguration.Immutable memory _config,
         VammConfiguration.Mutable memory _mutableConfig
     ) external returns (bytes32 s){
         DatedIrsVamm.Data storage vamm =  DatedIrsVamm.create(
             _marketId,
             _sqrtPriceX96,
+            times,
+            observedTicks,
             _config,
             _mutableConfig
         );
@@ -165,9 +170,9 @@ contract ExposedDatedIrsVamm {
         }
     }
 
-    function initialize(uint160 _sqrtPriceX96) public {
+    function initialize(uint160 _sqrtPriceX96, uint32[] memory times, int24[] memory observedTicks) public {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
-        vamm.initialize(_sqrtPriceX96);
+        vamm.initialize(_sqrtPriceX96, times, observedTicks);
     }
 
     function twap(uint32 secondsAgo, int256 orderSize, bool adjustForPriceImpact,  bool adjustForSpread) 
@@ -295,6 +300,10 @@ contract ExposedDatedIrsVamm {
     function observationCardinalityNext() external view returns (uint16){
         return DatedIrsVamm.load(vammId).vars.observationCardinalityNext;
     }
+
+    function observationAtIndex(uint16 index) external view returns (Oracle.Observation memory) {
+        return DatedIrsVamm.load(vammId).vars.observations[index];
+    } 
 
     function unlocked() external view returns (bool){
         return DatedIrsVamm.load(vammId).vars.unlocked;

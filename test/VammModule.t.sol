@@ -112,7 +112,8 @@ contract VammModuleTest is VoltzTest {
 
     // Initial VAMM state
     // Picking a price that lies on a tick boundry simplifies the math to make some tests and checks easier
-    uint160 initSqrtPriceX96 = TickMath.getSqrtRatioAtTick(-32191); // price = ~0.04 = ~4%
+    int24 initialTick = -32191;
+    uint160 initSqrtPriceX96 = TickMath.getSqrtRatioAtTick(initialTick); // price = ~0.04 = ~4%
     uint128 initMarketId = 1;
     int24 initTickSpacing = 1; // TODO: test with different tick spacing; need to adapt boundTicks()
     uint32 initMaturityTimestamp = uint32(block.timestamp + convert(FixedAndVariableMath.SECONDS_IN_YEAR));
@@ -132,14 +133,24 @@ contract VammModuleTest is VoltzTest {
         marketId: initMarketId
     });
 
+    uint32[] internal times;
+    int24[] internal observedTicks;
+
     function setUp() public {
         vammConfig = new ExtendedVammModule();
         vammConfig.setOwner(address(this));
-        vammConfig.createVamm(initMarketId, initSqrtPriceX96, immutableConfig, mutableConfig);
+
+        times = new uint32[](1);
+        times[0] = uint32(block.timestamp);
+
+        observedTicks = new int24[](1);
+        observedTicks[0] = initialTick;
+
+        vammConfig.createVamm(initMarketId, initSqrtPriceX96, times, observedTicks, immutableConfig, mutableConfig);
     }
 
     function test_CreateVamm() public {
-        vammConfig.createVamm(2, initSqrtPriceX96, immutableConfig, mutableConfig);
+        vammConfig.createVamm(2, initSqrtPriceX96, times, observedTicks, immutableConfig, mutableConfig);
 
         (VammConfiguration.Immutable memory config, VammConfiguration.Mutable memory _mutableConfig) = vammConfig.getVammConfig(2, initMaturityTimestamp);
         assertEq(_mutableConfig.priceImpactPhi, ud60x18(1e17));
@@ -170,7 +181,7 @@ contract VammModuleTest is VoltzTest {
     function test_RevertWhen_CreateVamm_NotOwner() public {
         vm.prank(address(2));
         vm.expectRevert();
-        vammConfig.createVamm(2, initSqrtPriceX96, immutableConfig, mutableConfig);
+        vammConfig.createVamm(2, initSqrtPriceX96, times, observedTicks, immutableConfig, mutableConfig);
     }
 
     function test_ConfigureVamm() public {

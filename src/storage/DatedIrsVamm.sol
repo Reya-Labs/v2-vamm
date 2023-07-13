@@ -130,6 +130,8 @@ library DatedIrsVamm {
     function create(
         uint128 _marketId,
         uint160 _sqrtPriceX96,
+        uint32[] memory times,
+        int24[] memory observedTicks,
         VammConfiguration.Immutable memory _config,
         VammConfiguration.Mutable memory _mutableConfig
     ) internal returns (Data storage irsVamm) {
@@ -154,7 +156,7 @@ library DatedIrsVamm {
         irsVamm.immutableConfig._tickSpacing = _config._tickSpacing;
         irsVamm.immutableConfig.marketId = _marketId;
 
-        initialize(irsVamm, _sqrtPriceX96);
+        initialize(irsVamm, _sqrtPriceX96, times, observedTicks);
         
         configure(irsVamm, _mutableConfig);
     }
@@ -162,7 +164,9 @@ library DatedIrsVamm {
     /// @dev not locked because it initializes unlocked
     function initialize(
         Data storage self,
-        uint160 sqrtPriceX96
+        uint160 sqrtPriceX96,
+        uint32[] memory times,
+        int24[] memory observedTicks
     ) internal {
         if (sqrtPriceX96 == 0) {
             revert CustomErrors.ExpectedNonZeroSqrtPriceForInit(sqrtPriceX96);
@@ -173,8 +177,8 @@ library DatedIrsVamm {
 
         int24 tick = TickMath.getTickAtSqrtRatio(sqrtPriceX96);
 
-        (self.vars.observationCardinality, self.vars.observationCardinalityNext) = self.vars.observations.initialize(Time.blockTimestampTruncated());
-        self.vars.observationIndex = 0;
+        (self.vars.observationCardinality, self.vars.observationCardinalityNext) = self.vars.observations.initialize(times, observedTicks);
+        self.vars.observationIndex = self.vars.observationCardinality - 1;
         self.vars.unlocked = true;
         self.vars.tick = tick;
         self.vars.sqrtPriceX96 = sqrtPriceX96;
