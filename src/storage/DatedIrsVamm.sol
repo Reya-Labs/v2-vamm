@@ -712,8 +712,8 @@ library DatedIrsVamm {
                 (
                     uint256 unfilledLongBase,
                     uint256 unfilledShortBase,
-                    uint256 unfilledShortQuote,
-                    uint256 unfilledLongQuote
+                    uint256 unfilledLongQuote,
+                    uint256 unfilledShortQuote
                 ) = 
                     self._getFilledBalancesFromPosition(
                         self.vars.positionsInAccount[accountId][i],
@@ -721,8 +721,8 @@ library DatedIrsVamm {
                     );
                 unfilledBaseLong += unfilledLongBase;
                 unfilledBaseShort += unfilledShortBase;
-                unfilledQuoteLong += unfilledShortQuote;
-                unfilledQuoteShort += unfilledLongQuote;
+                unfilledQuoteLong += unfilledLongQuote;
+                unfilledQuoteShort += unfilledShortQuote;
             }
         }
     }
@@ -749,7 +749,7 @@ library DatedIrsVamm {
             twapSecondsAgo
         );
 
-        return ( unfilledLongBase, unfilledShortBase, unfilledShortQuote, unfilledLongQuote);
+        return ( unfilledLongBase, unfilledShortBase, unfilledLongQuote, unfilledShortQuote);
     }
 
     // @dev For a given LP posiiton, how much of it is already traded and what are base and quote tokens representing those exiting trades?
