@@ -215,9 +215,10 @@ contract ExposedDatedIrsVamm {
         return vamm.getAccountFilledBalances(accountId);
     }
 
-    function getAccountUnfilledBases(uint128 accountId) public view returns (uint256, uint256) {
+    function getAccountUnfilledBases(uint128 accountId, uint32 twapSecondsAgo) 
+        public view returns (uint256, uint256, uint256, uint256) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
-        return vamm.getAccountUnfilledBases(accountId);
+        return vamm.getAccountUnfilledBases(accountId, twapSecondsAgo);
     }
 
     function vammSwap(DatedIrsVamm.SwapParams memory params) public returns (int256, int256) {

@@ -198,7 +198,7 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
     }
 
     function testFuzz_GetAccountUnfilledBasesUnusedAccount(uint128 accountId) public {
-        (uint256 unfilledBaseLong, uint256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
+        (uint256 unfilledBaseLong, uint256 unfilledBaseShort,,) = vamm.getAccountUnfilledBases(accountId, 0);
         assertEq(unfilledBaseLong, 0);
         assertEq(unfilledBaseShort, 0);
     }
@@ -244,7 +244,8 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
         assertEq(quoteBalancePool, 0);
 
         // We expect the full base amount is unfilled cos there have been no trades
-        (uint256 unfilledBaseLong, uint256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
+        vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(ud60x18(1e18)));
+        (uint256 unfilledBaseLong, uint256 unfilledBaseShort,,) = vamm.getAccountUnfilledBases(accountId, 0);
         // console2.log("unfilledBaseLong", unfilledBaseLong); // TODO_delete_log
         // console2.log("unfilledBaseShort", unfilledBaseShort); // TODO_delete_log
         uint256 distanceToLower = tickDistanceFromCurrentToTick(vamm, tickLower);
@@ -411,7 +412,8 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
         assertEq(quoteBalancePool, 0);
     
         // We expect the full base amount is unfilled cos there have been no trades
-        (uint256 unfilledBaseLong, uint256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
+        vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(ud60x18(1e18)));
+        (uint256 unfilledBaseLong, uint256 unfilledBaseShort,,) = vamm.getAccountUnfilledBases(accountId, 0);
         uint256 distanceToLower = tickDistanceFromCurrentToTick(vamm, tickLower);
         uint256 distanceToUpper = tickDistanceFromCurrentToTick(vamm, tickUpper);
         if (distanceToLower > 0) {

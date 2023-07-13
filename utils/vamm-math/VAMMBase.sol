@@ -154,6 +154,27 @@ library VAMMBase {
         ).unwrap();
     }
 
+    function calculateUnfilledQuoteTokens(
+        UD60x18 twap,
+        int256 baseTokenDelta,
+        UD60x18 yearsUntilMaturity,
+        UD60x18 currentOracleValue
+    ) 
+        internal
+        pure
+        returns (
+            uint256 absBalancedQuoteTokens
+        )
+    {
+        int256 balancedQuoteTokens = SD59x18.wrap(
+            -baseTokenDelta
+        ).mul(currentOracleValue.intoSD59x18()).mul(
+            ONE.add(twap.mul(yearsUntilMaturity)).intoSD59x18()
+        ).unwrap();
+
+        absBalancedQuoteTokens = balancedQuoteTokens > 0 ? balancedQuoteTokens.toUint() : (-balancedQuoteTokens).toUint();
+    }
+
     function calculateGlobalTrackerValues(
         VAMMBase.SwapState memory state,
         int256 balancedQuoteTokenDelta,
