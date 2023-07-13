@@ -48,6 +48,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         vamm = new ExposedDatedIrsVamm(vammId);
         vamm.create(initMarketId, initSqrtPriceX96, immutableConfig, mutableConfig);
         vamm.setMakerPositionsPerAccountLimit(3);
+        vamm.increaseObservationCardinalityNext(16);
 
         // console2.log("requestedBaseAmount (per LP)  ", BASE_AMOUNT_PER_LP);
 
@@ -904,7 +905,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         LPPosition.Data memory position = vamm.position(LPPosition.getPositionId(ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER));
         assertEq(position.liquidity.toInt(), 0);
 
-        (uint256 unfilledBaseLong, uint256 unfilledBaseShort) = vamm.getAccountUnfilledBases(ACCOUNT_2);
+        (uint256 unfilledBaseLong, uint256 unfilledBaseShort,,) = vamm.getAccountUnfilledBases(ACCOUNT_2, 0);
         assertEq(unfilledBaseLong.toInt(), 0);
         assertEq(unfilledBaseShort.toInt(), 0);
     }

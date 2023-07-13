@@ -692,28 +692,64 @@ library DatedIrsVamm {
     /// @return unfilledBaseShort The base tokens available for a trader to take a short position against this LP (which will then become a long position for the LP) 
     function getAccountUnfilledBases(
         Data storage self,
-        uint128 accountId
+        uint128 accountId,
+        uint32 twapSecondsAgo
     )
         internal
         view
-        returns (uint256 unfilledBaseLong, uint256 unfilledBaseShort)
+        returns (
+            uint256 unfilledBaseLong,
+            uint256 unfilledBaseShort,
+            uint256 unfilledQuoteLong,
+            uint256 unfilledQuoteShort
+        )
     {
         uint256 numPositions = self.vars.positionsInAccount[accountId].length;
         if (numPositions != 0) {
             for (uint256 i = 0; i < numPositions; i++) {
-                LPPosition.Data storage position = LPPosition.load(self.vars.positionsInAccount[accountId][i]);
-                // Get how liquidity is currently arranged. In particular, how much of the liquidity is avail to traders in each direction?
-                (uint256 unfilledShortBase, uint256 unfilledLongBase) = _getUnfilledBaseTokenValues(
-                    self,
-                    position.tickLower,
-                    position.tickUpper,
-                    position.liquidity
-                );
-
+                // Get how liquidity is currently arranged. In particular, 
+                // how much of the liquidity is available to traders in each direction?
+                (
+                    uint256 unfilledLongBase,
+                    uint256 unfilledShortBase,
+                    uint256 unfilledShortQuote,
+                    uint256 unfilledLongQuote
+                ) = 
+                    self._getFilledBalancesFromPosition(
+                        self.vars.positionsInAccount[accountId][i],
+                        twapSecondsAgo
+                    );
                 unfilledBaseLong += unfilledLongBase;
                 unfilledBaseShort += unfilledShortBase;
+                unfilledQuoteLong += unfilledShortQuote;
+                unfilledQuoteShort += unfilledLongQuote;
             }
         }
+    }
+
+    function _getFilledBalancesFromPosition(
+        Data storage self,
+        uint128 positionId,
+        uint32 twapSecondsAgo
+    )
+        internal
+        view
+        returns ( uint256, uint256, uint256, uint256 ) {
+        LPPosition.Data storage position = LPPosition.load(positionId);
+        (
+            uint256 unfilledShortBase,
+            uint256 unfilledLongBase,
+            uint256 unfilledShortQuote,
+            uint256 unfilledLongQuote
+        ) = _getUnfilledBaseTokenValues(
+            self,
+            position.tickLower,
+            position.tickUpper,
+            position.liquidity,
+            twapSecondsAgo
+        );
+
+        return ( unfilledLongBase, unfilledShortBase, unfilledShortQuote, unfilledLongQuote);
     }
 
     // @dev For a given LP posiiton, how much of it is already traded and what are base and quote tokens representing those exiting trades?
@@ -747,22 +783,24 @@ library DatedIrsVamm {
         Data storage self,
         int24 tickLower,
         int24 tickUpper,
-        uint128 liquidityPerTick
+        uint128 liquidityPerTick,
+        uint32 twapSecondsAgo
     ) internal view returns(
         uint256 unfilledBaseTokensLeft,
-        uint256 unfilledBaseTokensRight
+        uint256 unfilledBaseTokensRight,
+        uint256 unfilledQuoteTokensLeft,
+        uint256 unfilledQuoteTokensRight
     ) {
         if (tickLower == tickUpper) {
-            return (0, 0);
+            return (0, 0, 0, 0);
         }
 
         // Compute unfilled tokens in our range and to the left of the current tick
-        int256 unfilledBaseTokensLeft_ = self.baseBetweenTicks(
+        unfilledBaseTokensLeft = self.baseBetweenTicks(
             tickLower < self.vars.tick ? tickLower : self.vars.tick, // min(tickLower, currentTick)
             tickUpper < self.vars.tick ? tickUpper : self.vars.tick,  // min(tickUpper, currentTick)
             liquidityPerTick.toInt()
-        );
-        unfilledBaseTokensLeft = unfilledBaseTokensLeft_.toUint();
+        ).toUint();
 
         // Compute unfilled tokens in our range and to the right of the current tick
         unfilledBaseTokensRight = self.baseBetweenTicks(
@@ -770,6 +808,21 @@ library DatedIrsVamm {
             tickUpper > self.vars.tick ? tickUpper : self.vars.tick,  // max(tickUpper, currentTick)
             liquidityPerTick.toInt()
         ).toUint();
+
+        uint256 secondsTillMaturity = self.immutableConfig.maturityTimestamp - block.timestamp;
+        unfilledQuoteTokensLeft = VAMMBase.calculateUnfilledQuoteTokens(
+            self.twap(twapSecondsAgo, -(unfilledBaseTokensLeft).toInt(), unfilledBaseTokensLeft != 0, unfilledBaseTokensLeft != 0),
+            -(unfilledBaseTokensLeft).toInt(),
+            FixedAndVariableMath.accrualFact(secondsTillMaturity),
+            self.mutableConfig.rateOracle.getCurrentIndex()
+        );
+
+        unfilledQuoteTokensRight = VAMMBase.calculateUnfilledQuoteTokens(
+            self.twap(twapSecondsAgo, unfilledBaseTokensRight.toInt(), unfilledBaseTokensRight != 0, unfilledBaseTokensRight != 0),
+            unfilledBaseTokensRight.toInt(),
+            FixedAndVariableMath.accrualFact(secondsTillMaturity),
+            self.mutableConfig.rateOracle.getCurrentIndex()
+        );
     }
 
     function growthBetweenTicks(
