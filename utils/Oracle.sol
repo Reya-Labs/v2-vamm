@@ -9,7 +9,7 @@ pragma solidity >=0.8.13;
 /// Observations are overwritten when the full length of the oracle array is populated.
 /// The most recent observation is available, independent of the length of the oracle array, by passing 0 to observe()
 library Oracle {
-    uint256 public constant MAX_BUFFER_LENGTH = 65535;
+    uint256 internal constant MAX_BUFFER_LENGTH = 65535;
 
     struct Observation {
         // the block timestamp of the observation

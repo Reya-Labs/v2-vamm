@@ -8,7 +8,7 @@ import { UD60x18, convert } from "@prb/math/UD60x18.sol";
 library FixedAndVariableMath {
     /// @notice Number of seconds in a year
     /// @dev Ignoring leap years since we're only using it to calculate the eventual APY rate
-    UD60x18 public constant SECONDS_IN_YEAR = UD60x18.wrap(31536000e18);
+    UD60x18 internal constant SECONDS_IN_YEAR = UD60x18.wrap(31536000e18);
 
     /// @notice Divide a given time in seconds by the number of seconds in a year
     /// @param timeInSeconds A time in seconds
