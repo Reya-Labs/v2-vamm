@@ -13,7 +13,7 @@ library Tick {
     using SafeCastI256 for int256;
     using SafeCastU256 for uint256;
 
-    int24 public constant MAXIMUM_TICK_SPACING = 16384;
+    int24 internal constant MAXIMUM_TICK_SPACING = 16384;
 
     // info stored for each initialized individual tick
     struct Info {
