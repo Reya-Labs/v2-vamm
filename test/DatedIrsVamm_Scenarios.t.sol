@@ -102,7 +102,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         vamm.executeDatedMakerOrder(ACCOUNT_1,ACCOUNT_1_TICK_LOWER - 2,ACCOUNT_1_TICK_UPPER - 1, 1000);
     }
 
-    function test_GetAccountUnfilledBases() public {
+    function test_GetAccountUnfilledBalances() public {
         // Positions just opened so no filled balances
         {
             // LP 1
@@ -905,7 +905,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         LPPosition.Data memory position = vamm.position(LPPosition.getPositionId(ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER));
         assertEq(position.liquidity.toInt(), 0);
 
-        (uint256 unfilledBaseLong, uint256 unfilledBaseShort,,) = vamm.getAccountUnfilledBases(ACCOUNT_2, 0);
+        (uint256 unfilledBaseLong, uint256 unfilledBaseShort,,) = vamm.getAccountUnfilledBalances(ACCOUNT_2);
         assertEq(unfilledBaseLong.toInt(), 0);
         assertEq(unfilledBaseShort.toInt(), 0);
     }

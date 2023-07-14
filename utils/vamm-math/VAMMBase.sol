@@ -124,6 +124,15 @@ library VAMMBase {
         baseAmount = liquidity > 0 ? absBase.toInt() : -(absBase.toInt());
     }
 
+    function unbalancedQuoteAmountFromBase(int256 baseAmount, uint160 sqrtRatioAX96, uint160 sqrtRatioBX96) internal pure returns (int256 unbalancedQuoteAmount){
+        uint256 absQuote = FullMath
+                .mulDiv(uint256(baseAmount > 0 ? baseAmount : -baseAmount), Q96, sqrtRatioBX96);
+        absQuote = FullMath
+                .mulDiv(absQuote, Q96, sqrtRatioAX96);
+
+        unbalancedQuoteAmount = baseAmount > 0 ? -(absQuote.toInt()) : absQuote.toInt();
+    }
+
     function calculateQuoteTokenDelta(
         int256 unbalancedQuoteTokenDelta,
         int256 baseTokenDelta,
@@ -152,27 +161,6 @@ library VAMMBase {
         ).mul(currentOracleValue.intoSD59x18()).mul(
             ONE.add(averagePriceWithSpread.mul(yearsUntilMaturity)).intoSD59x18()
         ).unwrap();
-    }
-
-    function calculateUnfilledQuoteTokens(
-        UD60x18 twap,
-        int256 baseTokenDelta,
-        UD60x18 yearsUntilMaturity,
-        UD60x18 currentOracleValue
-    ) 
-        internal
-        pure
-        returns (
-            uint256 absBalancedQuoteTokens
-        )
-    {
-        int256 balancedQuoteTokens = SD59x18.wrap(
-            -baseTokenDelta
-        ).mul(currentOracleValue.intoSD59x18()).mul(
-            ONE.add(twap.mul(yearsUntilMaturity)).intoSD59x18()
-        ).unwrap();
-
-        absBalancedQuoteTokens = balancedQuoteTokens > 0 ? balancedQuoteTokens.toUint() : (-balancedQuoteTokens).toUint();
     }
 
     function calculateGlobalTrackerValues(
