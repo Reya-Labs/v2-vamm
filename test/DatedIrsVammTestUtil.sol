@@ -40,8 +40,8 @@ contract DatedIrsVammTestUtil is VoltzTest {
 
     VammConfiguration.Immutable internal immutableConfig = VammConfiguration.Immutable({
         maturityTimestamp: initMaturityTimestamp,
-        _maxLiquidityPerTick: type(uint128).max,
-        _tickSpacing: initTickSpacing,
+        _maxLiquidityPerTick: 1e27,
+        _tickSpacing: 1,
         marketId: initMarketId
     });
 
@@ -215,10 +215,10 @@ contract ExposedDatedIrsVamm {
         return vamm.getAccountFilledBalances(accountId);
     }
 
-    function getAccountUnfilledBases(uint128 accountId, uint32 twapSecondsAgo) 
+    function getAccountUnfilledBalances(uint128 accountId) 
         public view returns (uint256, uint256, uint256, uint256) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
-        return vamm.getAccountUnfilledBases(accountId, twapSecondsAgo);
+        return vamm.getAccountUnfilledBalances(accountId);
     }
 
     function vammSwap(DatedIrsVamm.SwapParams memory params) public returns (int256, int256) {
@@ -259,6 +259,15 @@ contract ExposedDatedIrsVamm {
     ) public view returns(int256) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
         return vamm.baseBetweenTicks(_tickLower, _tickUpper, _liquidityPerTick);
+    }
+
+    function unbalancedQuoteBetweenTicks(
+        int24 _tickLower,
+        int24 _tickUpper,
+        int256 baseAmount
+    ) public view returns(int256) {
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
+        return vamm.unbalancedQuoteBetweenTicks(_tickLower, _tickUpper, baseAmount);
     }
 
     ///// HELPERS

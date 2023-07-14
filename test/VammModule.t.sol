@@ -244,7 +244,6 @@ contract VammModuleTest is VoltzTest {
 
         vm.warp(block.timestamp + 60);
         UD60x18 twap = vammConfig.getDatedIRSTwap(initMarketId, initMaturityTimestamp, 100, 30, true, true);
-        console2.log("twap", unwrap(twap));
         assertAlmostEqual(twap, ud60x18(294511e14));
     }
 
