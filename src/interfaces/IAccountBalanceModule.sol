@@ -28,7 +28,7 @@ interface IAccountBalanceModule {
     * @return unfilledQuoteLong Simulated quote amount left unused to the right of the current tick
     * @return unfilledQuoteShort Simulated quote amount left unused to the left of the current tick
   */
-  function getAccountUnfilledBaseandQuote(
+  function getAccountUnfilledBaseAndQuote(
       uint128 marketId,
       uint32 maturityTimestamp,
       uint128 accountId

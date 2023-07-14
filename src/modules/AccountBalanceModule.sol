@@ -30,7 +30,7 @@ contract AccountBalanceModule is IAccountBalanceModule {
     /**
      * @inheritdoc IAccountBalanceModule
      */
-    function getAccountUnfilledBaseandQuote(
+    function getAccountUnfilledBaseAndQuote(
         uint128 marketId,
         uint32 maturityTimestamp,
         uint128 accountId
