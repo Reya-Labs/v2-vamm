@@ -1,6 +1,6 @@
 {
   "name": "@voltz-protocol/v2-vamm",
-  "version": "1.15.1",
+  "version": "1.16.0",
   "description": "Dated IRS V2 VAMM smart contracts",
   "publishConfig": {
     "access": "restricted",
