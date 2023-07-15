@@ -1,6 +1,6 @@
 {
   "name": "@voltz-protocol/v2-vamm",
-  "version": "1.15.1",
+  "version": "1.16.2",
   "description": "Dated IRS V2 VAMM smart contracts",
   "publishConfig": {
     "access": "restricted",
@@ -41,10 +41,10 @@
   "dependencies": {
     "@openzeppelin/contracts": "4.9.2",
     "@prb/math": "3.3.0",
-    "@voltz-protocol/core": "2.1.1",
-    "@voltz-protocol/products-dated-irs": "2.2.1",
-    "@voltz-protocol/util-contracts": "1.2.0",
-    "@voltz-protocol/util-modules": "1.1.0"
+    "@voltz-protocol/core": "2.3.0",
+    "@voltz-protocol/products-dated-irs": "2.4.0",
+    "@voltz-protocol/util-contracts": "1.3.0",
+    "@voltz-protocol/util-modules": "1.2.0"
   },
   "packageManager": "yarn@3.5.0",
   "release": {

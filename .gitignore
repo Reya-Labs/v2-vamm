@@ -27,3 +27,5 @@ artifacts
 
 # Yarn files
 .yarn/install-state.gz
+
+.idea/

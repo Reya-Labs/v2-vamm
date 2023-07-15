@@ -82,7 +82,7 @@ contract PoolModule is IPoolModule {
         vamm.executeDatedMakerOrder(accountId, tickLower, tickUpper, liquidityDelta);
 
         if ( liquidityDelta > 0) {
-            (fee, im) = irsProduct.propagateMakerOrder(
+            (fee, im, ) = irsProduct.propagateMakerOrder(
                 accountId,
                 marketId,
                 maturityTimestamp,

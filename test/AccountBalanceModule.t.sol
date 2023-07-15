@@ -29,6 +29,13 @@ contract ExtendedAccountBalanceModule is AccountBalanceModule, VoltzTest {
         DatedIrsVamm.create(_marketId, _sqrtPriceX96, times, observedTicks, _config, _mutableConfig);
     }
 
+    function increaseObservationCardinalityNext(uint128 _marketId, uint32 _maturityTimestamp, uint16 _observationCardinalityNext)
+    public
+    {
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(_marketId, _maturityTimestamp);
+        vamm.increaseObservationCardinalityNext(_observationCardinalityNext);
+    }
+
     function setMakerPositionsPerAccountLimit(uint256 limit) public {
         PoolConfiguration.load().setMakerPositionsPerAccountLimit(limit);
     }
@@ -113,7 +120,6 @@ contract AccountBalanceModuleTest is VoltzTest {
 
     function setUp() public {
         pool = new ExtendedAccountBalanceModule();
-
         times = new uint32[](1);
         times[0] = uint32(block.timestamp);
 
@@ -121,6 +127,7 @@ contract AccountBalanceModuleTest is VoltzTest {
         observedTicks[0] = initialTick;
         
         pool.createTestVamm(initMarketId, initSqrtPriceX96, times, observedTicks, immutableConfig, mutableConfig);
+//        pool.increaseObservationCardinalityNext(initMarketId, initMaturityTimestamp, 16);
 
         pool.setMakerPositionsPerAccountLimit(1);
     }
@@ -138,11 +145,11 @@ contract AccountBalanceModuleTest is VoltzTest {
 
     function test_UnfilledBalances_UnknownMarket() public {
         vm.expectRevert();
-         pool.getAccountUnfilledBases(34, initMaturityTimestamp, 162);
+         pool.getAccountUnfilledBaseAndQuote(34, initMaturityTimestamp, 162);
     }
 
     function test_UnfilledBalances_UnknownPosition() public {
-        (uint256 unfilledBaseLong, uint256 unfilledBaseShort)= pool.getAccountUnfilledBases(initMarketId, initMaturityTimestamp, 162);
+        (uint256 unfilledBaseLong, uint256 unfilledBaseShort,,)= pool.getAccountUnfilledBaseAndQuote(initMarketId, initMaturityTimestamp, 162);
         assertEq(unfilledBaseLong, 0);
         assertEq(unfilledBaseShort, 0);
     }
@@ -158,7 +165,8 @@ contract AccountBalanceModuleTest is VoltzTest {
 
     function test_UnfilledBalances() public {
         pool.mockMakerOrder(initMarketId, initMaturityTimestamp);
-        (uint256 unfilledBaseLong, uint256 unfilledBaseShort)= pool.getAccountUnfilledBases(initMarketId, initMaturityTimestamp, pool.ACCOUNT_1());
+        vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(ud60x18(1e18)));
+        (uint256 unfilledBaseLong, uint256 unfilledBaseShort,,)= pool.getAccountUnfilledBaseAndQuote(initMarketId, initMaturityTimestamp, pool.ACCOUNT_1());
         assertAlmostEqual((unfilledBaseLong + unfilledBaseShort).toInt(), int256(pool.BASE_AMOUNT_PER_LP()));
     }
 

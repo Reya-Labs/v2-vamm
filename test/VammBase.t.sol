@@ -20,7 +20,7 @@ contract ExposedVammBase {
         UD60x18 yearsUntilMaturity,
         UD60x18 currentOracleValue,
         UD60x18 spread
-    ) public pure returns (int256 balancedQuoteTokenDelta) {
+    ) public view returns (int256 balancedQuoteTokenDelta) {
         balancedQuoteTokenDelta = VAMMBase.calculateQuoteTokenDelta(
             unbalancedQuoteTokenDelta,
             baseTokenDelta,

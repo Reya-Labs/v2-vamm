@@ -240,10 +240,17 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
         assertEq(quoteBalancePool, 0);
     }
 
-    function testFuzz_GetAccountUnfilledBasesUnusedAccount(uint128 accountId) public {
-        (uint256 unfilledBaseLong, uint256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
+    function testFuzz_GetAccountUnfilledBalancesUnusedAccount(uint128 accountId) public {
+        (
+            uint256 unfilledBaseLong,
+            uint256 unfilledBaseShort,
+            uint256 unfilledQuoteLong,
+            uint256 unfilledQuoteShort
+        ) = vamm.getAccountUnfilledBalances(accountId);
         assertEq(unfilledBaseLong, 0);
         assertEq(unfilledBaseShort, 0);
+        assertEq(unfilledQuoteLong, 0);
+        assertEq(unfilledQuoteShort, 0);
     }
 
     // TODO: test that the weighted average of two average prices, using intervals (a,b) and (b,c) is the same as that of interval (a,c)
@@ -262,12 +269,12 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
     //     // Position just opened so no unfilled balances
     //     UD60x18 currentLiquidityIndex = ud60x18(100e18);
     //     vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(currentLiquidityIndex));
-    //     (int256 unfilledBaseLong, int256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
+    //     (int256 unfilledBaseLong, int256 unfilledBaseShort) = vamm.getAccountUnfilledBalances(accountId);
     //     assertEq(unfilledBaseLong, 0);
     //     assertEq(unfilledBaseShort, 0);
     // }
 
-    function test_GetAccountUnfilledBases() public {
+    function test_GetAccountUnfilledBalances() public {
         uint128 accountId = 1;
         uint160 sqrtLowerPriceX96 = uint160(1 * FixedPoint96.Q96 / 10); // 0.1 => price ~= 0.01 = 1%
         uint160 sqrtUpperPriceX96 = uint160(22 * FixedPoint96.Q96 / 100); // 0.22 => price ~= 0.0484 = ~5%
@@ -287,7 +294,8 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
         assertEq(quoteBalancePool, 0);
 
         // We expect the full base amount is unfilled cos there have been no trades
-        (uint256 unfilledBaseLong, uint256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
+        vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(ud60x18(1e18)));
+        (uint256 unfilledBaseLong, uint256 unfilledBaseShort,,) = vamm.getAccountUnfilledBalances(accountId);
         // console2.log("unfilledBaseLong", unfilledBaseLong); // TODO_delete_log
         // console2.log("unfilledBaseShort", unfilledBaseShort); // TODO_delete_log
         uint256 distanceToLower = tickDistanceFromCurrentToTick(vamm, tickLower);
@@ -320,7 +328,7 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
     }
 
     // TODO: extend to 3 or more LPs and test TickInfo when multiple LPs start/end at same tick
-    // function test_GetAccountUnfilledBases_TwoLPs() public {
+    // function test_GetAccountUnfilledBalances_TwoLPs() public {
     //     DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
     //     int24 lp1tickLower;
     //     int24 lp1tickUpper;
@@ -346,7 +354,7 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
     //         assertEq(quoteBalancePool, 0);
 
     //         // We expect the full base amount is unfilled cos there have been no trades
-    //         (uint256 unfilledBaseLong, uint256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
+    //         (uint256 unfilledBaseLong, uint256 unfilledBaseShort) = vamm.getAccountUnfilledBalances(accountId);
     //         // console2.log("unfilledBaseLong", unfilledBaseLong); // TODO_delete_log
     //         // console2.log("unfilledBaseShort", unfilledBaseShort); // TODO_delete_log
     //         uint256 distanceToLower = tickDistanceFromCurrentToTick(tickLower);
@@ -403,7 +411,7 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
     //         assertEq(quoteBalancePool, 0);
 
     //         // We expect the full base amount is unfilled cos there have been no trades
-    //         (uint256 unfilledBaseLong, uint256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
+    //         (uint256 unfilledBaseLong, uint256 unfilledBaseShort) = vamm.getAccountUnfilledBalances(accountId);
     //         // console2.log("unfilledBaseLong", unfilledBaseLong); // TODO_delete_log
     //         // console2.log("unfilledBaseShort", unfilledBaseShort); // TODO_delete_log
     //         uint256 distanceToLower = tickDistanceFromCurrentToTick(tickLower);
@@ -436,13 +444,14 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
     //     }
     // }
 
-    function testFuzz_GetAccountUnfilledBases(
+    function testFuzz_GetAccountUnfilledTokens_QuoteLong(
         uint128 accountId,
         int24 tickLower,
         int24 tickUpper,
         int128 liquidityDelta
     ) public {
         vm.assume(accountId != 0);
+        vm.assume(liquidityDelta != 0);
         (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
         liquidityDelta = boundNewPositionLiquidityAmount(vamm, tickLower, tickUpper, liquidityDelta);
 
@@ -454,17 +463,93 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
         assertEq(quoteBalancePool, 0);
     
         // We expect the full base amount is unfilled cos there have been no trades
-        (uint256 unfilledBaseLong, uint256 unfilledBaseShort) = vamm.getAccountUnfilledBases(accountId);
-        uint256 distanceToLower = tickDistanceFromCurrentToTick(vamm, tickLower);
-        uint256 distanceToUpper = tickDistanceFromCurrentToTick(vamm, tickUpper);
-        if (distanceToLower > 0) {
+        vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(ud60x18(1e18)));
+        (
+            uint256 unfilledBaseLong,
+            uint256 unfilledBaseShort,
+            uint256 unfilledQuoteLong,
+        ) = vamm.getAccountUnfilledBalances(accountId);
+        if (tickDistanceFromCurrentToTick(vamm, tickLower) > 0) {
             assertGe(unfilledBaseShort, 0, "short unexpectedlly zero");
         }
-        if (distanceToUpper > 0) {
+        if (tickDistanceFromCurrentToTick(vamm, tickUpper) > 0) {
             assertGe(unfilledBaseLong, 0, "long unexpectedlly zero");
         }
 
-        int256 baseAmount = vamm.baseBetweenTicks(tickLower, tickUpper, liquidityDelta);
-        assertOffByNoMoreThan2OrAlmostEqual((unfilledBaseLong + unfilledBaseShort).toInt(), baseAmount);
+        assertOffByNoMoreThan2OrAlmostEqual((unfilledBaseLong + unfilledBaseShort).toInt(), vamm.baseBetweenTicks(tickLower, tickUpper, liquidityDelta));
+
+        (int256 quoteTokenDelta2,) = _swapMaxRight(-vamm.baseBetweenTicks(tickLower, tickUpper, liquidityDelta) - 1e18);
+        assertOffByNoMoreThan2OrAlmostEqual(
+            (unfilledQuoteLong).toInt(), 
+            quoteTokenDelta2
+        );
+    }
+
+    function testFuzz_GetAccountUnfilledTokens_QuoteShort(
+        uint128 accountId,
+        int24 tickLower,
+        int24 tickUpper,
+        int128 liquidityDelta
+    ) public {
+        vm.assume(accountId != 0);
+        vm.assume(liquidityDelta != 0);
+        (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
+        liquidityDelta = boundNewPositionLiquidityAmount(vamm, tickLower, tickUpper, liquidityDelta);
+
+        vamm.executeDatedMakerOrder(accountId,tickLower,tickUpper, liquidityDelta);
+
+        // Position just opened so no filled balances
+        (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(accountId);
+        assertEq(baseBalancePool, 0);
+        assertEq(quoteBalancePool, 0);
+    
+        // We expect the full base amount is unfilled cos there have been no trades
+        vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(ud60x18(1e18)));
+        (
+            uint256 unfilledBaseLong,
+            uint256 unfilledBaseShort,,
+            uint256 unfilledQuoteShort
+        ) = vamm.getAccountUnfilledBalances(accountId);
+        if (tickDistanceFromCurrentToTick(vamm, tickLower) > 0) {
+            assertGe(unfilledBaseShort, 0, "short unexpectedlly zero");
+        }
+        if (tickDistanceFromCurrentToTick(vamm, tickUpper) > 0) {
+            assertGe(unfilledBaseLong, 0, "long unexpectedlly zero");
+        }
+
+        assertOffByNoMoreThan2OrAlmostEqual((unfilledBaseLong + unfilledBaseShort).toInt(), vamm.baseBetweenTicks(tickLower, tickUpper, liquidityDelta));
+
+        (int256 quoteTokenDelta1,) = _swapMaxLeft(vamm.baseBetweenTicks(tickLower, tickUpper, liquidityDelta) + 1e18);
+        assertAlmostEqual(
+            -(unfilledQuoteShort).toInt(),
+            quoteTokenDelta1,
+            1e16 // 1% difference
+        );
+        
+    }
+
+    function _swapMaxRight(int256 baseAmount) public returns (int256 quoteTokenDelta, int256 baseTokenDelta) {
+        if(baseAmount == 0) return (0,0);
+
+        DatedIrsVamm.SwapParams memory params = DatedIrsVamm.SwapParams({
+            amountSpecified: -baseAmount, // There is not enough liquidity - swap should max out at baseTradeableToRight
+            sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(MAX_TICK - 1)
+        });
+
+        // Mock the liquidity index that is read during a swap
+        vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(1e18));
+        (quoteTokenDelta, baseTokenDelta) = vamm.vammSwap(params);
+    }
+
+    function _swapMaxLeft(int256 baseAmount) public returns (int256 quoteTokenDelta, int256 baseTokenDelta) {
+        if(baseAmount == 0) return (0,0);
+        DatedIrsVamm.SwapParams memory params = DatedIrsVamm.SwapParams({
+            amountSpecified: -baseAmount, // There is not enough liquidity - swap should max out at baseTradeableToRight
+            sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(MIN_TICK + 1)
+        });
+
+        // Mock the liquidity index that is read during a swap
+        vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(1e18));
+        (quoteTokenDelta, baseTokenDelta) = vamm.vammSwap(params);
     }
 }

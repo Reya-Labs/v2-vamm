@@ -25,13 +25,20 @@ interface IAccountBalanceModule {
     * @param accountId Id of the `Account` to look at
     * @return unfilledBaseLong Base amount left unused to the right of the current tick
     * @return unfilledBaseShort Base amount left unused to the left of the current tick
+    * @return unfilledQuoteLong Simulated quote amount left unused to the right of the current tick
+    * @return unfilledQuoteShort Simulated quote amount left unused to the left of the current tick
   */
-  function getAccountUnfilledBases(
+  function getAccountUnfilledBaseAndQuote(
       uint128 marketId,
       uint32 maturityTimestamp,
       uint128 accountId
   )
       external
       view
-      returns (uint256 unfilledBaseLong, uint256 unfilledBaseShort);
+      returns (
+        uint256 unfilledBaseLong,
+        uint256 unfilledBaseShort,
+        uint256 unfilledQuoteLong,
+        uint256 unfilledQuoteShort
+      );
 }

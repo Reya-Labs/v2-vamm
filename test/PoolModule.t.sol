@@ -9,6 +9,7 @@ import "forge-std/console2.sol";
 contract ExtendedPoolModule is PoolModule, PoolConfigurationModule {
     using SafeCastU256 for uint256;
     using SafeCastI256 for int256;
+    using DatedIrsVamm for DatedIrsVamm.Data;
 
     function setOwner(address account) external {
         OwnableStorage.Data storage ownable = OwnableStorage.load();
@@ -17,6 +18,13 @@ contract ExtendedPoolModule is PoolModule, PoolConfigurationModule {
 
     function createTestVamm(uint128 _marketId,  uint160 _sqrtPriceX96, uint32[] calldata times, int24[] calldata observedTicks, VammConfiguration.Immutable calldata _config, VammConfiguration.Mutable calldata _mutableConfig) public {
         DatedIrsVamm.create(_marketId, _sqrtPriceX96, times, observedTicks, _config, _mutableConfig);
+    }
+
+    function increaseObservationCardinalityNext(uint128 _marketId, uint32 _maturityTimestamp, uint16 _observationCardinalityNext)
+    public
+    {
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(_marketId, _maturityTimestamp);
+        vamm.increaseObservationCardinalityNext(_observationCardinalityNext);
     }
 
     function getLiquidityForBase(
@@ -93,6 +101,8 @@ contract PoolModuleTest is VoltzTest {
         observedTicks[0] = initialTick;
 
         pool.createTestVamm(initMarketId, initSqrtPriceX96, times, observedTicks, immutableConfig, mutableConfig);
+        pool.createTestVamm(initMarketId, initSqrtPriceX96, immutableConfig, mutableConfig);
+//        pool.increaseObservationCardinalityNext(initMarketId, initMaturityTimestamp, 16);
 
         pool.setOwner(address(this));
         pool.setMakerPositionsPerAccountLimit(1);
@@ -104,7 +114,7 @@ contract PoolModuleTest is VoltzTest {
 
     function test_ExecuteDatedTakerOrder_NoLiquidity() public {
         vm.prank(address(0));
-        (int256 executedBaseAmount, int256 executedQuoteAmount) = pool.executeDatedTakerOrder(1, initMaturityTimestamp, -100, TickMath.getSqrtRatioAtTick(MAX_TICK - 1));
+        (int256 executedBaseAmount, int256 executedQuoteAmount) = pool.executeDatedTakerOrder(1, initMaturityTimestamp, -100, 0);// TickMath.getSqrtRatioAtTick(MAX_TICK - 1));
         assertEq(executedBaseAmount, 0);
         assertEq(executedQuoteAmount, 0);
     }
@@ -125,7 +135,7 @@ contract PoolModuleTest is VoltzTest {
         assertEq(executedQuoteAmount, 0);
     }
 
-    function test_ExecuteDatedMaketOrderAndTakerOrders_Right() public {
+    function test_ExecuteDatedMakerOrderAndTakerOrders_Right() public {
         int256 baseAmount =  500_000_000;
         int24 tickLower = -33300;
         int24 tickUpper = -29400;
@@ -146,7 +156,7 @@ contract PoolModuleTest is VoltzTest {
         vm.mockCall(
             address(0),
             abi.encodeWithSelector(IProductIRSModule.propagateMakerOrder.selector, accountId, initMarketId, initMaturityTimestamp, baseAmount - 1),
-            abi.encode(1002, 20020)
+            abi.encode(1002, 20020, 0)
         );
         pool.initiateDatedMakerOrder(accountId, initMarketId, initMaturityTimestamp, tickLower, tickUpper, requestedLiquidityAmount);
 
@@ -156,7 +166,7 @@ contract PoolModuleTest is VoltzTest {
         assertEq(executedBaseAmount, -100000);
     }
 
-    function test_ExecuteDatedMaketOrderAndTakerOrders_Left() public {
+    function test_ExecuteDatedMakerOrderAndTakerOrders_Left() public {
         int256 baseAmount =  500_000_000;
         int24 tickLower = -33300;
         int24 tickUpper = -29400;
@@ -177,7 +187,7 @@ contract PoolModuleTest is VoltzTest {
         vm.mockCall(
             address(0),
             abi.encodeWithSelector(IProductIRSModule.propagateMakerOrder.selector, accountId, initMarketId, initMaturityTimestamp, baseAmount - 1),
-            abi.encode(0, 0)
+            abi.encode(0, 0, 0)
         );
         pool.initiateDatedMakerOrder(accountId, initMarketId, initMaturityTimestamp, tickLower, tickUpper, requestedLiquidityAmount);
 
@@ -187,7 +197,7 @@ contract PoolModuleTest is VoltzTest {
         assertEq(executedBaseAmount, 100000);
     }
 
-    function test_ExecuteDatedMaketOrderAndTakerOrders_LeftRight() public {
+    function test_ExecuteDatedMakerOrderAndTakerOrders_LeftRight() public {
         int256 baseAmount =  500_000_000;
         int24 tickLower = -33300;
         int24 tickUpper = -29400;
@@ -208,7 +218,7 @@ contract PoolModuleTest is VoltzTest {
         vm.mockCall(
             address(0),
             abi.encodeWithSelector(IProductIRSModule.propagateMakerOrder.selector, accountId, initMarketId, initMaturityTimestamp, baseAmount - 1),
-            abi.encode(0, 0)
+            abi.encode(0, 0, 0)
         );
         pool.initiateDatedMakerOrder(accountId, initMarketId, initMaturityTimestamp, tickLower, tickUpper, requestedLiquidityAmount);
 
@@ -229,7 +239,7 @@ contract PoolModuleTest is VoltzTest {
     }
 
     function test_CloseUnfilledBase_OnePosition() public {
-        test_ExecuteDatedMaketOrderAndTakerOrders_Left();
+        test_ExecuteDatedMakerOrderAndTakerOrders_Left();
         int256 baseAmount =  500_000_000;
         int24 tickLower = -33300;
         int24 tickUpper = -29400;

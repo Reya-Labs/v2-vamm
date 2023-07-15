@@ -694,30 +694,62 @@ library DatedIrsVamm {
     /// @param accountId The LP account. All positions within the account will be considered.
     /// @return unfilledBaseLong The base tokens available for a trader to take a long position against this LP (which will then become a short position for the LP) 
     /// @return unfilledBaseShort The base tokens available for a trader to take a short position against this LP (which will then become a long position for the LP) 
-    function getAccountUnfilledBases(
+    function getAccountUnfilledBalances(
         Data storage self,
         uint128 accountId
     )
         internal
         view
-        returns (uint256 unfilledBaseLong, uint256 unfilledBaseShort)
+        returns (
+            uint256 unfilledBaseLong,
+            uint256 unfilledBaseShort,
+            uint256 unfilledQuoteLong,
+            uint256 unfilledQuoteShort
+        )
     {
         uint256 numPositions = self.vars.positionsInAccount[accountId].length;
         if (numPositions != 0) {
             for (uint256 i = 0; i < numPositions; i++) {
-                LPPosition.Data storage position = LPPosition.load(self.vars.positionsInAccount[accountId][i]);
-                // Get how liquidity is currently arranged. In particular, how much of the liquidity is avail to traders in each direction?
-                (uint256 unfilledShortBase, uint256 unfilledLongBase) = _getUnfilledBaseTokenValues(
-                    self,
-                    position.tickLower,
-                    position.tickUpper,
-                    position.liquidity
-                );
-
+                // Get how liquidity is currently arranged. In particular, 
+                // how much of the liquidity is available to traders in each direction?
+                (
+                    uint256 unfilledLongBase,
+                    uint256 unfilledShortBase,
+                    uint256 unfilledLongQuote,
+                    uint256 unfilledShortQuote
+                ) = 
+                    self._getUnfilledBalancesFromPosition(
+                        self.vars.positionsInAccount[accountId][i]
+                    );
                 unfilledBaseLong += unfilledLongBase;
                 unfilledBaseShort += unfilledShortBase;
+                unfilledQuoteLong += unfilledLongQuote;
+                unfilledQuoteShort += unfilledShortQuote;
             }
         }
+    }
+
+    function _getUnfilledBalancesFromPosition(
+        Data storage self,
+        uint128 positionId
+    )
+        internal
+        view
+        returns ( uint256, uint256, uint256, uint256 ) {
+        LPPosition.Data storage position = LPPosition.load(positionId);
+        (
+            uint256 unfilledShortBase,
+            uint256 unfilledLongBase,
+            uint256 unfilledShortQuote,
+            uint256 unfilledLongQuote
+        ) = _getUnfilledBaseTokenValues(
+            self,
+            position.tickLower,
+            position.tickUpper,
+            position.liquidity
+        );
+
+        return ( unfilledLongBase, unfilledShortBase, unfilledLongQuote, unfilledShortQuote);
     }
 
     // @dev For a given LP posiiton, how much of it is already traded and what are base and quote tokens representing those exiting trades?
@@ -754,26 +786,106 @@ library DatedIrsVamm {
         uint128 liquidityPerTick
     ) internal view returns(
         uint256 unfilledBaseTokensLeft,
-        uint256 unfilledBaseTokensRight
+        uint256 unfilledBaseTokensRight,
+        uint256 unfilledQuoteTokensLeft,
+        uint256 unfilledQuoteTokensRight
     ) {
         if (tickLower == tickUpper) {
+            return (0, 0, 0, 0);
+        }
+
+        uint256 secondsTillMaturity = self.immutableConfig.maturityTimestamp - block.timestamp;
+        // Compute unfilled tokens in our range and to the left of the current tick
+        (unfilledBaseTokensLeft, unfilledQuoteTokensLeft) = self._getUnfilledBalancesLeft(
+            tickLower < self.vars.tick ? tickLower : self.vars.tick, // min(tickLower, currentTick)
+            tickUpper < self.vars.tick ? tickUpper : self.vars.tick,  // min(tickUpper, currentTick)
+            liquidityPerTick.toInt(),
+            secondsTillMaturity
+        );
+
+        // Compute unfilled tokens in our range and to the right of the current tick
+        (unfilledBaseTokensRight, unfilledQuoteTokensRight) = self._getUnfilledBalancesRight(
+            tickLower > self.vars.tick ? tickLower : self.vars.tick, // max(tickLower, currentTick)
+            tickUpper > self.vars.tick ? tickUpper : self.vars.tick,  // max(tickUpper, currentTick)
+            liquidityPerTick.toInt(),
+            secondsTillMaturity
+        );
+    }
+
+    function _getUnfilledBalancesLeft(
+        Data storage self,
+        int24 leftLowerTick,
+        int24 leftUpperTick,
+        int128 liquidityPerTick,
+        uint256 secondsTillMaturity
+    ) 
+        internal view
+        returns (uint256, uint256) {
+        
+        uint256 unfilledBaseTokensLeft = self.baseBetweenTicks(
+            leftLowerTick,
+            leftUpperTick,
+            liquidityPerTick
+        ).toUint();
+
+        if ( unfilledBaseTokensLeft == 0 ) {
             return (0, 0);
         }
 
-        // Compute unfilled tokens in our range and to the left of the current tick
-        int256 unfilledBaseTokensLeft_ = self.baseBetweenTicks(
-            tickLower < self.vars.tick ? tickLower : self.vars.tick, // min(tickLower, currentTick)
-            tickUpper < self.vars.tick ? tickUpper : self.vars.tick,  // min(tickUpper, currentTick)
-            liquidityPerTick.toInt()
+        // unfilledBaseTokensLeft is negative
+        int256 unbalancedQuoteTokensLeft = self.unbalancedQuoteBetweenTicks(
+            leftLowerTick,
+            leftUpperTick,
+            -(unfilledBaseTokensLeft).toInt()
         );
-        unfilledBaseTokensLeft = unfilledBaseTokensLeft_.toUint();
-
-        // Compute unfilled tokens in our range and to the right of the current tick
-        unfilledBaseTokensRight = self.baseBetweenTicks(
-            tickLower > self.vars.tick ? tickLower : self.vars.tick, // max(tickLower, currentTick)
-            tickUpper > self.vars.tick ? tickUpper : self.vars.tick,  // max(tickUpper, currentTick)
-            liquidityPerTick.toInt()
+        uint256 unfilledQuoteTokensLeft = VAMMBase.calculateQuoteTokenDelta(
+            unbalancedQuoteTokensLeft,
+            -(unfilledBaseTokensLeft).toInt(),
+            FixedAndVariableMath.accrualFact(secondsTillMaturity),
+            self.mutableConfig.rateOracle.getCurrentIndex(),
+            self.mutableConfig.spread
         ).toUint();
+
+        return (unfilledBaseTokensLeft, unfilledQuoteTokensLeft);
+    }
+
+    function _getUnfilledBalancesRight(
+        Data storage self,
+        int24 rightLowerTick,
+        int24 rightUpperTick,
+        int128 liquidityPerTick,
+        uint256 secondsTillMaturity
+    ) 
+        internal view
+        returns (uint256, uint256){
+        
+        uint256 unfilledBaseTokensRight = self.baseBetweenTicks(
+            rightLowerTick,
+            rightUpperTick,
+            liquidityPerTick
+        ).toUint();
+
+        if ( unfilledBaseTokensRight == 0 ) {
+            return (0, 0);
+        }
+
+        // unbalancedQuoteTokensRight is positive
+        int256 unbalancedQuoteTokensRight = self.unbalancedQuoteBetweenTicks(
+            rightLowerTick,
+            rightUpperTick,
+            unfilledBaseTokensRight.toInt()
+        );
+
+        // unfilledQuoteTokensRight is negative
+        uint256 unfilledQuoteTokensRight = (-VAMMBase.calculateQuoteTokenDelta(
+            unbalancedQuoteTokensRight,
+            unfilledBaseTokensRight.toInt(),
+            FixedAndVariableMath.accrualFact(secondsTillMaturity),
+            self.mutableConfig.rateOracle.getCurrentIndex(),
+            self.mutableConfig.spread
+        )).toUint();
+
+        return (unfilledBaseTokensRight, unfilledQuoteTokensRight);
     }
 
     function growthBetweenTicks(
@@ -967,6 +1079,20 @@ library DatedIrsVamm {
         uint160 sqrtRatioBX96 = self.getSqrtRatioAtTickSafe(_tickUpper);
 
         return VAMMBase.baseAmountFromLiquidity(_liquidityPerTick, sqrtRatioAX96, sqrtRatioBX96);
+    }
+
+    function unbalancedQuoteBetweenTicks(
+        Data storage self,
+        int24 _tickLower,
+        int24 _tickUpper,
+        int256 baseAmount
+    ) internal view returns(int256) {
+        // get sqrt ratios
+        uint160 sqrtRatioAX96 = self.getSqrtRatioAtTickSafe(_tickLower);
+
+        uint160 sqrtRatioBX96 = self.getSqrtRatioAtTickSafe(_tickUpper);
+
+        return VAMMBase.unbalancedQuoteAmountFromBase(baseAmount, sqrtRatioAX96, sqrtRatioBX96);
     }
 
     function getPriceFromTick(Data storage self, int24 _tick) internal view returns (UD60x18 price) {
