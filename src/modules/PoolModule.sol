@@ -65,11 +65,10 @@ contract PoolModule is IPoolModule {
         int24 tickUpper,
         int128 liquidityDelta
     )
-        external override returns (uint256 fee, uint256 im)
+        external override returns (uint256 fee, uint256 im, uint256 highestUnrealizedLoss)
     {
-        address productAddress = PoolConfiguration.load().productAddress;
 
-        IProductIRSModule irsProduct = IProductIRSModule(productAddress);
+        IProductIRSModule irsProduct = IProductIRSModule(PoolConfiguration.load().productAddress);
 
         IAccountModule(
             irsProduct.getCoreProxyAddress()
@@ -81,19 +80,17 @@ contract PoolModule is IPoolModule {
 
         vamm.executeDatedMakerOrder(accountId, tickLower, tickUpper, liquidityDelta);
 
-        if ( liquidityDelta > 0) {
-            (fee, im, ) = irsProduct.propagateMakerOrder(
-                accountId,
-                marketId,
-                maturityTimestamp,
-                VAMMBase.baseAmountFromLiquidity(
-                    liquidityDelta,
-                    vamm.getSqrtRatioAtTickSafe(tickLower),
-                    vamm.getSqrtRatioAtTickSafe(tickUpper)
-                )
-            );
-       }
-       
+        (fee, im, highestUnrealizedLoss) = irsProduct.propagateMakerOrder(
+            accountId,
+            marketId,
+            maturityTimestamp,
+            VAMMBase.baseAmountFromLiquidity(
+                liquidityDelta,
+                vamm.getSqrtRatioAtTickSafe(tickLower),
+                vamm.getSqrtRatioAtTickSafe(tickUpper)
+            )
+        );
+
     }
 
     /**
