@@ -479,9 +479,10 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
         assertOffByNoMoreThan2OrAlmostEqual((unfilledBaseLong + unfilledBaseShort).toInt(), vamm.baseBetweenTicks(tickLower, tickUpper, liquidityDelta));
 
         (int256 quoteTokenDelta2,) = _swapMaxRight(-vamm.baseBetweenTicks(tickLower, tickUpper, liquidityDelta) - 1e18);
-        assertOffByNoMoreThan2OrAlmostEqual(
+        assertAlmostEqual(
             (unfilledQuoteLong).toInt(), 
-            quoteTokenDelta2
+            quoteTokenDelta2,
+            1e16 // 1% diff -> cause by adding spread to price at each step of the swap vs on avg price for unfilled
         );
     }
 

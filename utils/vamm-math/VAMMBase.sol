@@ -14,7 +14,7 @@ import "./FixedPoint128.sol";
 import "../CustomErrors.sol";
 import "../Time.sol";
 
-import { UD60x18, unwrap, convert as convert_ud } from "@prb/math/UD60x18.sol";
+import { UD60x18, unwrap, convert as convert_ud, ZERO } from "@prb/math/UD60x18.sol";
 import { SD59x18, convert as convert_sd } from "@prb/math/SD59x18.sol";
 
 import { ud60x18, mulUDxInt } from "@voltz-protocol/util-contracts/src/helpers/PrbMathHelper.sol";
@@ -152,9 +152,10 @@ library VAMMBase {
             convert_sd(-100)
         ).intoUD60x18();
 
-        UD60x18 averagePriceWithSpread = averagePrice.mul(
-            (baseTokenDelta) > 0 ? ONE.sub(spread) : ONE.add(spread)
-        );
+        UD60x18 averagePriceWithSpread = averagePrice.add(spread);
+        if (baseTokenDelta > 0) {
+            averagePriceWithSpread = averagePrice.lt(spread) ? ZERO : averagePrice.sub(spread);
+        }
 
         balancedQuoteTokenDelta = SD59x18.wrap(
             -baseTokenDelta
