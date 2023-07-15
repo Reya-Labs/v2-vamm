@@ -48,20 +48,33 @@ library Oracle {
 
     /// @notice Initialize the oracle array by writing the first slot. Called once for the lifecycle of the observations array
     /// @param self The stored oracle array
-    /// @param time The time of the oracle initialization, via block.timestamp truncated to uint32
+    /// @param times The times to populate in the Oracle buffe (block.timestamps truncated to uint32)
+    /// @param observedTicks The observed ticks to populate in the oracle buffer
     /// @return cardinality The number of populated elements in the oracle array
     /// @return cardinalityNext The new length of the oracle array, independent of population
-    function initialize(Observation[MAX_BUFFER_LENGTH] storage self, uint32 time)
+    function initialize(Observation[MAX_BUFFER_LENGTH] storage self, uint32[] memory times, int24[] memory observedTicks)
         internal
         returns (uint16 cardinality, uint16 cardinalityNext)
     {
+        require(times.length < MAX_BUFFER_LENGTH, "MAXT");
+        uint16 length = uint16(times.length);
+        require(length == observedTicks.length, "Lengths must match");
+        require(length > 0, "0T");
+
         self[0] = Observation({
-            blockTimestamp: time,
+            blockTimestamp: times[0],
             tickCumulative: 0,
             secondsPerLiquidityCumulativeX128: 0,
             initialized: true
         });
-        return (1, 1);
+
+        for (uint16 i = 1; i < length; i++) {
+            /// no need to check that times are ordered since
+            /// transform() requires them to be orrdered
+            self[i] = transform(self[i-1], times[i], observedTicks[i], 0);
+        }
+
+        return (length, length);
     }
 
     /// @notice Writes an oracle observation to the array

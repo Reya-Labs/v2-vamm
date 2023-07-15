@@ -23,10 +23,20 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
 
     ExposedDatedIrsVamm vamm;
 
+    uint32[] internal times;
+    int24[] internal observedTicks;
+
     function setUp() public {
         vammId = uint256(keccak256(abi.encodePacked(initMarketId, initMaturityTimestamp)));
         vamm = new ExposedDatedIrsVamm(vammId);
-        vamm.create(initMarketId, initSqrtPriceX96, immutableConfig, mutableConfig);
+
+        times = new uint32[](1);
+        times[0] = uint32(block.timestamp);
+
+        observedTicks = new int24[](1);
+        observedTicks[0] = initialTick;
+
+        vamm.create(initMarketId, initSqrtPriceX96, times, observedTicks, immutableConfig, mutableConfig);
         
         vamm.setMakerPositionsPerAccountLimit(1);
     }
@@ -46,7 +56,40 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
 
         // Check that we cannot re-init
         vm.expectRevert();
-        vamm.initialize(initSqrtPriceX96);
+        vamm.initialize(initSqrtPriceX96, times, observedTicks);
+    }
+
+    function test_Initialize_OracleBuffer() public {
+        vamm = new ExposedDatedIrsVamm(vammId);
+
+        uint256 length = 5;
+        uint256 fixedDelta = 10;
+
+        times = new uint32[](length);
+        observedTicks = new int24[](length);
+
+        times[0] = uint32(block.timestamp);
+        observedTicks[0] = initialTick;
+        for (uint256 i = 1; i < length; i += 1) {
+            times[i] = times[i-1] + uint32(fixedDelta + i);
+            observedTicks[i] = observedTicks[i-1] + int24(int256(i * 60) * ((i % 2 == 0) ? int256(1) : int256(-1)));
+        }
+
+        vamm.create(initMarketId, initSqrtPriceX96, times, observedTicks, immutableConfig, mutableConfig);
+
+        assertEq(vamm.observationIndex(), length - 1);
+        assertEq(vamm.observationCardinality(), length);
+        assertEq(vamm.observationCardinalityNext(), length); 
+
+        int56 tickCumulative = 0;
+        for (uint256 i = 0; i < length; i += 1) {
+            Oracle.Observation memory observation = vamm.observationAtIndex(uint16(i));
+            assertEq(observation.blockTimestamp, times[i]);
+            if (i > 0) {
+                tickCumulative += int56(observedTicks[i]) * int56(uint56(times[i] - times[i-1]));
+            }
+            assertEq(observation.tickCumulative, tickCumulative);
+        }
     }
 
     function testFuzz_BaseBetweenTicks(

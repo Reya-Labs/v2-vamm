@@ -23,8 +23,14 @@ interface IVammModule {
   /**
     * @notice registers a new vamm with the specified configurationsa and initializes the price
     */
-  function createVamm(uint128 _marketId,  uint160 _sqrtPriceX96, VammConfiguration.Immutable calldata _config, VammConfiguration.Mutable calldata _mutableConfig)
-    external;
+  function createVamm(
+    uint128 _marketId, 
+    uint160 _sqrtPriceX96, 
+    uint32[] memory times, 
+    int24[] memory observedTicks, 
+    VammConfiguration.Immutable calldata _config, 
+    VammConfiguration.Mutable calldata _mutableConfig
+  ) external;
 
   /**
     * @notice Configures an existing vamm 

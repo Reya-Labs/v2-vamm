@@ -41,12 +41,22 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
     int256 baseTradeableToLeft;
     int256 baseTradeableToRight;
     ExposedDatedIrsVamm vamm;
+    
+    uint32[] internal times;
+    int24[] internal observedTicks;
 
     function setUp() public {
 
         vammId = uint256(keccak256(abi.encodePacked(initMarketId, uint32(initMaturityTimestamp))));
         vamm = new ExposedDatedIrsVamm(vammId);
-        vamm.create(initMarketId, initSqrtPriceX96, immutableConfig, mutableConfig);
+
+        times = new uint32[](1);
+        times[0] = uint32(block.timestamp);
+
+        observedTicks = new int24[](1);
+        observedTicks[0] = initialTick;
+
+        vamm.create(initMarketId, initSqrtPriceX96, times, observedTicks, immutableConfig, mutableConfig);
         vamm.setMakerPositionsPerAccountLimit(3);
         vamm.increaseObservationCardinalityNext(16);
 
