@@ -91,8 +91,8 @@ contract VammBaseTest is DatedIrsVammTestUtil {
         UD60x18 yearsUntilMaturity = convert(uint256(1)).div(convert(uint256(2))); // half of year
         UD60x18 currentOracleValue = convert(uint256(107)).div(convert(uint256(100))); // 1.07
 
-        // quote token delta = -base * liquidity_index * (1 + fixed_rate * (1 - spread/2) * yearsUntilMaturity)
-        // quote token delta = -1e6 *       1.07       * (1 + 0.015 * (1 - 0.005 / 2) * 0.5)          
+        // quote token delta = -base * liquidity_index * (1 + (fixed_rate - spread/2) * yearsUntilMaturity)
+        // quote token delta = -1e6 *       1.07       * (1 + (0.015 - 0.005 / 2) * 0.5)          
         // quote token delta = -1078004
         int256 quoteTokenDelta = vammBase.calculateQuoteTokenDelta(
             unbalancedQuoteTokenDelta,
@@ -101,7 +101,7 @@ contract VammBaseTest is DatedIrsVammTestUtil {
             currentOracleValue,
             ud60x18(25e14)
         );
-        assertEq(quoteTokenDelta, -1078004);
+        assertEq(quoteTokenDelta, -1076687);
     }
 
     function test_CalculateQuoteTokenDelta_50bpsSpread_FT() public {
@@ -110,8 +110,8 @@ contract VammBaseTest is DatedIrsVammTestUtil {
         UD60x18 yearsUntilMaturity = convert(uint256(1)).div(convert(uint256(2))); // half of year
         UD60x18 currentOracleValue = convert(uint256(107)).div(convert(uint256(100))); // 1.07
 
-        // quote token delta = -base * liquidity_index * (1 + fixed_rate  * (1 + spread/2) * yearsUntilMaturity)
-        // quote token delta = 1e6 *       1.07       * (1 + 0.015 * (1 + 0.005 / 2) * 0.5)                 
+        // quote token delta = -base * liquidity_index * (1 + (fixed_rate + spread) * yearsUntilMaturity)
+        // quote token delta = 1e6 *       1.07       * (1 + (0.015 + 0.005 / 2) * 0.5)                 
         // quote token delta = 1078045
         int256 quoteTokenDelta = vammBase.calculateQuoteTokenDelta(
             unbalancedQuoteTokenDelta,
@@ -120,6 +120,6 @@ contract VammBaseTest is DatedIrsVammTestUtil {
             currentOracleValue,
             ud60x18(25e14)
         );
-        assertEq(quoteTokenDelta, 1078045);
+        assertEq(quoteTokenDelta, 1079362);
     }
 }

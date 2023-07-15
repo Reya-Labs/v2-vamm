@@ -273,7 +273,7 @@ library DatedIrsVamm {
 
         // The projected price impact and spread of a trade will move the price up for buys, down for sells
         if (orderSize > 0) {
-            geometricMeanPrice = geometricMeanPrice.add(spreadImpactDelta).mul(ONE.add(priceImpactAsFraction));
+            geometricMeanPrice = geometricMeanPrice.mul(ONE.add(priceImpactAsFraction)).add(spreadImpactDelta);
         } else {
             if (spreadImpactDelta.gte(geometricMeanPrice)) {
                 // The spread is higher than the price
@@ -283,10 +283,10 @@ library DatedIrsVamm {
                 // The model suggests that the price will drop below zero after price impact
                 return ZERO;
             }
-            geometricMeanPrice = geometricMeanPrice.sub(spreadImpactDelta).mul(ONE.sub(priceImpactAsFraction));
+            geometricMeanPrice = geometricMeanPrice.mul(ONE.sub(priceImpactAsFraction)).sub(spreadImpactDelta);
         }
 
-        return geometricMeanPrice;
+        return geometricMeanPrice.div(convert(100));
     }
 
     /// @notice Calculates time-weighted arithmetic mean tick
@@ -838,6 +838,7 @@ library DatedIrsVamm {
             leftUpperTick,
             -(unfilledBaseTokensLeft).toInt()
         );
+        // note calculateQuoteTokenDelta considers spread in advantage (for LPs)
         uint256 unfilledQuoteTokensLeft = VAMMBase.calculateQuoteTokenDelta(
             unbalancedQuoteTokensLeft,
             -(unfilledBaseTokensLeft).toInt(),
