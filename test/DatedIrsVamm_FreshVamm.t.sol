@@ -8,8 +8,8 @@ import "../src/storage/DatedIrsVAMM.sol";
 import "../utils/CustomErrors.sol";
 import "../src/storage/LPPosition.sol";
 import { mulUDxInt } from "@voltz-protocol/util-contracts/src/helpers/PrbMathHelper.sol";
-import { UD60x18, convert, ud60x18, uMAX_UD60x18, uUNIT } from "@prb/math/UD60x18.sol";
-import { SD59x18, sd59x18, convert } from "@prb/math/SD59x18.sol";
+import { UD60x18, convert as convertUd , ud60x18, uMAX_UD60x18, uUNIT } from "@prb/math/UD60x18.sol";
+import { SD59x18, sd59x18, convert as convertSd } from "@prb/math/SD59x18.sol";
 import "@voltz-protocol/util-contracts/src/helpers/SafeCast.sol";
 
 // Constants
@@ -110,8 +110,8 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
 
         // no lookback, no adjustments
         UD60x18 geometricMeanPrice = vamm.twap(0, 0, false, false);
-        assertEq(geometricMeanPrice, vamm.getPriceFromTick(tick)); 
-        assertAlmostEqual(geometricMeanPrice, ud60x18(25e18)); // Approx 0.04. Not exact cos snaps to tick boundary.
+        assertEq(geometricMeanPrice, vamm.getPriceFromTick(tick).div(convertUd(100))); 
+        assertAlmostEqual(geometricMeanPrice, ud60x18(25e16)); // Approx 0.04. Not exact cos snaps to tick boundary.
     }
 
     function test_Init_Twap_WithSpread() public {
@@ -122,14 +122,15 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
             // no lookback, adjust for spread, positive order size
             UD60x18 twapPrice = vamm.twap(0, 1, false, true);
             // Spread adds 0.3% to the price (as an absolute amount, not as a percentage of the price)
-            assertEq(twapPrice, vamm.getPriceFromTick(tick).add(mutableConfig.spread)); 
+            assertEq(twapPrice, vamm.getPriceFromTick(tick).add(mutableConfig.spread).div(convertUd(100))); 
         }
 
         {
             // no lookback, adjust for spread, negative order size
             UD60x18 twapPrice = vamm.twap(0, -1, false, true);
             // Spread subtracts 0.3% from the price (as an absolute amount, not as a percentage of the price)
-            assertEq(twapPrice, vamm.getPriceFromTick(tick).sub(mutableConfig.spread));
+            assertEq(twapPrice, vamm.getPriceFromTick(tick).sub(mutableConfig.spread).div(convertUd(100)));
+            console2.log(unwrap(twapPrice));
         }
     }
 
@@ -145,7 +146,7 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
             // Price impact adds a multiple of 0.1*orderSize^0.125
             //                               = 0.1*100000000^0.125
             //                               = 0.1*10 = 1 to the price, i.e. doubles the price
-            assertAlmostEqual(twapPrice, vamm.getPriceFromTick(tick).mul(ONE.add(ONE)));  
+            assertAlmostEqual(twapPrice, vamm.getPriceFromTick(tick).mul(ONE.add(ONE)).div(convertUd(100)));  
         }
 
         {
@@ -156,7 +157,7 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
             // Price impact subtracts a multiple of 0.1*abs(orderSize)^0.125
             //                               = 0.1*256^0.125
             //                               = 0.1*2 = 0.2 times the price, i.e. takes 20% off the price
-            assertAlmostEqual(twapPrice, vamm.getPriceFromTick(tick).mul(ud60x18(8e17)));  
+            assertAlmostEqual(twapPrice, vamm.getPriceFromTick(tick).mul(ud60x18(8e17)).div(convertUd(100)));  
         }
     }
 
@@ -167,7 +168,7 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
 
         int24 tick = vamm.tick();
         assertEq(vamm.observe(0), tick);
-        UD60x18 instantPrice = vamm.getPriceFromTick(tick);
+        UD60x18 instantPrice = vamm.getPriceFromTick(tick).div(convertUd(100));
 
         // no lookback
         UD60x18 twapPrice = vamm.twap(0, orderSize, adjustForPriceImpact, adjustForSpread);

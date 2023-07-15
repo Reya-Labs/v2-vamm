@@ -286,7 +286,7 @@ library DatedIrsVamm {
             geometricMeanPrice = geometricMeanPrice.mul(ONE.sub(priceImpactAsFraction)).sub(spreadImpactDelta);
         }
 
-        return geometricMeanPrice;
+        return geometricMeanPrice.div(convert(100));
     }
 
     /// @notice Calculates time-weighted arithmetic mean tick
