@@ -779,7 +779,7 @@ library DatedIrsVamm {
     ///
     /// Gets the number of "unfilled" (still available as liquidity) base tokens within the specified tick range,
     /// looking both left and right of the current tick.
-    function _getUnfilledBaseTokenValues( // TODO: previously called trackValuesBetweenTicks; update python code to match new name
+    function _getUnfilledBaseTokenValues(
         Data storage self,
         int24 tickLower,
         int24 tickUpper,
