@@ -101,7 +101,6 @@ contract PoolModuleTest is VoltzTest {
         observedTicks[0] = initialTick;
 
         pool.createTestVamm(initMarketId, initSqrtPriceX96, times, observedTicks, immutableConfig, mutableConfig);
-        pool.createTestVamm(initMarketId, initSqrtPriceX96, immutableConfig, mutableConfig);
 //        pool.increaseObservationCardinalityNext(initMarketId, initMaturityTimestamp, 16);
 
         pool.setOwner(address(this));
