@@ -67,9 +67,8 @@ contract PoolModule is IPoolModule {
     )
         external override returns (uint256 fee, uint256 im, uint256 highestUnrealizedLoss)
     {
-        address productAddress = PoolConfiguration.load().productAddress;
 
-        IProductIRSModule irsProduct = IProductIRSModule(productAddress);
+        IProductIRSModule irsProduct = IProductIRSModule(PoolConfiguration.load().productAddress);
 
         IAccountModule(
             irsProduct.getCoreProxyAddress()
