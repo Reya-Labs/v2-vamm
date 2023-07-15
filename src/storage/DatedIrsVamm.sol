@@ -690,7 +690,6 @@ library DatedIrsVamm {
     }
 
     /// @notice For a given LP account, how much liquidity is available to trade in each direction.
-    /// 
     /// @param accountId The LP account. All positions within the account will be considered.
     /// @return unfilledBaseLong The base tokens available for a trader to take a long position against this LP (which will then become a short position for the LP) 
     /// @return unfilledBaseShort The base tokens available for a trader to take a short position against this LP (which will then become a long position for the LP) 
