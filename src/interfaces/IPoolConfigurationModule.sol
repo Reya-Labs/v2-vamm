@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
+import "../storage/PoolConfiguration.sol";
+
 interface IPoolConfigurationModule {
 
   /// @notice Pausing or unpausing trading activity on the vamm
@@ -14,4 +16,7 @@ interface IPoolConfigurationModule {
   /// @notice Setting limit of maker positions per account
   /// @param limit Maximum number of maker positions an acccount can have
   function setMakerPositionsPerAccountLimit(uint256 limit) external;
+
+  /// @return Pool configuration data
+  function getPoolConfiguration() external pure returns (PoolConfiguration.Data memory);
 }

@@ -26,4 +26,8 @@ contract PoolConfigurationModule is IPoolConfigurationModule {
     OwnableStorage.onlyOwner();
     PoolConfiguration.load().setMakerPositionsPerAccountLimit(limit);
   }
+
+  function getPoolConfiguration() external pure override returns (PoolConfiguration.Data memory) {
+     return PoolConfiguration.load();
+  }
 }
