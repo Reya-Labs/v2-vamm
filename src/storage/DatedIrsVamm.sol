@@ -22,7 +22,6 @@ import "@voltz-protocol/util-contracts/src/helpers/SafeCast.sol";
  */
 library DatedIrsVamm {
     UD60x18 constant ONE = VAMMBase.ONE;
-    UD60x18 constant ZERO = UD60x18.wrap(0);
     using SafeCastU256 for uint256;
     using SafeCastI256 for int256;
     using SafeCastU128 for uint128;
@@ -266,6 +265,10 @@ library DatedIrsVamm {
             if (orderSize == 0) {
                 revert TwapNotAdjustable();
             }
+            // note the order size is already scaled by token decimals
+            // convert() further scales it by WAD, resulting in a bigger price
+            // impact than expected. 
+            // proposed solution: descale by token decimals prior to this operation
             priceImpactAsFraction = self.mutableConfig.priceImpactPhi.mul(
                 convert(uint256(orderSize > 0 ? orderSize : -orderSize)).pow(self.mutableConfig.priceImpactBeta)
             );
