@@ -2,6 +2,7 @@
 pragma solidity >=0.8.13;
 
 import "../../utils/vamm-math/VammConfiguration.sol";
+import "../storage/LPPosition.sol";
 
 interface IVammModule {
   /// @dev Emitted when vamm configurations are updated
@@ -105,4 +106,16 @@ interface IVammModule {
   
   function getVammTrackerBaseTokenGrowthGlobalX128(uint128 _marketId, uint32 _maturityTimestamp)
     external view returns (int256 trackerBaseTokenGrowthGlobalX128);
+
+  function getVammMinAndMaxSqrtRatio(uint128 _marketId, uint32 _maturityTimestamp)
+        external view returns (uint256, uint256);
+
+  function getVammObservationInfo(uint128 _marketId, uint32 _maturityTimestamp)
+      external view returns (uint16, uint16, uint16);
+
+  function getVammObservations(uint128 _marketId, uint32 _maturityTimestamp)
+      external view returns (Oracle.Observation[65535] memory);
+
+  function getVammPosition(uint128 _marketId, uint32 _maturityTimestamp, uint128 positionId)
+        external view returns (LPPosition.Data memory);
 }

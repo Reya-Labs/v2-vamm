@@ -133,6 +133,13 @@ contract VammModule is IVammModule {
         return vamm.vars.positionsInAccount[accountId];
     }
 
+    function getVammPosition(uint128 _marketId, uint32 _maturityTimestamp, uint128 positionId)
+        external view override returns (LPPosition.Data memory) {
+
+        LPPosition.Data storage position = LPPosition.load(positionId);
+        return position;
+    }
+
     function getVammTrackerQuoteTokenGrowthGlobalX128(uint128 _marketId, uint32 _maturityTimestamp)
         external view override returns (int256) {
         
@@ -145,5 +152,26 @@ contract VammModule is IVammModule {
         
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(_marketId, _maturityTimestamp);
         return vamm.vars.trackerBaseTokenGrowthGlobalX128;
+    }
+
+    function getVammMinAndMaxSqrtRatio(uint128 _marketId, uint32 _maturityTimestamp)
+        external view override returns (uint256, uint256) {
+        
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(_marketId, _maturityTimestamp);
+        return (vamm.minSqrtRatio, vamm.maxSqrtRatio);
+    }
+
+    function getVammObservationInfo(uint128 _marketId, uint32 _maturityTimestamp)
+        external view override returns (uint16, uint16, uint16) {
+        
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(_marketId, _maturityTimestamp);
+        return (vamm.vars.observationIndex, vamm.vars.observationCardinality, vamm.vars.observationCardinalityNext);
+    }
+
+    function getVammObservations(uint128 _marketId, uint32 _maturityTimestamp)
+        external view override returns (Oracle.Observation[65535] memory) {
+        
+        DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(_marketId, _maturityTimestamp);
+        return vamm.vars.observations;
     }
 }
