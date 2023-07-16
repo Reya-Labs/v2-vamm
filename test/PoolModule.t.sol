@@ -161,7 +161,7 @@ contract PoolModuleTest is VoltzTest {
 
         vm.prank(address(0));
         vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
-        (int256 executedBaseAmount, int256 executedQuoteAmount) = pool.executeDatedTakerOrder(1, initMaturityTimestamp, -100000, TickMath.getSqrtRatioAtTick(MAX_TICK - 1));
+        (int256 executedBaseAmount,) = pool.executeDatedTakerOrder(1, initMaturityTimestamp, -100000, TickMath.getSqrtRatioAtTick(MAX_TICK - 1));
         assertEq(executedBaseAmount, -100000);
     }
 
@@ -192,7 +192,7 @@ contract PoolModuleTest is VoltzTest {
 
         vm.prank(address(0));
         vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
-        (int256 executedBaseAmount, int256 executedQuoteAmount) = pool.executeDatedTakerOrder(initMarketId, initMaturityTimestamp, 100000, TickMath.getSqrtRatioAtTick(MIN_TICK + 1));
+        (int256 executedBaseAmount, ) = pool.executeDatedTakerOrder(initMarketId, initMaturityTimestamp, 100000, TickMath.getSqrtRatioAtTick(MIN_TICK + 1));
         assertEq(executedBaseAmount, 100000);
     }
 

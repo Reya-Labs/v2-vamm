@@ -138,7 +138,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
         // Mock the liquidity index that is read during a swap
         vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
-        (int256 quoteTokenDelta, int256 baseTokenDelta) = vamm.vammSwap(params);
+        (, int256 baseTokenDelta) = vamm.vammSwap(params);
         // console2.log("SWAP 1 FT D", quoteTokenDelta);
         // console2.log("SWAP 1 BT D", baseTokenDelta);
 
@@ -155,7 +155,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
         // Mock the liquidity index that is read during a swap
         vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
-        (int256 quoteTokenDelta, int256 baseTokenDelta) = vamm.vammSwap(params);
+        (, int256 baseTokenDelta) = vamm.vammSwap(params);
 
         assertAlmostEqual(baseTokenDelta, -amountSpecified);
     }
@@ -468,7 +468,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
     }
 
     function test_MintAndSwap_Right_TrackerValue() public {
-        (int256 baseAmount, int24 tickLower, int24 tickUpper, uint128 accountId) = test_FirstMint();
+        test_FirstMint();
 
         int256 amountSwap =  -1000000;
 
@@ -497,7 +497,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
     function test_ComputeGrowthInsideAfterSwap_NotInitializedTicksBetween() public {
         test_MintAndSwap_Right_TrackerValue();
 
-        int24 currentTick = vamm.tick(); // -32192
+        // int24 currentTick = vamm.tick(); // -32192
 
         int24 tickLower = -33000;
         int24 tickUpper = -29940;
@@ -529,7 +529,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
     function test_updatePositionTokenBalances_NewAndTicksOuside() public {
         test_MintAndSwap_Right_TrackerValue();
 
-        int24 currentTick = vamm.tick(); // -32192
+        // int24 currentTick = vamm.tick(); // -32192
 
         int24 tickLower = -330;
         int24 tickUpper = -299;
@@ -546,7 +546,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
     function test_updatePositionTokenBalances_NewAndTicksInside() public {
         test_MintAndSwap_Right_TrackerValue();
 
-        int24 currentTick = vamm.tick(); // -32192
+        // int24 currentTick = vamm.tick(); // -32192
 
         int24 tickLower = -33300;
         int24 tickUpper = -29999;
@@ -589,7 +589,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
     function test_updatePositionTokenBalances_OldAndTicksInside() public {
         test_Swap_MovingRight();
 
-        int24 currentTick = vamm.tick(); // -32137
+        // int24 currentTick = vamm.tick(); // -32137
         //console2.log("CURRENT TICK", currentTick);
 
         LPPosition.Data memory position = vamm.updatePositionTokenBalances(ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, true);
@@ -622,7 +622,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         assertEq(vamm.ticks(ACCOUNT_2_TICK_LOWER).initialized, true);
         assertEq(vamm.ticks(ACCOUNT_2_TICK_UPPER).initialized, true);
 
-        int24 currentTick = vamm.tick(); // -32137
+        // int24 currentTick = vamm.tick(); // -32137
         uint128 vammLiquidityBefore = vamm.liquidity();
         //console2.log("CURRENT TICK", currentTick);
 
@@ -673,7 +673,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         assertEq(vamm.ticks(ACCOUNT_2_TICK_LOWER).initialized, true);
         assertEq(vamm.ticks(ACCOUNT_2_TICK_UPPER).initialized, true);
 
-        int24 currentTick = vamm.tick(); // -27727
+        // int24 currentTick = vamm.tick(); // -27727
         uint128 vammLiquidityBefore = vamm.liquidity(); // -> 0 all consumed
         // console2.log("CURRENT TICK", currentTick);
         // console2.log("VAMM LIQ BEFORE", vammLiquidityBefore);
@@ -727,7 +727,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         assertEq(vamm.ticks(ACCOUNT_2_TICK_LOWER).initialized, true);
         assertEq(vamm.ticks(ACCOUNT_2_TICK_UPPER).initialized, true);
 
-        int24 currentTick = vamm.tick(); // -32137
+        // int24 currentTick = vamm.tick(); // -32137
         uint128 vammLiquidityBefore = vamm.liquidity();
 
         int128 requestedLiquidityAmount = getLiquidityForBase(ACCOUNT_1_TICK_LOWER, ACCOUNT_1_TICK_UPPER, -1000000);
@@ -778,7 +778,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         assertEq(vamm.ticks(ACCOUNT_1_TICK_LOWER).initialized, true);
         assertEq(vamm.ticks(ACCOUNT_1_TICK_UPPER).initialized, true);
 
-        int24 currentTick = vamm.tick(); // -32137
+        // int24 currentTick = vamm.tick(); // -32137
         uint128 vammLiquidityBefore = vamm.liquidity();
 
         int128 requestedLiquidityAmount = -getLiquidityForBase(ACCOUNT_1_TICK_LOWER, ACCOUNT_1_TICK_UPPER, BASE_AMOUNT_PER_LP);
@@ -828,8 +828,8 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         assertEq(vamm.ticks(ACCOUNT_1_TICK_LOWER).initialized, true);
         assertEq(vamm.ticks(ACCOUNT_1_TICK_UPPER).initialized, true);
 
-        int24 currentTick = vamm.tick(); // -32137
-        uint128 vammLiquidityBefore = vamm.liquidity();
+        // int24 currentTick = vamm.tick(); // -32137
+        // uint128 vammLiquidityBefore = vamm.liquidity();
 
         int128 requestedLiquidityAmount1 = -getLiquidityForBase(ACCOUNT_1_TICK_LOWER, ACCOUNT_1_TICK_UPPER, BASE_AMOUNT_PER_LP);
         int128 requestedLiquidityAmount2 = -getLiquidityForBase(ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, BASE_AMOUNT_PER_LP);
@@ -885,10 +885,11 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
     function test_UnwindLPFull_TrackPosition() public {
         test_Swap_MovingRight();
 
-        int24 currentTick = vamm.tick(); // -32137
-        uint128 vammLiquidityBefore = vamm.liquidity();
+        // int24 currentTick = vamm.tick(); // -32137
+        // uint128 vammLiquidityBefore = vamm.liquidity();
 
-        (int256 baseBalancePool0, int256 quoteBalancePool0) = vamm.getAccountFilledBalances(ACCOUNT_2);
+        // (int256 baseBalancePool0, int256 quoteBalancePool0) = 
+        vamm.getAccountFilledBalances(ACCOUNT_2);
         // console2.log("baseBalancePool", baseBalancePool0);
         // console2.log("quoteBalancePool", quoteBalancePool0);
 
@@ -900,7 +901,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         vamm.executeDatedMakerOrder(ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount);
 
         // CLOSE FILLED BALANCES
-        (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(ACCOUNT_2);
+        (int256 baseBalancePool,) = vamm.getAccountFilledBalances(ACCOUNT_2);
         // console2.log("baseBalancePool", baseBalancePool);
         // console2.log("quoteBalancePool", quoteBalancePool);
 
@@ -909,7 +910,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
             sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(MAX_TICK - 1)
         });
         vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex));
-        (int256 quoteTokenDelta, int256 baseTokenDelta) = vamm.vammSwap(params);
+        (, int256 baseTokenDelta) = vamm.vammSwap(params);
         // console2.log("quoteTokenDelta", quoteTokenDelta);
         // console2.log("baseTokenDelta", baseTokenDelta);
         assertEq(baseTokenDelta, -baseBalancePool);
@@ -926,18 +927,18 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
     function test_UnwindLPPartial_TrackPosition() public {
         test_Swap_MovingRight();
 
-        int24 currentTick = vamm.tick(); // -32137
-        uint128 vammLiquidityBefore = vamm.liquidity();
+        // int24 currentTick = vamm.tick(); // -32137
+        // uint128 vammLiquidityBefore = vamm.liquidity();
 
         // CLOSE FILLED BALANCES
-        (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(ACCOUNT_2);
+        (int256 baseBalancePool,) = vamm.getAccountFilledBalances(ACCOUNT_2);
 
         DatedIrsVamm.SwapParams memory params = DatedIrsVamm.SwapParams({
             amountSpecified: baseBalancePool, 
             sqrtPriceLimitX96: TickMath.getSqrtRatioAtTick(MAX_TICK - 1)
         });
         vm.mockCall(mockRateOracle, abi.encodeWithSelector(IRateOracle.getCurrentIndex.selector), abi.encode(mockLiquidityIndex.add(UNIT)));
-        (int256 quoteTokenDelta, int256 baseTokenDelta) = vamm.vammSwap(params);
+        (, int256 baseTokenDelta) = vamm.vammSwap(params);
         assertEq(baseTokenDelta, -baseBalancePool);
     }
 
@@ -948,7 +949,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
         vm.warp(initMaturityTimestamp + 1);
 
-        (int256 baseBalancePoolAfter, int256 quoteBalancePoolAfter) = vamm.getAccountFilledBalances(ACCOUNT_2);
+        (int256 baseBalancePoolAfter,) = vamm.getAccountFilledBalances(ACCOUNT_2);
         assertEq(baseBalancePoolBefore, baseBalancePoolAfter);
         assertEq(quoteBalancePoolBefore, quoteBalancePoolBefore);
     }
@@ -962,7 +963,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         int128 requestedLiquidityAmount = getLiquidityForBase(ACCOUNT_1_TICK_LOWER, ACCOUNT_1_TICK_UPPER, 3);
         vamm.executeDatedMakerOrder(3,ACCOUNT_1_TICK_LOWER,ACCOUNT_1_TICK_UPPER, requestedLiquidityAmount);
 
-        (int256 account3BaseBalancePoolBefore, int256 account3QuoteBalancePoolBefore) = vamm.getAccountFilledBalances(3);
+        (int256 account3BaseBalancePoolBefore,) = vamm.getAccountFilledBalances(3);
 
         vm.warp(initMaturityTimestamp + 1);
 
@@ -970,7 +971,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         assertEq(account1BaseBalancePoolBefore, account1BaseBalancePoolAfter);
         assertEq(account1QuoteBalancePoolBefore, account1QuoteBalancePoolAfter);
 
-        (int256 account3BaseBalancePoolAfter, int256 account3QuoteBalancePoolAfter) = vamm.getAccountFilledBalances(3);
+        (, int256 account3QuoteBalancePoolAfter) = vamm.getAccountFilledBalances(3);
         assertEq(account3BaseBalancePoolBefore, 0);
         assertEq(account3QuoteBalancePoolAfter, 0);
     }

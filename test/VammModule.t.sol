@@ -254,7 +254,7 @@ contract VammModuleTest is VoltzTest {
         vammConfig.writeObs(initMarketId, initMaturityTimestamp);
 
         vm.warp(block.timestamp + 60);
-        UD60x18 twap = vammConfig.getDatedIRSTwap(initMarketId, initMaturityTimestamp, 100, 30, true, true);
+        UD60x18 twap = vammConfig.getDatedIRSTwap(initMarketId, initMaturityTimestamp, 1e17, 30, true, true);
         assertAlmostEqual(twap, ud60x18(294511e12));
     }
 
@@ -264,6 +264,6 @@ contract VammModuleTest is VoltzTest {
 
         vm.warp(block.timestamp + 60);
         vm.expectRevert();
-        UD60x18 twap = vammConfig.getDatedIRSTwap(initMarketId, initMaturityTimestamp, 0, 30, true, true);
+        vammConfig.getDatedIRSTwap(initMarketId, initMaturityTimestamp, 0, 30, true, true);
     }
 }
