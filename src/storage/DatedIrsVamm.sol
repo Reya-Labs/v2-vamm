@@ -265,9 +265,10 @@ library DatedIrsVamm {
             if (orderSize == 0) {
                 revert TwapNotAdjustable();
             }
-            // note the order size is already scaled by token decimals
+            // IMPORTANT: note below before setting non-zero values for phi and beta
+            // note: the order size is already scaled by token decimals
             // convert() further scales it by WAD, resulting in a bigger price
-            // impact than expected. 
+            // impact than expected when phi and beta are non-zero
             // proposed solution: descale by token decimals prior to this operation
             priceImpactAsFraction = self.mutableConfig.priceImpactPhi.mul(
                 convert(uint256(orderSize > 0 ? orderSize : -orderSize)).pow(self.mutableConfig.priceImpactBeta)
