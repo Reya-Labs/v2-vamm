@@ -232,12 +232,12 @@ contract VammModuleTest is VoltzTest {
     }
 
     function test_GetAdjustedDatedIRSTwap() public {
-        // = (arithmeticMeanTick  +/- spread)*(1 + phi*(|order|^beta))
+        // = (arithmeticMeanTick)*(1 + phi*(|order|^beta)) +/- spread
         vammConfig.writeObs(initMarketId, initMaturityTimestamp);
 
         vm.warp(block.timestamp + 60);
         UD60x18 twap = vammConfig.getAdjustedDatedIRSTwap(initMarketId, initMaturityTimestamp, 100, 30);
-        assertAlmostEqual(twap, ud60x18(294511e12));
+        assertAlmostEqual(twap, ud60x18(297476e12));
     }
 
     function test_GetAdjustedDatedIRSTwap_ZeroOrderSize() public {
@@ -254,8 +254,8 @@ contract VammModuleTest is VoltzTest {
         vammConfig.writeObs(initMarketId, initMaturityTimestamp);
 
         vm.warp(block.timestamp + 60);
-        UD60x18 twap = vammConfig.getDatedIRSTwap(initMarketId, initMaturityTimestamp, 1e17, 30, true, true);
-        assertAlmostEqual(twap, ud60x18(294511e12));
+        UD60x18 twap = vammConfig.getDatedIRSTwap(initMarketId, initMaturityTimestamp, 100, 30, true, true);
+        assertAlmostEqual(twap, ud60x18(297476e12));
     }
 
     function test_RevertWhen_GetDatedIRSTwap_BadAdjustment() public {

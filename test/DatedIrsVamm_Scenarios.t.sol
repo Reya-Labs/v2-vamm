@@ -65,12 +65,12 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         {
             // LP 1
             int128 requestedLiquidityAmount = getLiquidityForBase(ACCOUNT_1_TICK_LOWER, ACCOUNT_1_TICK_UPPER, BASE_AMOUNT_PER_LP);
-            vamm.executeDatedMakerOrder(ACCOUNT_1,ACCOUNT_1_TICK_LOWER,ACCOUNT_1_TICK_UPPER, requestedLiquidityAmount);
+            vamm.executeDatedMakerOrder(ACCOUNT_1, initMarketId, ACCOUNT_1_TICK_LOWER,ACCOUNT_1_TICK_UPPER, requestedLiquidityAmount);
         }
         {
             // LP 2
             int128 requestedLiquidityAmount = getLiquidityForBase(ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, BASE_AMOUNT_PER_LP);
-            vamm.executeDatedMakerOrder(ACCOUNT_2,ACCOUNT_2_TICK_LOWER,ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount);
+            vamm.executeDatedMakerOrder(ACCOUNT_2, initMarketId, ACCOUNT_2_TICK_LOWER,ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount);
         }
 
         // We know that the current price is within the range of both LPs, so to calculate base tokens available to trade to the left we add:
@@ -100,16 +100,16 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
     function test_PositionsPerAccountLimit() public {
         // 2nd position
-        vamm.executeDatedMakerOrder(ACCOUNT_1,ACCOUNT_1_TICK_LOWER - 1,ACCOUNT_1_TICK_UPPER + 1, 1000);
+        vamm.executeDatedMakerOrder(ACCOUNT_1, initMarketId, ACCOUNT_1_TICK_LOWER - 1,ACCOUNT_1_TICK_UPPER + 1, 1000);
         // 3rd position
-        vamm.executeDatedMakerOrder(ACCOUNT_1,ACCOUNT_1_TICK_LOWER + 1,ACCOUNT_1_TICK_UPPER + 1, 1000);
+        vamm.executeDatedMakerOrder(ACCOUNT_1, initMarketId, ACCOUNT_1_TICK_LOWER + 1,ACCOUNT_1_TICK_UPPER + 1, 1000);
         // 4th position
         vm.expectRevert(abi.encodeWithSelector(DatedIrsVamm.TooManyLpPositions.selector, ACCOUNT_1));
-        vamm.executeDatedMakerOrder(ACCOUNT_1,ACCOUNT_1_TICK_LOWER + 2,ACCOUNT_1_TICK_UPPER + 1, 1000);
+        vamm.executeDatedMakerOrder(ACCOUNT_1, initMarketId, ACCOUNT_1_TICK_LOWER + 2,ACCOUNT_1_TICK_UPPER + 1, 1000);
 
         // 4th position
         vm.expectRevert(abi.encodeWithSelector(DatedIrsVamm.TooManyLpPositions.selector, ACCOUNT_1));
-        vamm.executeDatedMakerOrder(ACCOUNT_1,ACCOUNT_1_TICK_LOWER - 2,ACCOUNT_1_TICK_UPPER - 1, 1000);
+        vamm.executeDatedMakerOrder(ACCOUNT_1, initMarketId, ACCOUNT_1_TICK_LOWER - 2,ACCOUNT_1_TICK_UPPER - 1, 1000);
     }
 
     function test_GetAccountUnfilledBalances() public {
@@ -226,7 +226,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         /// MINT 
 
         int128 requestedLiquidityAmount = getLiquidityForBase(MIN_TICK - 1000 + 1, MIN_TICK, BASE_AMOUNT_PER_LP);
-        vamm.executeDatedMakerOrder(ACCOUNT_1,MIN_TICK - 1000 + 1,MIN_TICK, requestedLiquidityAmount);
+        vamm.executeDatedMakerOrder(ACCOUNT_1, initMarketId, MIN_TICK - 1000 + 1,MIN_TICK, requestedLiquidityAmount);
 
         /// EXECUTE ANOTHER SWAP
 
@@ -277,7 +277,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         /// MINT 
 
         int128 requestedLiquidityAmount = getLiquidityForBase(MAX_TICK, MAX_TICK + 1000 + 1, BASE_AMOUNT_PER_LP);
-        vamm.executeDatedMakerOrder(ACCOUNT_1,MAX_TICK, MAX_TICK + 1000 - 1, requestedLiquidityAmount);
+        vamm.executeDatedMakerOrder(ACCOUNT_1, initMarketId, MAX_TICK, MAX_TICK + 1000 - 1, requestedLiquidityAmount);
 
         /// EXECUTE ANOTHER SWAP
 
@@ -329,12 +329,12 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         /// MINTS
 
         vm.expectRevert(bytes("TLMR"));
-        vamm.executeDatedMakerOrder(ACCOUNT_1,MIN_TICK, NEW_MIN_TICK + 1, 10000);
+        vamm.executeDatedMakerOrder(ACCOUNT_1, initMarketId, MIN_TICK, NEW_MIN_TICK + 1, 10000);
         vm.expectRevert(bytes("TUMR"));
-        vamm.executeDatedMakerOrder(ACCOUNT_1,NEW_MIN_TICK + 1, MAX_TICK, 10000);
+        vamm.executeDatedMakerOrder(ACCOUNT_1, initMarketId, NEW_MIN_TICK + 1, MAX_TICK, 10000);
 
         int128 requestedLiquidityAmount = getLiquidityForBase(-6450, 0, BASE_AMOUNT_PER_LP);
-        vamm.executeDatedMakerOrder(ACCOUNT_1,-6450, 0, requestedLiquidityAmount);
+        vamm.executeDatedMakerOrder(ACCOUNT_1, initMarketId, -6450, 0, requestedLiquidityAmount);
 
         /// SWAPS
 
@@ -382,10 +382,10 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         /// MINT 
 
         vm.expectRevert(bytes("TLMR"));
-        vamm.executeDatedMakerOrder(ACCOUNT_1,MIN_TICK, NEW_MIN_TICK + 1, 10000);
+        vamm.executeDatedMakerOrder(ACCOUNT_1, initMarketId, MIN_TICK, NEW_MIN_TICK + 1, 10000);
 
         int128 requestedLiquidityAmount = getLiquidityForBase(-6450, 0, BASE_AMOUNT_PER_LP);
-        vamm.executeDatedMakerOrder(ACCOUNT_1,-6450, 0, requestedLiquidityAmount);
+        vamm.executeDatedMakerOrder(ACCOUNT_1, initMarketId, -6450, 0, requestedLiquidityAmount);
 
         /// EXECUTE ANOTHER SWAP
 
@@ -411,16 +411,18 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
         // MINT BETWEEN OLD MIN & MAX TICKS
         int128 requestedLiquidityAmount = getLiquidityForBase(MIN_TICK, MAX_TICK, 100e18);
-        vamm.executeDatedMakerOrder(ACCOUNT_1, MIN_TICK, MAX_TICK, requestedLiquidityAmount);
+        vamm.executeDatedMakerOrder(ACCOUNT_1, initMarketId, MIN_TICK, MAX_TICK, requestedLiquidityAmount);
 
         test_ReduceTickLimits();
 
-        uint128 posId = LPPosition.getPositionId(ACCOUNT_1, MIN_TICK, MAX_TICK);
+        uint128 posId = LPPosition.getPositionId(
+            ACCOUNT_1, initMarketId, initMaturityTimestamp, MIN_TICK, MAX_TICK
+        );
         LPPosition.Data memory pos = vamm.position(posId);
         assertEq(pos.liquidity, uint128(requestedLiquidityAmount));
 
         // BURN IN OUR OF RANGE TICKS
-        vamm.executeDatedMakerOrder(ACCOUNT_1, MIN_TICK, MAX_TICK, -requestedLiquidityAmount);
+        vamm.executeDatedMakerOrder(ACCOUNT_1, initMarketId, MIN_TICK, MAX_TICK, -requestedLiquidityAmount);
 
         pos = vamm.position(posId);
         assertEq(pos.liquidity, 0);
@@ -436,9 +438,11 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
 
         int128 requestedLiquidityAmount = getLiquidityForBase(tickLower, tickUpper, baseAmount);
         // console2.log("REQUESSTED LIQ", requestedLiquidityAmount);
-        vamm.executeDatedMakerOrder(accountId, tickLower, tickUpper, requestedLiquidityAmount);
+        vamm.executeDatedMakerOrder(accountId, initMarketId, tickLower, tickUpper, requestedLiquidityAmount);
 
-        uint128 posId = LPPosition.getPositionId(accountId, tickLower, tickUpper);
+        uint128 posId = LPPosition.getPositionId(
+            accountId, initMarketId, initMaturityTimestamp, tickLower, tickUpper
+        );
         LPPosition.Data memory position = vamm.position(posId);
         assertEq(position.liquidity.toInt(), requestedLiquidityAmount);
         assertEq(position.trackerQuoteTokenAccumulated, 0);
@@ -456,9 +460,11 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         (int256 baseAmount, int24 tickLower, int24 tickUpper, uint128 accountId) = test_FirstMint();
 
         int128 requestedLiquidityAmount = getLiquidityForBase(tickLower, tickUpper, baseAmount);
-        vamm.executeDatedMakerOrder(accountId, tickLower, tickUpper, requestedLiquidityAmount);
+        vamm.executeDatedMakerOrder(accountId, initMarketId, tickLower, tickUpper, requestedLiquidityAmount);
 
-        uint128 posId = LPPosition.getPositionId(accountId, tickLower, tickUpper);
+        uint128 posId = LPPosition.getPositionId(
+            accountId, initMarketId, initMaturityTimestamp, tickLower, tickUpper
+        );
         LPPosition.Data memory position = vamm.position(posId);
         assertEq(position.liquidity.toInt(), requestedLiquidityAmount * 2);
         assertEq(position.trackerQuoteTokenAccumulated, 0);
@@ -535,7 +541,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         int24 tickUpper = -299;
         uint128 accountId = 738;
 
-        LPPosition.Data memory position = vamm.updatePositionTokenBalances(accountId, tickLower, tickUpper, true);
+        LPPosition.Data memory position = vamm.updatePositionTokenBalances(accountId, initMarketId, initMaturityTimestamp, tickLower, tickUpper, true);
 
         assertEq(position.trackerQuoteTokenUpdatedGrowth, 0);
         assertEq(position.trackerBaseTokenUpdatedGrowth, 0);
@@ -552,7 +558,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         int24 tickUpper = -29999;
         uint128 accountId = 738;
 
-        LPPosition.Data memory position = vamm.updatePositionTokenBalances(accountId, tickLower, tickUpper, true);
+        LPPosition.Data memory position = vamm.updatePositionTokenBalances(accountId, initMarketId, initMaturityTimestamp, tickLower, tickUpper, true);
 
         // console2.log("TICK L G O", vamm.ticks(tickLower).trackerQuoteTokenGrowthOutsideX128);
         // console2.log("TICK U G O", vamm.ticks(tickUpper).trackerQuoteTokenGrowthOutsideX128);
@@ -573,7 +579,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         int24 tickUpper = -2940;
         uint128 accountId = 738; // not the 1st mint of this position
 
-        LPPosition.Data memory position = vamm.updatePositionTokenBalances(accountId, tickLower, tickUpper, true);
+        LPPosition.Data memory position = vamm.updatePositionTokenBalances(accountId, initMarketId, initMaturityTimestamp, tickLower, tickUpper, true);
 
         // console2.log("TICK L G O", vamm.ticks(tickLower).trackerQuoteTokenGrowthOutsideX128);
         // console2.log("TICK U G O", vamm.ticks(tickUpper).trackerQuoteTokenGrowthOutsideX128);
@@ -592,7 +598,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         // int24 currentTick = vamm.tick(); // -32137
         //console2.log("CURRENT TICK", currentTick);
 
-        LPPosition.Data memory position = vamm.updatePositionTokenBalances(ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, true);
+        LPPosition.Data memory position = vamm.updatePositionTokenBalances(ACCOUNT_2, initMarketId, initMaturityTimestamp, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, true);
 
         // console2.log("TICK L G O", vamm.ticks(ACCOUNT_2_TICK_LOWER).trackerQuoteTokenGrowthOutsideX128); // 0
         // console2.log("TICK U G O", vamm.ticks(ACCOUNT_2_TICK_UPPER).trackerQuoteTokenGrowthOutsideX128); // 0
@@ -630,7 +636,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         // expect event 
         vm.expectEmit(true, true, false, true);
         emit VAMMBase.LiquidityChange(initMarketId, uint32(initMaturityTimestamp), address(this), ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount, block.timestamp);
-        vamm.executeDatedMakerOrder(ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount);
+        vamm.executeDatedMakerOrder(ACCOUNT_2, initMarketId, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount);
 
         // growth is 0 because ticks were never crossed
         // console2.log("TICK L G O", vamm.ticks(ACCOUNT_2_TICK_LOWER).trackerQuoteTokenGrowthOutsideX128); // 0
@@ -645,7 +651,9 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         // pos liq 500019035536
 
         // = growth inside = global - (below + above)
-        LPPosition.Data memory position = vamm.position(LPPosition.getPositionId(ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER));
+        LPPosition.Data memory position = vamm.position(
+            LPPosition.getPositionId(ACCOUNT_2, initMarketId, initMaturityTimestamp, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER)
+        );
         assertEq(position.trackerQuoteTokenUpdatedGrowth, -462642363410500458711610479230608927);
         assertEq(position.trackerBaseTokenUpdatedGrowth, 185601007694750624584923956706400286);
 
@@ -683,7 +691,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         // expect event 
         vm.expectEmit(true, true, false, true);
         emit VAMMBase.LiquidityChange(initMarketId, uint32(initMaturityTimestamp), address(this), newAccount, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount, block.timestamp);
-        vamm.executeDatedMakerOrder(newAccount, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount);
+        vamm.executeDatedMakerOrder(newAccount, initMarketId, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount);
         
         // console2.log("TICK L G O", vamm.ticks(ACCOUNT_2_TICK_LOWER).trackerQuoteTokenGrowthOutsideX128); // 0 -> not crossed
         // console2.log("TICK U G O", vamm.ticks(ACCOUNT_2_TICK_UPPER).trackerQuoteTokenGrowthOutsideX128); // 0 -> -714582490963231596174269836035950460541
@@ -697,7 +705,9 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         // pos liq 500019035536
 
         // = growth inside = global - (L G O + GLOBAL - U G O)
-        LPPosition.Data memory position = vamm.position(LPPosition.getPositionId(newAccount, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER));
+        LPPosition.Data memory position = vamm.position(
+            LPPosition.getPositionId(newAccount, initMarketId, initMaturityTimestamp, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER)
+        );
         console2.log(ACCOUNT_2_TICK_LOWER);
         console2.log(ACCOUNT_2_TICK_UPPER);
         assertEq(position.trackerQuoteTokenUpdatedGrowth, -40730015142572912965292112545422468201);
@@ -735,7 +745,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         // expect event 
         vm.expectEmit(true, true, false, true);
         emit VAMMBase.LiquidityChange(initMarketId, uint32(initMaturityTimestamp), address(this), ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount, block.timestamp);
-        vamm.executeDatedMakerOrder(ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount);
+        vamm.executeDatedMakerOrder(ACCOUNT_2, initMarketId, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount);
 
         // growth is 0 because ticks were never crossed
         // console2.log("TICK L G O", vamm.ticks(ACCOUNT_2_TICK_LOWER).trackerQuoteTokenGrowthOutsideX128); // 0
@@ -750,7 +760,9 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         // pos liq 500019035536
 
         // = growth inside = global - (below + above)
-        LPPosition.Data memory position = vamm.position(LPPosition.getPositionId(ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER));
+        LPPosition.Data memory position = vamm.position(
+            LPPosition.getPositionId(ACCOUNT_2, initMarketId, initMaturityTimestamp, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER)
+        );
         assertEq(position.trackerQuoteTokenUpdatedGrowth, -462642363410500458711610479230608927);
         assertEq(position.trackerBaseTokenUpdatedGrowth, 185601007694750624584923956706400286);
 
@@ -785,7 +797,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         // expect event 
         vm.expectEmit(true, true, false, true);
         emit VAMMBase.LiquidityChange(initMarketId, uint32(initMaturityTimestamp), address(this), ACCOUNT_1, ACCOUNT_1_TICK_LOWER, ACCOUNT_1_TICK_UPPER, requestedLiquidityAmount, block.timestamp);
-        vamm.executeDatedMakerOrder(ACCOUNT_1, ACCOUNT_1_TICK_LOWER, ACCOUNT_1_TICK_UPPER, requestedLiquidityAmount);
+        vamm.executeDatedMakerOrder(ACCOUNT_1, initMarketId, ACCOUNT_1_TICK_LOWER, ACCOUNT_1_TICK_UPPER, requestedLiquidityAmount);
 
         // growth is 0 because ticks were never crossed
         // console2.log("TICK L G O", vamm.ticks(ACCOUNT_2_TICK_LOWER).trackerQuoteTokenGrowthOutsideX128); // 0
@@ -800,7 +812,9 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         // pos liq 416684949931
 
         // = growth inside = global - (below + above)
-        LPPosition.Data memory position = vamm.position(LPPosition.getPositionId(ACCOUNT_1, ACCOUNT_1_TICK_LOWER, ACCOUNT_1_TICK_UPPER));
+        LPPosition.Data memory position = vamm.position(
+            LPPosition.getPositionId(ACCOUNT_1, initMarketId, initMaturityTimestamp, ACCOUNT_1_TICK_LOWER, ACCOUNT_1_TICK_UPPER)
+        );
         assertEq(position.trackerQuoteTokenUpdatedGrowth, -462642363410500458711610479230608927);
         assertEq(position.trackerBaseTokenUpdatedGrowth, 185601007694750624584923956706400286);
 
@@ -834,12 +848,12 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         int128 requestedLiquidityAmount1 = -getLiquidityForBase(ACCOUNT_1_TICK_LOWER, ACCOUNT_1_TICK_UPPER, BASE_AMOUNT_PER_LP);
         int128 requestedLiquidityAmount2 = -getLiquidityForBase(ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, BASE_AMOUNT_PER_LP);
         // expect event 
-        vamm.executeDatedMakerOrder(ACCOUNT_1, ACCOUNT_1_TICK_LOWER, ACCOUNT_1_TICK_UPPER, requestedLiquidityAmount1);
+        vamm.executeDatedMakerOrder(ACCOUNT_1, initMarketId, ACCOUNT_1_TICK_LOWER, ACCOUNT_1_TICK_UPPER, requestedLiquidityAmount1);
 
         vm.expectRevert(); // Arithmetic over/underflow
-        vamm.executeDatedMakerOrder(ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount2 - 1);
+        vamm.executeDatedMakerOrder(ACCOUNT_2, initMarketId, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount2 - 1);
 
-        vamm.executeDatedMakerOrder(ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount2);
+        vamm.executeDatedMakerOrder(ACCOUNT_2, initMarketId, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount2);
 
         assertEq(vamm.liquidity().toInt(), 0);
         // console2.log("Tick after", vamm.tick()); // -32137
@@ -898,7 +912,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         // expect event 
         vm.expectEmit(true, true, false, true);
         emit VAMMBase.LiquidityChange(initMarketId, uint32(initMaturityTimestamp), address(this), ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount, block.timestamp);
-        vamm.executeDatedMakerOrder(ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount);
+        vamm.executeDatedMakerOrder(ACCOUNT_2, initMarketId, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER, requestedLiquidityAmount);
 
         // CLOSE FILLED BALANCES
         (int256 baseBalancePool,) = vamm.getAccountFilledBalances(ACCOUNT_2);
@@ -916,7 +930,9 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         assertEq(baseTokenDelta, -baseBalancePool);
 
         // CHECK UNFILLED BALANCES = 0
-        LPPosition.Data memory position = vamm.position(LPPosition.getPositionId(ACCOUNT_2, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER));
+        LPPosition.Data memory position = vamm.position(LPPosition.getPositionId(
+            ACCOUNT_2, initMarketId, initMaturityTimestamp, ACCOUNT_2_TICK_LOWER, ACCOUNT_2_TICK_UPPER
+        ));
         assertEq(position.liquidity.toInt(), 0);
 
         (uint256 unfilledBaseLong, uint256 unfilledBaseShort,,) = vamm.getAccountUnfilledBalances(ACCOUNT_2);
@@ -961,7 +977,7 @@ contract DatedIrsVammTest is DatedIrsVammTestUtil {
         (int256 account1BaseBalancePoolBefore, int256 account1QuoteBalancePoolBefore) = vamm.getAccountFilledBalances(ACCOUNT_2);
 
         int128 requestedLiquidityAmount = getLiquidityForBase(ACCOUNT_1_TICK_LOWER, ACCOUNT_1_TICK_UPPER, 3);
-        vamm.executeDatedMakerOrder(3,ACCOUNT_1_TICK_LOWER,ACCOUNT_1_TICK_UPPER, requestedLiquidityAmount);
+        vamm.executeDatedMakerOrder(3, initMarketId, ACCOUNT_1_TICK_LOWER,ACCOUNT_1_TICK_UPPER, requestedLiquidityAmount);
 
         (int256 account3BaseBalancePoolBefore,) = vamm.getAccountFilledBalances(3);
 

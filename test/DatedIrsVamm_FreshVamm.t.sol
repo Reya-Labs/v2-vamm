@@ -122,15 +122,15 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
             // no lookback, adjust for spread, positive order size
             UD60x18 twapPrice = vamm.twap(0, 1, false, true);
             // Spread adds 0.3% to the price (as an absolute amount, not as a percentage of the price)
-            assertEq(twapPrice, vamm.getPriceFromTick(tick).add(mutableConfig.spread).div(convertUd(100))); 
+            assertEq(twapPrice, vamm.getPriceFromTick(tick).div(convertUd(100)).add(mutableConfig.spread)); 
         }
 
         {
             // no lookback, adjust for spread, negative order size
             UD60x18 twapPrice = vamm.twap(0, -1, false, true);
             // Spread subtracts 0.3% from the price (as an absolute amount, not as a percentage of the price)
-            assertEq(twapPrice, vamm.getPriceFromTick(tick).sub(mutableConfig.spread).div(convertUd(100)));
-            console2.log(unwrap(twapPrice));
+            assertEq(twapPrice, vamm.getPriceFromTick(tick).div(convertUd(100)).sub(mutableConfig.spread));
+            // console2.log(unwrap(twapPrice));
         }
     }
 
@@ -287,7 +287,7 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
         int128 baseAmount = 50_000_000_000;
         int128 liquidityDelta = getLiquidityForBase(tickLower, tickUpper, baseAmount);
 
-        vamm.executeDatedMakerOrder(accountId, tickLower, tickUpper, liquidityDelta);
+        vamm.executeDatedMakerOrder(accountId, initMarketId, tickLower, tickUpper, liquidityDelta);
 
         // Position just opened so no filled balances
         (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(accountId);
@@ -404,7 +404,7 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
     //         int24 tickUpper = TickMath.getTickAtSqrtRatio(sqrtUpperPriceX96);
     //         int128 baseAmount = 50_000_000_000;
     //         int128 liquidityDelta = getLiquidityForBase(tickLower, tickUpper, baseAmount);
-    //         vamm.executeDatedMakerOrder(accountId,tickLower,tickUpper, liquidityDelta);
+    //         vamm.executeDatedMakerOrder(accountId, initMarketId, tickLower,tickUpper, liquidityDelta);
 
     //         // Position just opened so no filled balances
     //         (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(accountId);
@@ -456,7 +456,7 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
         (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
         liquidityDelta = boundNewPositionLiquidityAmount(vamm, tickLower, tickUpper, liquidityDelta);
 
-        vamm.executeDatedMakerOrder(accountId,tickLower,tickUpper, liquidityDelta);
+        vamm.executeDatedMakerOrder(accountId, initMarketId, tickLower,tickUpper, liquidityDelta);
 
         // Position just opened so no filled balances
         (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(accountId);
@@ -498,7 +498,7 @@ contract VammTest_FreshVamm is DatedIrsVammTestUtil {
         (tickLower, tickUpper) = boundTicks(tickLower, tickUpper);
         liquidityDelta = boundNewPositionLiquidityAmount(vamm, tickLower, tickUpper, liquidityDelta);
 
-        vamm.executeDatedMakerOrder(accountId,tickLower,tickUpper, liquidityDelta);
+        vamm.executeDatedMakerOrder(accountId, initMarketId, tickLower,tickUpper, liquidityDelta);
 
         // Position just opened so no filled balances
         (int256 baseBalancePool, int256 quoteBalancePool) = vamm.getAccountFilledBalances(accountId);

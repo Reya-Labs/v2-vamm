@@ -43,7 +43,7 @@ contract ExtendedAccountBalanceModule is AccountBalanceModule, VoltzTest {
     function mockMakerOrder(uint128 marketId, uint32 maturityTimestamp) public returns (int128){
         int128 requestedLiquidityAmount = getLiquidityForBase(ACCOUNT_1_TICK_LOWER, ACCOUNT_1_TICK_UPPER, BASE_AMOUNT_PER_LP);
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
-        vamm.executeDatedMakerOrder(ACCOUNT_1,ACCOUNT_1_TICK_LOWER,ACCOUNT_1_TICK_UPPER, requestedLiquidityAmount);
+        vamm.executeDatedMakerOrder(ACCOUNT_1, marketId, ACCOUNT_1_TICK_LOWER,ACCOUNT_1_TICK_UPPER, requestedLiquidityAmount);
         return BASE_AMOUNT_PER_LP;
     }
 

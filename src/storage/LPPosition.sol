@@ -68,11 +68,13 @@ library LPPosition {
      */
     function create(
         uint128 accountId,
+        uint128 marketId,
+        uint32 maturityTimestamp,
         int24 tickLower,
         int24 tickUpper
     ) internal returns (Data storage position){
 
-        uint128 positionId = getPositionId(accountId, tickLower, tickUpper);
+        uint128 positionId = getPositionId(accountId, marketId, maturityTimestamp, tickLower, tickUpper);
 
         position = load(positionId);
 
@@ -112,13 +114,15 @@ library LPPosition {
     /// @dev Private but labelled internal for testability.
     function _ensurePositionOpened(
         uint128 accountId,
+        uint128 marketId,
+        uint32 maturityTimestamp,
         int24 tickLower,
         int24 tickUpper
     ) 
         internal
         returns (Data storage position, bool newlyCreated){
 
-        uint128 positionId = getPositionId(accountId, tickLower, tickUpper);
+        uint128 positionId = getPositionId(accountId, marketId, maturityTimestamp, tickLower, tickUpper);
 
         position = load(positionId);
 
@@ -126,7 +130,7 @@ library LPPosition {
             return (position, false);
         }
 
-        return (create(accountId, tickLower, tickUpper), true);
+        return (create(accountId, marketId, maturityTimestamp, tickLower, tickUpper), true);
     }
 
     function getUpdatedPositionBalances(
@@ -157,6 +161,8 @@ library LPPosition {
      */
     function getPositionId(
         uint128 accountId,
+        uint128 marketId,
+        uint32 maturityTimestamp,
         int24 tickLower,
         int24 tickUpper
     )
@@ -164,7 +170,9 @@ library LPPosition {
         pure
         returns (uint128){
 
-        return uint128(uint256(keccak256(abi.encodePacked(accountId, tickLower, tickUpper))));
+        return uint128(uint256(keccak256(
+            abi.encodePacked(accountId, marketId, maturityTimestamp, tickLower, tickUpper)
+        )));
     }
 
     /// @notice Returns Fixed and Variable Token Deltas

@@ -200,14 +200,14 @@ contract ExposedDatedIrsVamm {
     }
 
     function executeDatedMakerOrder(
-        
         uint128 accountId,
+        uint128 marketId,
         int24 tickLower,
         int24 tickUpper,
         int128 liquidityDelta
     ) public {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
-        vamm.executeDatedMakerOrder(accountId, tickLower, tickUpper, liquidityDelta);
+        vamm.executeDatedMakerOrder(accountId, marketId, tickLower, tickUpper, liquidityDelta);
     }
 
     function configure(VammConfiguration.Mutable memory _config) public {
@@ -238,14 +238,18 @@ contract ExposedDatedIrsVamm {
 
     function updatePositionTokenBalances(
         uint128 accountId,
+        uint128 marketId,
+        uint32 maturityTimestamp,
         int24 tickLower,
         int24 tickUpper,
         bool isMintBurn
     ) public returns (LPPosition.Data memory) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.load(vammId);
-        LPPosition.Data storage _position = LPPosition.load(LPPosition.getPositionId(accountId, tickLower, tickUpper));
+        LPPosition.Data storage _position = LPPosition.load(
+            LPPosition.getPositionId(accountId, marketId, maturityTimestamp, tickLower, tickUpper)
+        );
         if (_position.accountId == 0) {
-            _position = LPPosition.create(accountId, tickLower, tickUpper);
+            _position = LPPosition.create(accountId, marketId, maturityTimestamp, tickLower, tickUpper);
         }
         vamm.updatePositionTokenBalances(_position, tickLower, tickUpper, isMintBurn);
 
