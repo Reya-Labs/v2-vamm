@@ -108,7 +108,7 @@ interface IVammModule {
     external view returns (int256 trackerBaseTokenGrowthGlobalX128);
 
   function getVammMinAndMaxSqrtRatio(uint128 _marketId, uint32 _maturityTimestamp)
-        external view returns (uint256, uint256);
+        external view returns (uint160, uint160);
 
   function getVammObservationInfo(uint128 _marketId, uint32 _maturityTimestamp)
       external view returns (uint16, uint16, uint16);
@@ -116,6 +116,9 @@ interface IVammModule {
   function getVammObservations(uint128 _marketId, uint32 _maturityTimestamp)
       external view returns (Oracle.Observation[65535] memory);
 
-  function getVammPosition(uint128 _marketId, uint32 _maturityTimestamp, uint128 positionId)
-        external view returns (LPPosition.Data memory);
+  function getVammObservationAtIndex(uint16 index, uint128 _marketId, uint32 _maturityTimestamp)
+        external view returns (Oracle.Observation memory);
+
+  function getVammPosition(uint128 positionId)
+        external pure returns (LPPosition.Data memory);
 }

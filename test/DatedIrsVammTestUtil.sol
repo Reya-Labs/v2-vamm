@@ -315,6 +315,10 @@ contract ExposedDatedIrsVamm {
         return DatedIrsVamm.load(vammId).vars.observations[index];
     } 
 
+    function observations() external view returns (Oracle.Observation[65535] memory) {
+        return DatedIrsVamm.load(vammId).vars.observations;
+    } 
+
     function unlocked() external view returns (bool){
         return DatedIrsVamm.load(vammId).vars.unlocked;
     }
