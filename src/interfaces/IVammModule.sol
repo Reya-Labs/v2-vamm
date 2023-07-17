@@ -8,6 +8,7 @@ interface IVammModule {
   /// @dev Emitted when vamm configurations are updated
   event VammConfigUpdated(
       uint128 marketId,
+      uint32 maturityTimestamp,
       VammConfiguration.Mutable config,
       uint256 blockTimestamp
   );
