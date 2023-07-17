@@ -250,7 +250,7 @@ library DatedIrsVamm {
         int24 arithmeticMeanTick = observe(self, secondsAgo);
 
         // Not yet adjusted
-        geometricMeanPrice = self.getPriceFromTick(arithmeticMeanTick);
+        geometricMeanPrice = self.getPriceFromTick(arithmeticMeanTick).div(convert(100));
         UD60x18 spreadImpactDelta = ZERO;
         UD60x18 priceImpactAsFraction = ZERO;
 
@@ -290,7 +290,7 @@ library DatedIrsVamm {
             geometricMeanPrice = geometricMeanPrice.mul(ONE.sub(priceImpactAsFraction)).sub(spreadImpactDelta);
         }
 
-        return geometricMeanPrice.div(convert(100));
+        return geometricMeanPrice;
     }
 
     /// @notice Calculates time-weighted arithmetic mean tick
@@ -375,21 +375,26 @@ library DatedIrsVamm {
     function executeDatedMakerOrder(
         Data storage self,
         uint128 accountId,
+        uint128 marketId,
         int24 tickLower,
         int24 tickUpper,
         int128 liquidityDelta
     )
     internal
     { 
-        VAMMBase.checkCurrentTimestampMaturityTimestampDelta(self.immutableConfig.maturityTimestamp);
+        uint32 maturityTimestamp = self.immutableConfig.maturityTimestamp;
+        VAMMBase.checkCurrentTimestampMaturityTimestampDelta(maturityTimestamp);
         
-        (LPPosition.Data storage position, bool newlyCreated) = LPPosition._ensurePositionOpened(accountId, tickLower, tickUpper);
+        (LPPosition.Data storage position, bool newlyCreated) = 
+            LPPosition._ensurePositionOpened(accountId, marketId, maturityTimestamp, tickLower, tickUpper);
         if (newlyCreated) {
             uint256 positionsPerAccountLimit = PoolConfiguration.load().makerPositionsPerAccountLimit;
             if (self.vars.positionsInAccount[accountId].length >= positionsPerAccountLimit) {
                 revert TooManyLpPositions(accountId);
             }
-            self.vars.positionsInAccount[accountId].push(LPPosition.getPositionId(accountId, tickLower, tickUpper));
+            self.vars.positionsInAccount[accountId].push(
+                LPPosition.getPositionId(accountId, marketId, maturityTimestamp, tickLower, tickUpper)
+            );
         }
 
         // this also checks if the position has enough liquidity to burn

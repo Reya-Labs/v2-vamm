@@ -78,7 +78,7 @@ contract PoolModule is IPoolModule {
         
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
 
-        vamm.executeDatedMakerOrder(accountId, tickLower, tickUpper, liquidityDelta);
+        vamm.executeDatedMakerOrder(accountId, marketId, tickLower, tickUpper, liquidityDelta);
 
         (fee, im, highestUnrealizedLoss) = irsProduct.propagateMakerOrder(
             accountId,
@@ -117,6 +117,7 @@ contract PoolModule is IPoolModule {
             LPPosition.Data memory position = LPPosition.load(positions[i]);
             vamm.executeDatedMakerOrder(
                 accountId, 
+                marketId,
                 position.tickLower,
                 position.tickUpper,
                 -position.liquidity.toInt()

@@ -248,7 +248,9 @@ contract PoolModuleTest is VoltzTest {
         vm.prank(address(0));
         int256 closeUnfilledBasePool = pool.closeUnfilledBase(initMarketId, initMaturityTimestamp, 726);
         assertEq(closeUnfilledBasePool, requestedLiquidityAmount);
-        LPPosition.Data memory position = pool.position(LPPosition.getPositionId(accountId, tickLower, tickUpper));
+        LPPosition.Data memory position = pool.position(
+            LPPosition.getPositionId(accountId, initMarketId, initMaturityTimestamp, tickLower, tickUpper)
+        );
         assertEq(position.liquidity, 0);
     }
 
