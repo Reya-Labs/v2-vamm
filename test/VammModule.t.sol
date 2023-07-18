@@ -89,7 +89,7 @@ contract ExtendedVammModule is VammModule {
         return vamm.vars._tickBitmap[index];
     }
 
-    function writeObs(uint128 marketId, uint32 maturityTimestamp) external {
+    function writeObs(uint128 marketId, uint32 maturityTimestamp) external returns (uint16, uint16) {
         DatedIrsVamm.Data storage vamm = DatedIrsVamm.loadByMaturityAndMarket(marketId, maturityTimestamp);
         (vamm.vars.observationIndex, vamm.vars.observationCardinality) = vamm.vars.observations.write(
                 vamm.vars.observationIndex,
@@ -99,6 +99,7 @@ contract ExtendedVammModule is VammModule {
                 vamm.vars.observationCardinality,
                 vamm.vars.observationCardinalityNext
             );
+        return (vamm.vars.observationIndex, vamm.vars.observationCardinality);
     }
 }
 
@@ -147,6 +148,7 @@ contract VammModuleTest is VoltzTest {
         observedTicks[0] = initialTick;
 
         vammConfig.createVamm(initMarketId, initSqrtPriceX96, times, observedTicks, immutableConfig, mutableConfig);
+        vammConfig.increaseObservationCardinalityNext(initMarketId, initMaturityTimestamp, 3);
     }
 
     function test_CreateVamm() public {
@@ -265,5 +267,16 @@ contract VammModuleTest is VoltzTest {
         vm.warp(block.timestamp + 60);
         vm.expectRevert();
         vammConfig.getDatedIRSTwap(initMarketId, initMaturityTimestamp, 0, 30, true, true);
+    }
+
+    function test_RevertWhen_WriteTwapBeforeWindow() public {
+        (uint16 indexFirst, uint16 cardFirst) = vammConfig.writeObs(initMarketId, initMaturityTimestamp);
+        (uint16 indexSecond, uint16 cardSecond) = vammConfig.writeObs(initMarketId, initMaturityTimestamp);
+        assertEq(indexFirst, indexSecond, "indexFirst indexSecond");
+        assertEq(cardFirst, cardSecond, "card first card second");
+        vm.warp(block.timestamp + 3601);
+        (uint16 indexThird, uint16 cardThird) = vammConfig.writeObs(initMarketId, initMaturityTimestamp);
+        assertEq(indexThird, indexSecond + 1, "index third index second");
+        assertEq(cardThird, 3, "card is still 3 as set in setup");
     }
 }
