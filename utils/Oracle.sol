@@ -10,6 +10,7 @@ pragma solidity >=0.8.13;
 /// The most recent observation is available, independent of the length of the oracle array, by passing 0 to observe()
 library Oracle {
     uint256 internal constant MAX_BUFFER_LENGTH = 65535;
+    uint32 internal constant MIN_SECONDS_SINCE_LAST_UPDATE = 3600;
 
     struct Observation {
         // the block timestamp of the observation
@@ -101,8 +102,8 @@ library Oracle {
     ) internal returns (uint16 indexUpdated, uint16 cardinalityUpdated) {
         Observation memory last = self[index];
 
-        // early return if we've already written an observation this block
-        if (last.blockTimestamp == blockTimestamp) return (index, cardinality);
+        // early return if we've already written an observation recently
+        if (last.blockTimestamp + MIN_SECONDS_SINCE_LAST_UPDATE > blockTimestamp) return (index, cardinality);
 
         // if the conditions are right, we can bump the cardinality
         if (cardinalityNext > cardinality && index == (cardinality - 1)) {
