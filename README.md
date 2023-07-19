@@ -25,7 +25,7 @@ We have saved some gas cost snapshots, with the latest typically being saved at 
 
 To generate and updated gas snapshot, run `forge snapshot --no-match-test "SlowFuzz"`.
 
-To diff current gas costs with an earlier snapshot, pass the earlier snapshot as the `--diff` argument, e.g.: `forge snapshot --diff .gas_snapshot.preOptimisations --no-match-test "SlowFuzz"`
+To diff current gas costs with an earlier snapshot, pass the earlier snapshot as the `--diff` argument, e.g.: `forge snapshot --diff .gas_snapshot.preOptimisations --no-match-test "SlowFuzz"`.
 
 # Deployment
 
