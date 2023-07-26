@@ -6,7 +6,7 @@ import "./Tick.sol";
 import { UD60x18 } from "@prb/math/UD60x18.sol";
 
 import "../Oracle.sol";
-import "../interfaces/IRateOracle.sol";
+import "@voltz-protocol/products-dated-irs/src/interfaces/IRateOracle.sol";
 
 /**
  * @title Tracks configurations for dated irs markets
